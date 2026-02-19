@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect } from 'react';
@@ -7,17 +6,10 @@ import { Button } from './ui/button';
 import { X } from 'lucide-react';
 import { useMotivationStore } from '@/hooks/use-motivation-store';
 import { usePathname } from 'next/navigation';
-import { useHydratedJournalStore } from '@/hooks/use-journal';
-import { usePomodoroStore } from '@/hooks/use-pomodoro-store';
-
 
 export function MotivationalMessage() {
   const { message, isVisible, hideMessage, selectMessage } = useMotivationStore();
   const pathname = usePathname();
-
-  // This will rehydrate the stores on client mount
-  useHydratedJournalStore();
-  usePomodoroStore();
 
   // Trigger message selection on page navigation
   useEffect(() => {
