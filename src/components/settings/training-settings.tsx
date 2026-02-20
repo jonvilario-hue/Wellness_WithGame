@@ -40,7 +40,8 @@ export function TrainingSettings() {
                   <Label className="text-base font-semibold">Global Intensity</Label>
                   <p className="text-sm text-muted-foreground mb-4">Select your baseline intensity. This will be the default for all games.</p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {(Object.keys(TIER_CONFIG) as unknown as Tier[]).map(tierKey => {
+                    {(Object.keys(TIER_CONFIG) as unknown as Tier[]).map(tierKeyStr => {
+                        const tierKey = parseInt(tierKeyStr, 10) as Tier;
                         const tier = TIER_CONFIG[tierKey];
                         const isActive = globalTier === tierKey;
                         return (
@@ -77,7 +78,7 @@ export function TrainingSettings() {
                         </p>
                         <div className="space-y-3">
                         {chcDomains.map(domain => {
-                            const gameTier = gameStates[domain.id]?.neutral?.tier ?? globalTier;
+                            const gameTier = gameStates[domain.id]?.tier ?? globalTier;
                             return (
                                 <div key={domain.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
                                     <Label htmlFor={`select-${domain.id}`} className="font-medium">{domain.name}</Label>
@@ -89,11 +90,14 @@ export function TrainingSettings() {
                                             <SelectValue placeholder="Select intensity" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                             {(Object.keys(TIER_CONFIG) as unknown as Tier[]).map(tierKey => (
-                                                <SelectItem key={tierKey} value={tierKey.toString()}>
-                                                    {TIER_CONFIG[tierKey].name}
-                                                </SelectItem>
-                                             ))}
+                                             {(Object.keys(TIER_CONFIG) as unknown as Tier[]).map(tierKeyStr => {
+                                                const tierKey = parseInt(tierKeyStr, 10) as Tier;
+                                                return (
+                                                    <SelectItem key={tierKey} value={tierKey.toString()}>
+                                                        {TIER_CONFIG[tierKey].name}
+                                                    </SelectItem>
+                                                )
+                                             })}
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -108,3 +112,5 @@ export function TrainingSettings() {
         </Card>
     );
 }
+
+    

@@ -8,12 +8,11 @@ export const TIER_CONFIG: Record<Tier, { name: string, range: [number, number] }
     3: { name: "Elite", range: [12, 20] },
 };
 
-export const getDefaultState = (gameId: GameId, focus: TrainingFocus, tier: Tier): AdaptiveState => {
+export const getDefaultState = (gameId: GameId, tier: Tier): AdaptiveState => {
     const config = TIER_CONFIG[tier];
     return {
         gameId,
-        focus,
-        lastFocus: focus,
+        lastFocus: 'neutral',
         tier,
         levelFloor: config.range[0],
         levelCeiling: config.range[1],
@@ -23,7 +22,7 @@ export const getDefaultState = (gameId: GameId, focus: TrainingFocus, tier: Tier
         consecutiveWrong: 0,
         recentTrials: [],
         smoothedAccuracy: 0.75, // Start with a neutral assumption
-        smoothedRT: 0,
+        smoothedRT: null,
         sessionCount: 0,
         lastSessionAt: 0,
         levelHistory: [],
@@ -48,7 +47,6 @@ export const adjustDifficulty = (
         state.recentTrials.shift();
     }
     
-    // Update trackers for correct/wrong streaks
     if(trialResult.correct) {
         state.consecutiveCorrect++;
         state.consecutiveWrong = 0;
@@ -58,12 +56,11 @@ export const adjustDifficulty = (
     }
 
     // 2. Update Smoothed Accuracy (EWMA)
-    const alpha = 0.15; // default smoothing factor
+    const alpha = 0.15;
     state.smoothedAccuracy = alpha * (trialResult.correct ? 1 : 0) + (1 - alpha) * state.smoothedAccuracy;
 
-    // 3. Update Smoothed Reaction Time (EWMA for correct trials only)
     if (trialResult.correct) {
-        if (state.smoothedRT === 0) {
+        if (state.smoothedRT === null) {
             state.smoothedRT = trialResult.reactionTimeMs;
         } else {
             state.smoothedRT = alpha * trialResult.reactionTimeMs + (1 - alpha) * state.smoothedRT;
@@ -73,44 +70,55 @@ export const adjustDifficulty = (
     let levelChanged = false;
     const originalLevel = state.currentLevel;
 
+    // --- UNCERTAINTY-AWARE STEP SIZING (Rule 5) ---
+    const step = Math.max(1, Math.round(1 * (1 + state.uncertainty)));
+
     // 4. Safety Rule (Rapid Drop)
-    const rapidDropMultiplier = state.uncertainty > 0.5 ? 2 : 1;
     if (state.consecutiveWrong >= 3) {
-        state.currentLevel = Math.max(state.levelFloor, state.currentLevel - (2 * rapidDropMultiplier));
+        state.currentLevel = Math.max(state.levelFloor, state.currentLevel - step);
         state.consecutiveWrong = 0;
-        state.consecutiveCorrect = 0;
+        state.consecutiveCorrect = 0; // Reset both streaks
         levelChanged = true;
     } else {
         // 6. Target Band Logic
         const { targetAccuracyHigh, targetAccuracyLow } = policy;
         if (state.smoothedAccuracy > targetAccuracyHigh && state.consecutiveCorrect >= 2) {
-             state.currentLevel = Math.min(state.levelCeiling, state.currentLevel + 1);
-             state.consecutiveCorrect = 0; // Reset after level up
+             state.currentLevel = Math.min(state.levelCeiling, state.currentLevel + step);
+             state.consecutiveCorrect = 0;
              levelChanged = true;
         } else if (state.smoothedAccuracy < targetAccuracyLow && state.consecutiveWrong > 0) {
-             state.currentLevel = Math.max(state.levelFloor, state.currentLevel - 1);
-             state.consecutiveWrong = 0; // Reset after level down
+             state.currentLevel = Math.max(state.levelFloor, state.currentLevel - 1); // Use smaller step for single errors
+             state.consecutiveWrong = 0;
              levelChanged = true;
         }
     }
 
-    // 5. Stability Rule (Hysteresis) - check if level oscillated
+    // Clamp level to its tier boundaries
+    state.currentLevel = Math.max(state.levelFloor, Math.min(state.levelCeiling, state.currentLevel));
+
+    if(state.currentLevel !== originalLevel) {
+        levelChanged = true;
+    }
+
+    // 5. Stability Rule (Hysteresis)
     if (state.recentTrials.length > 2) {
-        const lastTwoTrials = state.recentTrials.slice(-2);
-        const lastLevelChange = lastTwoTrials[1].level - lastTwoTrials[0].level;
-        const currentLevelChange = state.currentLevel - originalLevel;
-        if (lastLevelChange > 0 && currentLevelChange < 0 || lastLevelChange < 0 && currentLevelChange > 0) {
-            state.currentLevel = originalLevel; // Revert the change to hold steady
-            levelChanged = false;
+        const lastTrial = state.recentTrials[state.recentTrials.length - 2];
+        if(lastTrial) {
+            const lastLevelChange = originalLevel - lastTrial.level;
+            const currentLevelChange = state.currentLevel - originalLevel;
+            if ((lastLevelChange > 0 && currentLevelChange < 0) || (lastLevelChange < 0 && currentLevelChange > 0)) {
+                state.currentLevel = originalLevel; // Revert the change
+                levelChanged = false;
+            }
         }
     }
     
-    // 7. Decay Uncertainty (only if level didn't change)
-    if (!levelChanged) {
-        state.uncertainty = Math.max(0.1, state.uncertainty * 0.99);
+    // 7. DECAY UNCERTAINTY
+    // If level changed, we are less certain. If it holds, we become more certain.
+    if (levelChanged) {
+         state.uncertainty = Math.min(1.0, state.uncertainty * 1.05);
     } else {
-         // Reset uncertainty slightly on level change to allow faster re-adaptation if needed
-         state.uncertainty = Math.min(1.0, state.uncertainty * 1.1);
+        state.uncertainty = Math.max(0.1, state.uncertainty * 0.98);
     }
 
     return state;
@@ -128,13 +136,10 @@ export const startSession = (state: AdaptiveState): AdaptiveState => {
         startLevel = Math.max(state.levelFloor, startLevel - 1); // Rust adjustment
     }
     
-    // Apply warm-up offset
-    const sessionStartLevel = Math.max(state.levelFloor, startLevel - 2);
-
     return {
         ...state,
         uncertainty,
-        currentLevel: sessionStartLevel, // Start at the warm-up level
+        currentLevel: startLevel, // Use adjusted start level
         recentTrials: [], // Clear recent trials for the new session
         sessionCount: state.sessionCount + 1,
     };
@@ -145,7 +150,7 @@ export const endSession = (state: AdaptiveState, sessionHistory: TrialResult[]):
     const correctTrials = sessionHistory.filter(t => t.correct);
     const avgRT = correctTrials.reduce((acc, trial) => acc + trial.reactionTimeMs, 0) / (correctTrials.length || 1);
 
-    const startLevel = state.levelHistory.length > 0 ? state.levelHistory[state.levelHistory.length-1].endLevel : state.levelFloor + 1;
+    const startLevel = state.levelHistory.length > 0 ? state.levelHistory[state.levelHistory.length-1].endLevel : state.levelFloor;
     
     const newLevelHistoryEntry = {
         sessionDate: Date.now(),
@@ -161,3 +166,5 @@ export const endSession = (state: AdaptiveState, sessionHistory: TrialResult[]):
         levelHistory: [...state.levelHistory, newLevelHistoryEntry].slice(-20), // Keep last 20 sessions
     };
 };
+
+    

@@ -62,12 +62,11 @@ const ChcDomainCardComponent = ({ domain }: ChcDomainCardProps) => {
   };
   
   const activeMode = focusInfo[globalFocus];
-  const modeToDisplay = activeMode.supported ? globalFocus : 'neutral';
-  const { Icon: ModeIcon, label: modeLabel, color: modeColor } = focusInfo[modeToDisplay];
   
   const isLoaded = isGlobalFocusLoaded && isClient && gameStates && gameStates[domain.id];
   
-  const gameState = isLoaded ? gameStates[domain.id]?.[modeToDisplay] : null;
+  // Use the single, unified game state
+  const gameState = isLoaded ? gameStates[domain.id] : null;
   const score = gameState ? Math.round((gameState.currentLevel / gameState.levelCeiling) * 100) : 0;
   
   const calculateTrend = () => {
@@ -97,14 +96,14 @@ const ChcDomainCardComponent = ({ domain }: ChcDomainCardProps) => {
           <CardTitle className="font-headline text-base">{domain.name}</CardTitle>
           <CardDescription className="text-xs">{domain.description}</CardDescription>
         </div>
-        {isLoaded && (activeMode.supported || modeToDisplay !== 'neutral') && (
+        {isLoaded && activeMode.supported && (
            <TooltipProvider>
              <Tooltip delayDuration={0}>
                <TooltipTrigger>
-                  <ModeIcon className={cn("w-5 h-5", modeColor)} />
+                  <activeMode.Icon className={cn("w-5 h-5", activeMode.color)} />
                </TooltipTrigger>
                <TooltipContent>
-                 <p>Mode: {modeLabel}</p>
+                 <p>Current Focus: {activeMode.label}</p>
                </TooltipContent>
              </Tooltip>
            </TooltipProvider>
@@ -125,12 +124,12 @@ const ChcDomainCardComponent = ({ domain }: ChcDomainCardProps) => {
                   <Tooltip delayDuration={0}>
                     <TooltipTrigger asChild>
                       <span className="text-sm font-medium text-muted-foreground flex items-center gap-1 cursor-help">
-                        Current Score <Info className="w-3 h-3"/>
+                        Skill Score <Info className="w-3 h-3"/>
                       </span>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>Adaptive skill rating (0-100)</p>
-                      <p className="font-bold">Level: {gameState?.currentLevel ?? 'N/A'}</p>
+                      <p>Unified adaptive skill rating (0-100)</p>
+                      <p className="font-bold">Cognitive Level: {gameState?.currentLevel ?? 'N/A'}</p>
                     </TooltipContent>
                   </Tooltip>
                 <span className="text-sm font-bold text-primary">{score}</span>
@@ -166,3 +165,5 @@ const ChcDomainCardComponent = ({ domain }: ChcDomainCardProps) => {
 };
 
 export const ChcDomainCard = memo(ChcDomainCardComponent);
+
+    

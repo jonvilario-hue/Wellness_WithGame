@@ -146,6 +146,19 @@ export function PatternMatrix() {
         }
     }, [isComponentLoaded, currentMode, getAdaptiveState]);
 
+    const startNewTrial = useCallback((state: AdaptiveState) => {
+        const onRamp = state.uncertainty > 0.7;
+        const loadedLevel = onRamp
+          ? Math.max(state.levelFloor, state.currentLevel - 2)
+          : state.currentLevel;
+          
+        setPuzzle(generatePuzzleForLevel(loadedLevel, currentMode));
+        setSelectedOption(null);
+        setFeedback('');
+        setGameState('playing');
+        trialStartTime.current = Date.now();
+    }, [currentMode]);
+
     const startNewSession = useCallback(() => {
         if (!adaptiveState) return;
         const sessionState = startSession(adaptiveState);
@@ -154,14 +167,6 @@ export function PatternMatrix() {
         currentTrialIndex.current = 0;
         startNewTrial(sessionState);
     }, [adaptiveState, startNewTrial]);
-
-    const startNewTrial = useCallback((state: AdaptiveState) => {
-        setPuzzle(generatePuzzleForLevel(state.currentLevel, currentMode));
-        setSelectedOption(null);
-        setFeedback('');
-        setGameState('playing');
-        trialStartTime.current = Date.now();
-    }, [currentMode]);
 
     const handleSelectOption = (option: PuzzleElement) => {
         if (gameState !== 'playing' || !puzzle || !adaptiveState) return;
@@ -277,3 +282,5 @@ export function PatternMatrix() {
     </Card>
   );
 }
+
+    

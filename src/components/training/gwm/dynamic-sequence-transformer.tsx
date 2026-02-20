@@ -70,8 +70,12 @@ export function DynamicSequenceTransformer() {
   }, [isComponentLoaded, currentMode, getAdaptiveState]);
 
   const startNewTrial = useCallback((state: AdaptiveState) => {
-    const level = state.currentLevel;
-    const levelParams = policy.levelMap[level] || policy.levelMap[Object.keys(policy.levelMap).pop() as any];
+    const onRamp = state.uncertainty > 0.7;
+    const loadedLevel = onRamp
+      ? Math.max(state.levelFloor, state.currentLevel - 2)
+      : state.currentLevel;
+
+    const levelParams = policy.levelMap[loadedLevel] || policy.levelMap[Object.keys(policy.levelMap).pop() as any];
     const newSequence = generateSequence(levelParams.sequenceLength, currentMode);
     const newTask = tasks[Math.floor(Math.random() * tasks.length)];
     
@@ -219,3 +223,5 @@ export function DynamicSequenceTransformer() {
     </Card>
   );
 }
+
+    

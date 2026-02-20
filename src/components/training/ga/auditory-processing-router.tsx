@@ -10,8 +10,12 @@ import { Headphones, Volume2, Loader2 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
+import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
+import { difficultyPolicies } from "@/data/difficulty-policies";
+
 
 const GAME_ID: GameId = 'ga_auditory_lab';
+const policy = difficultyPolicies[GAME_ID];
 
 // --- Core Audio Engine ---
 const useAudioEngine = () => {
@@ -170,57 +174,72 @@ const moduleComponents = [GapDetectionModule, FrequencyDiscriminationModule];
 const moduleRotation: [number, number][] = [[0, 1], [1, 0]];
 
 export function AuditoryProcessingRouter() {
+    const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
     const { setVolume, resumeContext } = useAudioEngine();
+    
+    const [adaptiveState, setAdaptiveState] = useState<AdaptiveState | null>(null);
     const [gameState, setGameState] = useState<'idle' | 'headphoneCheck' | 'calibration' | 'running' | 'rest' | 'finished'>('idle');
     const [volume, setLocalVolume] = useState(0.5);
-    const [sessionCount, setSessionCount] = useState(0);
     const [currentModuleIndex, setCurrentModuleIndex] = useState(0);
     const [results, setResults] = useState<any[]>([]);
-    const { updateAdaptiveState } = usePerformanceStore();
+    
     const currentMode: TrainingFocus = 'neutral';
 
-    const startSession = () => {
+    useEffect(() => {
+        const initialState = getAdaptiveState(GAME_ID, currentMode);
+        setAdaptiveState(initialState);
+    }, [getAdaptiveState]);
+
+    const startSessionFlow = () => {
+        if (!adaptiveState) return;
         resumeContext();
         setGameState('calibration');
     };
 
     const startTraining = () => {
+        if (!adaptiveState) return;
         setVolume(volume);
+        const sessionState = startSession(adaptiveState);
+        setAdaptiveState(sessionState);
         setResults([]);
         setCurrentModuleIndex(0);
         setGameState('running');
     };
 
     const handleModuleComplete = (result: { score: number }) => {
+        if (!adaptiveState) return;
+
         const newResults = [...results, result];
         setResults(newResults);
         
-        // This is a simplified integration. A real one would have a proper adaptive state.
-        updateAdaptiveState(GAME_ID, currentMode, {
-          gameId: GAME_ID,
-          focus: 'neutral',
-          tier: 1, levelFloor: 4, levelCeiling: 10,
-          currentLevel: 5 + Math.floor(result.score / 20),
-          uncertainty: 0.5, consecutiveCorrect: 0, consecutiveWrong: 0,
-          recentTrials: [], smoothedAccuracy: 0.8, smoothedRT: 500,
-          sessionCount: sessionCount + 1, lastSessionAt: Date.now(),
-          levelHistory: [],
+        // This is a simplified integration for the placeholder. A real trial-by-trial update would be better.
+        const mockTrials: TrialResult[] = Array.from({length: policy.sessionLength}).map((_, i) => ({
+            correct: i < (result.score / 100) * policy.sessionLength,
+            reactionTimeMs: 500
+        }));
+
+        let tempState = adaptiveState;
+        mockTrials.forEach(trial => {
+            tempState = adjustDifficulty(trial, tempState, policy);
         });
 
         if (currentModuleIndex < 1) {
+            setAdaptiveState(tempState); // Save intermediate state
             setCurrentModuleIndex(1);
             setGameState('rest');
             setTimeout(() => setGameState('running'), 3000);
         } else {
+            const finalState = endSession(tempState, mockTrials);
+            updateAdaptiveState(GAME_ID, currentMode, finalState);
             setGameState('finished');
-            setSessionCount(s => s + 1);
         }
     };
 
     const modulesForSession = useMemo(() => {
+        const sessionCount = adaptiveState?.sessionCount || 0;
         const [mod1, mod2] = moduleRotation[sessionCount % moduleRotation.length];
         return [moduleComponents[mod1], moduleComponents[mod2]];
-    }, [sessionCount]);
+    }, [adaptiveState]);
     
     const CurrentModule = modulesForSession[currentModuleIndex];
 
@@ -239,7 +258,7 @@ export function AuditoryProcessingRouter() {
                                     For accurate training, please use headphones. Results without headphones may be unreliable.
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
-                            <AlertDialogAction onClick={startSession}>I am using headphones</AlertDialogAction>
+                            <AlertDialogAction onClick={startSessionFlow}>I am using headphones</AlertDialogAction>
                         </AlertDialogContent>
                     </AlertDialog>
                 );
@@ -281,7 +300,7 @@ export function AuditoryProcessingRouter() {
         <Card className="w-full max-w-2xl">
             <CardHeader className="text-center">
                 <CardTitle>(Ga) Auditory Processing Lab</CardTitle>
-                <CardDescription>Sharpen your brain's ability to analyze and distinguish sounds.</CardDescription>
+                <CardDescription>A rotating lab of exercises to sharpen your brain's ability to analyze and distinguish sounds.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center justify-center gap-6 min-h-[350px]">
                 {renderGameState()}
@@ -289,3 +308,5 @@ export function AuditoryProcessingRouter() {
         </Card>
     );
 }
+
+    

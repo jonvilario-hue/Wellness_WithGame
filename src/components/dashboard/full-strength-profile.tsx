@@ -22,7 +22,7 @@ import { useTrainingFocus } from '@/hooks/use-training-focus';
 export function FullStrengthProfile() {
   const [isClient, setIsClient] = useState(false);
   const { gameStates } = usePerformanceStore();
-  const { focus: globalFocus, isLoaded: isFocusLoaded } = useTrainingFocus();
+  const { isLoaded: isFocusLoaded } = useTrainingFocus();
 
   useEffect(() => {
     setIsClient(true);
@@ -42,8 +42,7 @@ export function FullStrengthProfile() {
   }
 
   const chartData = chcDomains.map(domain => {
-    const focusToUse = domain.supportsMath && globalFocus === 'math' ? 'math' : domain.supportsMusic && globalFocus === 'music' ? 'music' : 'neutral';
-    const gameState = gameStates[domain.id]?.[focusToUse];
+    const gameState = gameStates[domain.id];
     const score = gameState ? Math.round((gameState.currentLevel / gameState.levelCeiling) * 100) : 0;
     const displayScore = score > 0 ? score : Math.round(Math.random() * 20 + 20); // Use real score or fallback for display
 
@@ -98,3 +97,5 @@ export function FullStrengthProfile() {
     </div>
   );
 }
+
+    

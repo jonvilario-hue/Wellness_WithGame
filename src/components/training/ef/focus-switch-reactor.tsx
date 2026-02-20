@@ -58,39 +58,38 @@ const isMajor = (noteSequence: string[]) => {
 }
 
 export function FocusSwitchReactor() {
-  // ADAPTIVE ENGINE STATE
   const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
-  const [adaptiveState, setAdaptiveState] = useState<AdaptiveState | null>(null);
-  const [sessionTrials, setSessionTrials] = useState<TrialResult[]>([]);
-  const trialStartTime = useRef(0);
-  const currentTrialIndex = useRef(0);
-  const ruleSwitchCounter = useRef(0);
-  const [hasSeenPrimalityHint, setHasSeenPrimalityHint] = useState(false);
-  const [hasSeenQualityHint, setHasSeenQualityHint] = useState(false);
+  const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
+  const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
 
-  // ORIGINAL COMPONENT STATE
+  const [adaptiveState, setAdaptiveState] = useState<AdaptiveState | null>(null);
   const [gameState, setGameState] = useState<'loading' | 'start' | 'running' | 'feedback' | 'finished'>('loading');
+  const [sessionTrials, setSessionTrials] = useState<TrialResult[]>([]);
+  
   const [score, setScore] = useState(0);
   const [rule, setRule] = useState<NeutralRule | MathRule | MusicRule>('word');
   const [stimulus, setStimulus] = useState<any>({ word: 'PRIMARY', color: 'text-primary', value: 7, noteSequence: ['C','E','G'] });
   const [inlineFeedback, setInlineFeedback] = useState({ message: '', type: '' });
-  const [shuffledOptions, setShuffledOptions] = useState<string[]>([]);
+  const [shuffledOptions, setShuffledOptions] = useState<any[]>([]);
 
+  const trialStartTime = useRef(0);
+  const currentTrialIndex = useRef(0);
+  const ruleSwitchCounter = useRef(0);
   const ruleRef = useRef(rule);
-  const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
-  const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
-  
-  const isLoaded = isGlobalFocusLoaded && isOverrideLoaded;
-  const currentMode = isLoaded ? (override || globalFocus) : 'neutral';
 
-  // INITIALIZE ADAPTIVE STATE
+  const [hasSeenPrimalityHint, setHasSeenPrimalityHint] = useState(false);
+  const [hasSeenQualityHint, setHasSeenQualityHint] = useState(false);
+
+  const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
+  const currentMode = isComponentLoaded ? (override || globalFocus) : 'neutral';
+  
   useEffect(() => {
-    if (isLoaded) {
+    if (isComponentLoaded) {
       const initialState = getAdaptiveState(GAME_ID, currentMode);
       setAdaptiveState(initialState);
       setGameState('start');
     }
-  }, [isLoaded, getAdaptiveState, currentMode]);
+  }, [isComponentLoaded, currentMode, getAdaptiveState]);
   
   useEffect(() => {
     ruleRef.current = rule;
@@ -125,7 +124,13 @@ export function FocusSwitchReactor() {
 
   const getAvailableRules = useCallback(() => {
     if (!adaptiveState) return ['word'];
-    const params = policy.levelMap[adaptiveState.currentLevel] || policy.levelMap[20];
+
+    const onRamp = adaptiveState.uncertainty > 0.7;
+    const loadedLevel = onRamp
+      ? Math.max(adaptiveState.levelFloor, adaptiveState.currentLevel - 2)
+      : adaptiveState.currentLevel;
+
+    const params = policy.levelMap[loadedLevel] || policy.levelMap[20];
     const ruleCount = params.ruleCount;
     let baseRules: (NeutralRule | MathRule | MusicRule)[] = [];
     if (currentMode === 'math') baseRules = ['parity', 'primality'];
@@ -140,7 +145,12 @@ export function FocusSwitchReactor() {
   const startNewTrial = useCallback((state: AdaptiveState) => {
     generateStimulus();
     
-    const params = policy.levelMap[state.currentLevel] || policy.levelMap[20];
+    const onRamp = state.uncertainty > 0.7;
+    const loadedLevel = onRamp
+      ? Math.max(state.levelFloor, state.currentLevel - 2)
+      : state.currentLevel;
+    const params = policy.levelMap[loadedLevel] || policy.levelMap[20];
+
     const availableRules = getAvailableRules();
     let newRule = ruleRef.current;
     
@@ -151,7 +161,7 @@ export function FocusSwitchReactor() {
     }
     setRule(newRule as any);
 
-    let options: string[] = [];
+    let options: any[] = [];
     if (currentMode === 'math') {
         if (newRule === 'parity') options = ['EVEN', 'ODD'];
         else if (newRule === 'primality') options = ['PRIME', 'COMPOSITE'];
@@ -159,7 +169,7 @@ export function FocusSwitchReactor() {
     } else if (currentMode === 'music') {
         options = qualities;
     } else { // Neutral mode
-        options = colorMap.map(c => c.name);
+        options = colorMap;
     }
     
     options.sort(() => Math.random() - 0.5);
@@ -211,7 +221,7 @@ export function FocusSwitchReactor() {
     }, 2000);
   }, [gameState, adaptiveState, sessionTrials, updateAdaptiveState, startNewTrial, currentMode]);
   
-  const handleAnswer = useCallback((answer: string) => {
+  const handleAnswer = useCallback((answer: any) => {
     if (gameState !== 'running') return;
     
     if (rule === 'no_go') {
@@ -221,6 +231,7 @@ export function FocusSwitchReactor() {
     
     let isCorrect = false;
     if (currentMode === 'neutral') {
+        const answerName = (answer as {name: string}).name;
         let correctAnswer;
         if (rule === 'word') {
             correctAnswer = stimulus.word;
@@ -228,7 +239,7 @@ export function FocusSwitchReactor() {
             const correctOption = colorMap.find(opt => opt.textClass === stimulus.color);
             correctAnswer = correctOption?.name;
         }
-        isCorrect = (answer === correctAnswer);
+        isCorrect = (answerName === correctAnswer);
     } else if (currentMode === 'math') {
         const num = stimulus.value;
         if (rule === 'parity') {
@@ -250,14 +261,18 @@ export function FocusSwitchReactor() {
   useEffect(() => {
     let noGoTimer: NodeJS.Timeout;
     if (gameState === 'running' && rule === 'no_go') {
+        const onRamp = adaptiveState && adaptiveState.uncertainty > 0.7;
+        const loadedLevel = adaptiveState && (onRamp ? Math.max(adaptiveState.levelFloor, adaptiveState.currentLevel - 2) : adaptiveState.currentLevel);
+        const waitTime = loadedLevel ? (policy.levelMap[loadedLevel]?.noGoWaitMs || 1500) : 1500;
+
         noGoTimer = setTimeout(() => {
             if(ruleRef.current === 'no_go') {
                processNextTurn(true); // Reward for correctly inhibiting response
             }
-        }, 1500); // 1.5 seconds to wait
+        }, waitTime);
     }
     return () => clearTimeout(noGoTimer);
-  }, [rule, stimulus, gameState, processNextTurn]);
+  }, [rule, stimulus, gameState, processNextTurn, adaptiveState]);
 
 
   const getRuleText = () => {
@@ -341,31 +356,28 @@ export function FocusSwitchReactor() {
                 )}
               </div>
               <div className={cn("grid gap-4 w-full", buttonGridCols)}>
-                {shuffledOptions.map(option => {
+                {shuffledOptions.map((option, index) => {
                   if (currentMode === 'neutral') {
-                      const colorInfo = colorMap.find(c => c.name === option);
-                      if (colorInfo) {
-                          return (
-                              <Button 
-                                  key={option} 
-                                  onClick={() => handleAnswer(option)} 
-                                  disabled={gameState === 'feedback'} 
-                                  size="lg"
-                                  className={cn(
-                                      "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
-                                      "h-11 rounded-md px-8", // size="lg"
-                                      colorInfo.bgClass, 
-                                      colorInfo.textFgClass
-                                  )}
-                              >
-                                {option}
-                              </Button>
-                          )
-                      }
+                      return (
+                          <Button 
+                              key={option.name + index} 
+                              onClick={() => handleAnswer(option)} 
+                              disabled={gameState === 'feedback'} 
+                              size="lg"
+                              className={cn(
+                                  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+                                  "h-11 rounded-md px-8", // size="lg"
+                                  option.bgClass, 
+                                  option.textFgClass
+                              )}
+                          >
+                            {option.name}
+                          </Button>
+                      )
                   }
                   // Fallback for math/music modes
                   return (
-                      <Button key={option} onClick={() => handleAnswer(option)} disabled={gameState === 'feedback'} variant="secondary" size="lg">
+                      <Button key={option + index} onClick={() => handleAnswer(option)} disabled={gameState === 'feedback'} variant="secondary" size="lg">
                         {option}
                       </Button>
                   )
@@ -388,3 +400,5 @@ export function FocusSwitchReactor() {
     </Card>
   );
 }
+
+    

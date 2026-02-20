@@ -79,9 +79,14 @@ export function RapidCodeMatch() {
   }, [isComponentLoaded, currentMode, getAdaptiveState]);
   
   const startNewTrial = (state: AdaptiveState) => {
+      const onRamp = state.uncertainty > 0.7;
+      const loadedLevel = onRamp
+          ? Math.max(state.levelFloor, state.currentLevel - 2)
+          : state.currentLevel;
+
       let newKeyMap = keyMap;
       if (keyChangeCounter.current >= 5) {
-          newKeyMap = generateKeyMap(state.currentLevel);
+          newKeyMap = generateKeyMap(loadedLevel);
           setKeyMap(newKeyMap);
           keyChangeCounter.current = 0;
           setInlineFeedback({ message: "Key changed!", type: 'success' });
@@ -120,7 +125,13 @@ export function RapidCodeMatch() {
     
     setGameState('feedback');
     const reactionTimeMs = Date.now() - trialStartTime.current;
-    const params = policy.levelMap[adaptiveState.currentLevel] || policy.levelMap[20];
+
+    const onRamp = adaptiveState.uncertainty > 0.7;
+    const loadedLevel = onRamp
+      ? Math.max(adaptiveState.levelFloor, adaptiveState.currentLevel - 2)
+      : adaptiveState.currentLevel;
+    const params = policy.levelMap[loadedLevel] || policy.levelMap[20];
+    
     const isCorrect = keyMap[currentSymbol] === digit && reactionTimeMs < params.responseWindowMs;
 
     const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs };
@@ -136,9 +147,11 @@ export function RapidCodeMatch() {
     }
 
     setTimeout(() => {
-        startNewTrial(newState);
+        if(timeLeft > 0) {
+            startNewTrial(newState);
+        }
     }, 500);
-  }, [gameState, keyMap, currentSymbol, adaptiveState]);
+  }, [gameState, keyMap, currentSymbol, adaptiveState, timeLeft]);
 
   const renderContent = () => {
     if (gameState === 'loading' || !isComponentLoaded) {
@@ -215,3 +228,5 @@ export function RapidCodeMatch() {
     </Card>
   );
 }
+
+    

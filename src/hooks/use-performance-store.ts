@@ -10,27 +10,23 @@ import { chcDomains } from '@/types';
 
 type PerformanceStateData = {
   globalTier: Tier;
-  gameStates: Record<GameId, Partial<Record<TrainingFocus, AdaptiveState>>>;
+  gameStates: Record<GameId, AdaptiveState>;
 };
 
 type PerformanceActions = {
   setGlobalTier: (tier: Tier) => void;
   setGameTier: (gameId: GameId, tier: Tier) => void;
   getAdaptiveState: (gameId: GameId, focus: TrainingFocus) => AdaptiveState;
-  updateAdaptiveState: (gameId: GameId, focus: TrainingFocus, newState: AdaptiveState) => void;
-  resetGameToTierDefault: (gameId: GameId, focus: TrainingFocus) => void;
+  updateAdaptiveState: (gameId: GameId, newState: AdaptiveState) => void;
+  resetGameToTierDefault: (gameId: GameId) => void;
 };
 
-const initialGameStates = (): Record<GameId, Partial<Record<TrainingFocus, AdaptiveState>>> => {
-  const state: Partial<Record<GameId, Partial<Record<TrainingFocus, AdaptiveState>>>> = {};
-  const focuses: TrainingFocus[] = ['neutral', 'math', 'music'];
+const initialGameStates = (): Record<GameId, AdaptiveState> => {
+  const state: Partial<Record<GameId, AdaptiveState>> = {};
   for (const domain of chcDomains) {
-    state[domain.id] = {};
-    for (const focus of focuses) {
-        state[domain.id]![focus] = getDefaultState(domain.id, focus, 1); // Default to Tier 1
-    }
+    state[domain.id] = getDefaultState(domain.id, 1); // Default all games to Tier 1
   }
-  return state as Record<GameId, Partial<Record<TrainingFocus, AdaptiveState>>>;
+  return state as Record<GameId, AdaptiveState>;
 };
 
 export const usePerformanceStore = create<PerformanceStateData & PerformanceActions>()(
@@ -43,14 +39,10 @@ export const usePerformanceStore = create<PerformanceStateData & PerformanceActi
         const oldTier = get().globalTier;
         set((state) => {
           state.globalTier = tier;
-          // When global tier changes, reset any game that was using the old global tier
           for (const gameId in state.gameStates) {
-             const gameFocuses = state.gameStates[gameId as GameId];
-             for (const focus in gameFocuses) {
-                 const gameState = gameFocuses[focus as TrainingFocus];
-                 if (gameState && gameState.tier === oldTier) { // Check against old global tier
-                    state.gameStates[gameId as GameId]![focus as TrainingFocus] = getDefaultState(gameId as GameId, focus as TrainingFocus, tier);
-                 }
+             const gameState = state.gameStates[gameId as GameId];
+             if (gameState && gameState.tier === oldTier) {
+                state.gameStates[gameId as GameId] = getDefaultState(gameId as GameId, tier);
              }
           }
         });
@@ -58,64 +50,85 @@ export const usePerformanceStore = create<PerformanceStateData & PerformanceActi
 
       setGameTier: (gameId, tier) => {
         set((state) => {
-            if (!state.gameStates[gameId]) state.gameStates[gameId] = {};
-            const focuses: TrainingFocus[] = ['neutral', 'math', 'music'];
-            for (const focus of focuses) {
-                 state.gameStates[gameId]![focus] = getDefaultState(gameId, focus, tier);
-            }
+            state.gameStates[gameId] = getDefaultState(gameId, tier);
         });
       },
 
       getAdaptiveState: (gameId, focus) => {
         const state = get();
-        let gameState = state.gameStates[gameId]?.[focus];
+        let gameState = state.gameStates[gameId];
         
-        // If a game state somehow doesn't exist, create it.
         if (!gameState) {
-          const newGameState = getDefaultState(gameId, focus, state.globalTier);
-          set(s => {
-              if (!s.gameStates[gameId]) s.gameStates[gameId] = {};
-              s.gameStates[gameId]![focus] = newGameState;
-          });
+          const newGameState = getDefaultState(gameId, state.globalTier);
+          set(s => { s.gameStates[gameId] = newGameState; });
           gameState = newGameState;
         }
 
-        // Layer Switching Logic (Rule 6)
+        // --- LAYER SWITCH HANDLING (Rule 3) ---
         if (gameState.lastFocus !== focus) {
             set(s => {
-                const stateToUpdate = s.gameStates[gameId]![focus]!;
-                stateToUpdate.uncertainty = Math.min(stateToUpdate.uncertainty + 0.3, 0.8);
+                const stateToUpdate = s.gameStates[gameId]!;
+                stateToUpdate.uncertainty = Math.min(stateToUpdate.uncertainty + 0.3, 0.85);
                 stateToUpdate.consecutiveCorrect = 0;
                 stateToUpdate.consecutiveWrong = 0;
                 stateToUpdate.smoothedAccuracy = 0.75;
-                stateToUpdate.smoothedRT = 0;
+                stateToUpdate.smoothedRT = null;
                 stateToUpdate.lastFocus = focus;
             });
             // Re-get the state after the update
-            return get().gameStates[gameId]![focus]!;
+            return get().gameStates[gameId]!;
         }
 
         return gameState;
       },
 
-      updateAdaptiveState: (gameId, focus, newState) => {
+      updateAdaptiveState: (gameId, newState) => {
         set(state => {
-            if (!state.gameStates[gameId]) state.gameStates[gameId] = {};
-            state.gameStates[gameId]![focus] = newState;
+            state.gameStates[gameId] = newState;
         });
       },
       
-      resetGameToTierDefault: (gameId, focus) => {
+      resetGameToTierDefault: (gameId) => {
          set(state => {
-            if (!state.gameStates[gameId]) state.gameStates[gameId] = {};
-            const gameTier = state.gameStates[gameId]?.[focus]?.tier ?? state.globalTier;
-            state.gameStates[gameId]![focus] = getDefaultState(gameId, focus, gameTier);
+            const gameTier = state.gameStates[gameId]?.tier ?? state.globalTier;
+            state.gameStates[gameId] = getDefaultState(gameId, gameTier);
          });
       }
     })),
     {
-      name: 'cognitive-performance-storage-v4-layer-aware', // Incremented version
+      name: 'cognitive-performance-storage-v5-unified', // Incremented version for migration
       storage: createJSONStorage(() => localStorage),
+      // --- MIGRATION LOGIC (Rule 1) ---
+      migrate: (persistedState: any, version: number) => {
+        if (version < 5 && persistedState.gameStates) {
+          const newGameStates: Record<GameId, AdaptiveState> = {};
+          for (const gameId in persistedState.gameStates) {
+            const oldGameLayers = persistedState.gameStates[gameId];
+            if (oldGameLayers.neutral) { // Check if it's the old structure
+              const layers = ['neutral', 'math', 'music'].map(f => oldGameLayers[f]).filter(Boolean);
+              
+              // Take the highest level achieved across all layers
+              const unifiedLevel = Math.max(...layers.map(l => l.currentLevel || 1));
+              
+              // Use the neutral layer as the base, then merge
+              newGameStates[gameId as GameId] = {
+                ...oldGameLayers.neutral,
+                currentLevel: unifiedLevel,
+                uncertainty: 0.6, // Force re-calibration
+                lastFocus: oldGameLayers.neutral.focus || 'neutral',
+              };
+            } else {
+              // It's already in the new format or is malformed, just copy it
+              newGameStates[gameId as GameId] = oldGameLayers;
+            }
+          }
+          persistedState.gameStates = newGameStates;
+        }
+        return persistedState as PerformanceStateData & PerformanceActions;
+      },
+      version: 5,
     }
   )
 );
+
+    

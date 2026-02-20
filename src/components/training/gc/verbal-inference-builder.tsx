@@ -66,7 +66,12 @@ export function VerbalInferenceBuilder() {
   }, [isComponentLoaded, currentMode, getAdaptiveState]);
   
   const startNewTrial = useCallback((state: AdaptiveState) => {
-    const newPuzzle = generatePuzzleForLevel(state.currentLevel, currentMode);
+    const onRamp = state.uncertainty > 0.7;
+    const loadedLevel = onRamp
+      ? Math.max(state.levelFloor, state.currentLevel - 2)
+      : state.currentLevel;
+    
+    const newPuzzle = generatePuzzleForLevel(loadedLevel, currentMode);
     setPuzzle(newPuzzle);
     setSelectedAnswer(null);
     setInlineFeedback({ message: '', type: '' });
@@ -197,3 +202,5 @@ export function VerbalInferenceBuilder() {
     </Card>
   );
 }
+
+    
