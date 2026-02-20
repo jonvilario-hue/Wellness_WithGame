@@ -14,7 +14,7 @@ import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engin
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
 import { morphologyWordPairs } from "@/data/verbal-content";
-import { GamePlaceholder } from "../game-placeholder";
+import { GameStub } from "../game-stub";
 
 const GAME_ID: GameId = 'gf_pattern_matrix';
 const policy = difficultyPolicies[GAME_ID];
@@ -240,9 +240,11 @@ export function PatternMatrix() {
     };
 
     if (currentMode === 'spatial') {
-        return <GamePlaceholder 
+        return <GameStub 
             title="Assembly Logic" 
-            description="A 3x3 grid shows a sequence of 3D parts being assembled. Deduce the assembly rule (e.g., 'Each step adds a gear and rotates 45 degrees') to select the correct final object for the empty slot. At high levels, this could involve multi-step or conditional logic. A 2D fallback could use animated SVGs showing 2D shapes merging to preserve the rule-inference mechanic."
+            description="Deduce an assembly rule from a 3x3 grid showing a sequence of 3D parts being assembled. Then, select the correct final object for the empty slot."
+            subdomain="Assembly/Disassembly"
+            assetComplexity="High"
         />;
     }
 

@@ -14,7 +14,7 @@ import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engin
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
 import { clozeSentences, morphologyWordPairs } from "@/data/verbal-content";
-import { GamePlaceholder } from "../game-placeholder";
+import { GameStub } from "../game-stub";
 
 const GAME_ID: GameId = 'gc_verbal_inference';
 const policy = difficultyPolicies[GAME_ID];
@@ -139,7 +139,12 @@ export function VerbalInferenceBuilder() {
   }
 
   if (currentMode === 'spatial') {
-    return <GamePlaceholder title="Spatial Lexicon" description="A 3D spatial version of Verbal Inference is under construction. This mode will test your knowledge of spatial language, such as prepositions, directional terms, and architectural vocabulary, through text-based analogy and definition problems." />;
+    return <GameStub 
+        title="Spatial Lexicon"
+        description="Answer a multiple-choice question about spatial prepositions or relative directions. This tests your stored knowledge of spatial language and concepts without requiring visual manipulation."
+        subdomain="Spatial Orientation"
+        assetComplexity="Low"
+    />;
   }
 
 

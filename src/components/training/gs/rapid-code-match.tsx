@@ -14,7 +14,7 @@ import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engin
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
 import { realWords, pseudowords } from "@/data/verbal-content";
-import { GamePlaceholder } from "../game-placeholder";
+import { GameStub } from "../game-stub";
 
 const GAME_ID: GameId = 'gs_rapid_code';
 const policy = difficultyPolicies[GAME_ID];
@@ -243,7 +243,12 @@ export function RapidCodeMatch() {
   }, [gameState, problem, adaptiveState, timeLeft, startNewTrial, updateAdaptiveState]);
 
   if (currentMode === 'spatial') {
-    return <GamePlaceholder title="Rapid Rotation / Target Interception" description="This game has two variants. 1) Rapid Rotation: An object is shown. Two other versions appear. Rapidly decide which is a valid rotation and which is an impossible mirror image. 2) Target Interception: Rapidly tap the screen to predict where a moving object will intersect with a target line." />;
+    return <GameStub 
+        title="Rapid Rotation / Target Interception"
+        description="Rapidly decide which of two shapes is a valid rotation of a target, or predict where a moving object will intersect a target line. This trains speeded spatial judgment and predictive tracking."
+        subdomain="Mental Rotation"
+        assetComplexity="High"
+    />;
   }
 
   const renderContent = () => {

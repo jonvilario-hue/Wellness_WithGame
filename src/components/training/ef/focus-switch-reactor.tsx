@@ -14,7 +14,7 @@ import { Loader2 } from 'lucide-react';
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId } from "@/types";
-import { GamePlaceholder } from "../game-placeholder";
+import { GameStub } from "../game-stub";
 
 const GAME_ID: GameId = 'ef_focus_switch';
 const policy = difficultyPolicies[GAME_ID];
@@ -308,7 +308,12 @@ export function FocusSwitchReactor() {
   const buttonGridCols = (currentMode === 'neutral' || currentMode === 'music') ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-2';
 
   if (currentMode === 'spatial') {
-    return <GamePlaceholder title="Perspective Shift" description="A simple scene contains several distinct objects (e.g., a red cube, a blue sphere, a green pyramid). A question appears ('Is the red cube on the left?'), but a cue randomly switches between 'YOUR VIEW' and 'MAP VIEW', forcing you to rapidly switch your mental frame of reference." />;
+    return <GameStub 
+        title="Perspective Shift" 
+        description="A simple scene contains several distinct objects (e.g., a red cube, a blue sphere). A question appears ('Is the red cube on the left?'), but a cue randomly switches between 'YOUR VIEW' and 'MAP VIEW', forcing you to rapidly switch your mental frame of reference."
+        subdomain="Spatial Orientation"
+        assetComplexity="High"
+    />;
   }
 
   const renderContent = () => {

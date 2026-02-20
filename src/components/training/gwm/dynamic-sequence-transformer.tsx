@@ -15,7 +15,7 @@ import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types"
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
 import { phoneticallySimilarSets, grammarScrambleSentences } from "@/data/verbal-content";
-import { GamePlaceholder } from "../game-placeholder";
+import { GameStub } from "../game-stub";
 
 const GAME_ID: GameId = 'gwm_dynamic_sequence';
 const policy = difficultyPolicies[GAME_ID];
@@ -189,7 +189,12 @@ export function DynamicSequenceTransformer() {
   }, [gameState, userAnswer, correctAnswer, adaptiveState, sessionTrials, updateAdaptiveState, startNewTrial, task.id]);
   
   if (currentMode === 'spatial') {
-    return <GamePlaceholder title="Spatial Span" description="A set of cubes in space flash in a specific sequence. You must repeat the sequence by clicking the cubes in the correct order. At lower levels, this is a 2D grid. At higher levels, it's a 3D space with more items and visual distractors." />;
+    return <GameStub
+        title="Spatial Span"
+        description="Repeat a sequence of flashing 3D cubes by clicking them in the correct order. This tests your ability to hold and recall a series of spatial locations in working memory."
+        subdomain="Dynamic Tracking"
+        assetComplexity="High"
+    />;
   }
 
 

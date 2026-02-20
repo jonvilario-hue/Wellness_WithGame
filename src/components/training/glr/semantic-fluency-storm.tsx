@@ -14,7 +14,7 @@ import type { TrainingFocus } from "@/types";
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
 import { generalCategories, mathCategories, musicCategories, verbalCategories } from "@/data/verbal-content";
-import { GamePlaceholder } from "../game-placeholder";
+import { GameStub } from "../game-stub";
 
 // --- Domain-specific content ---
 const generalWordList = ["apple", "car", "house", "river", "mountain", "book", "chair", "music", "light", "ocean", "star", "forest", "fire", "cloud", "dream", "journey", "key", "mirror", "shadow", "silence", "time", "voice", "water", "wind", "world"];
@@ -48,7 +48,12 @@ export function SemanticFluencyStorm() {
     };
 
     if (currentTrainingFocus === 'spatial') {
-        return <GamePlaceholder title="Route Retrieval" description="A 3D spatial version of the Retrieval Trainer is under construction. In this mode, you will be shown a map of a city or building, and then must answer questions about routes and relative locations from memory, testing your ability to store and retrieve complex spatial information." />;
+        return <GameStub 
+            title="Route Retrieval" 
+            description="Answer text-based questions about routes and relative locations from memory after being shown a complex map. This tests your ability to store and retrieve complex spatial information."
+            subdomain="Spatial Orientation"
+            assetComplexity="High"
+        />;
     }
 
     const renderContent = () => {
@@ -127,14 +132,17 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (score: numbe
         const currentState = getAdaptiveState('glr_fluency_storm');
         const newLevel = Math.max(currentState.levelFloor, Math.min(currentState.levelCeiling, 4 + Math.min(6, Math.floor(chain.length / 2))));
 
-        updateAdaptiveState({
-            ...currentState,
-            currentLevel: newLevel,
-            lastFocus: focus,
-            smoothedRT: (6 - timeLeft) * 1000,
-            lastSessionAt: Date.now(),
-            sessionCount: currentState.sessionCount + 1,
-        });
+        updateAdaptiveState(
+            'glr_fluency_storm',
+            {
+                ...currentState,
+                currentLevel: newLevel,
+                lastFocus: focus,
+                smoothedRT: (6 - timeLeft) * 1000,
+                lastSessionAt: Date.now(),
+                sessionCount: currentState.sessionCount + 1,
+            }
+        );
         
         if (chain.length > 0) onComplete(chain.length);
         else { 
@@ -252,7 +260,7 @@ function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (score: number
             else if (phase === 'recall') {
                 const currentState = getAdaptiveState('glr_fluency_storm');
                 const newLevel = Math.max(currentState.levelFloor, Math.min(currentState.levelCeiling, 4 + score));
-                updateAdaptiveState({ ...currentState, currentLevel: newLevel, lastFocus: focus, sessionCount: currentState.sessionCount + 1, lastSessionAt: Date.now() });
+                updateAdaptiveState('glr_fluency_storm', { ...currentState, currentLevel: newLevel, lastFocus: focus, sessionCount: currentState.sessionCount + 1, lastSessionAt: Date.now() });
                 onComplete(score);
                 setPhase('finished');
             }
@@ -361,7 +369,7 @@ function CategorySwitchingMode({ onComplete, focus }: { onComplete: (score: numb
                     clearInterval(totalTimer);
                     const currentState = getAdaptiveState('glr_fluency_storm');
                     const newLevel = Math.max(currentState.levelFloor, Math.min(currentState.levelCeiling, 4 + Math.min(6, Math.floor(score / 5))));
-                    updateAdaptiveState({ ...currentState, currentLevel: newLevel, lastFocus: focus, sessionCount: currentState.sessionCount + 1, lastSessionAt: Date.now() });
+                    updateAdaptiveState('glr_fluency_storm', { ...currentState, currentLevel: newLevel, lastFocus: focus, sessionCount: currentState.sessionCount + 1, lastSessionAt: Date.now() });
                     onComplete(score);
                     return 0;
                 }

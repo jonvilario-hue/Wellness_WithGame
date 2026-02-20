@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +16,7 @@ import { AuditoryCalculationTask } from "./auditory-calculation-task";
 import { CocktailPartyDecoder } from './cocktail-party-decoder';
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
-import { GamePlaceholder } from "../game-placeholder";
+import { GameStub } from "../game-stub";
 
 const GAME_ID: GameId = 'ga_auditory_lab';
 const policy = difficultyPolicies[GAME_ID];
@@ -239,7 +240,12 @@ export function AuditoryProcessingRouter() {
     }
     
     if (currentMode === 'spatial') {
-        return <GamePlaceholder title="Audio-Locator" description="A 3D spatial version of the Auditory Lab is under construction. This game will use 3D audio simulation to test your ability to pinpoint the location of sounds in space, a critical skill for spatial awareness." />;
+        return <GameStub 
+            title="Audio-Locator"
+            description="Pinpoint a sound's origin in a simulated 3D audio space. A sound (beep or word) is played, and you must click on a 2D map representing the room to indicate where the sound came from."
+            subdomain="Spatial Orientation"
+            assetComplexity="High"
+        />;
     }
 
 

@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { VisualMusicMatch } from './visual-music-match';
 import { OrthographicConstruction } from './orthographic-construction';
 import { TypographicSearch } from './typographic-search';
-import { GamePlaceholder } from '../game-placeholder';
+import { GameStub } from '../game-stub';
 
 export function VisualProcessingRouter() {
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
@@ -34,7 +34,12 @@ export function VisualProcessingRouter() {
         // to better align with the Gv domain (visual scanning).
         return <TypographicSearch focus={effectiveFocus} />;
     case 'spatial':
-        return <GamePlaceholder title="Voxel Jigsaw / Proportion Match" description="This game has two variants. 1) Voxel Jigsaw: An 'exploded view' of a complex 3D object is shown. Select the correctly assembled final shape from a set of similar options. A 2D fallback uses isometric pixel art sprites. 2) Proportion Match: A 3D object is shown. Select its correctly scaled 2D shadow from a set of distorted options." />;
+        return <GameStub 
+            title="Voxel Jigsaw / Proportion Match"
+            description="Assemble an 'exploded view' of a complex 3D object, or select its correctly scaled 2D shadow from a set of distorted options. This is the purest test of part-to-whole visualization."
+            subdomain="Spatial Visualization"
+            assetComplexity="High"
+        />;
     case 'neutral':
     default:
       return <MentalRotationLab focus={effectiveFocus} />;
