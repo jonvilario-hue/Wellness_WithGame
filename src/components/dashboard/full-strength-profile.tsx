@@ -42,7 +42,7 @@ export function FullStrengthProfile() {
   }
 
   const chartData = chcDomains.map(domain => {
-    const gameState = getAdaptiveState(domain.id, focus);
+    const gameState = getAdaptiveState(domain.id);
     const score = gameState ? Math.round((gameState.currentLevel / gameState.levelCeiling) * 100) : 0;
     const displayScore = score > 0 ? score : Math.round(Math.random() * 20 + 20); // Use real score or fallback for display
 

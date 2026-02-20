@@ -16,7 +16,8 @@ type PerformanceStateData = {
 type PerformanceActions = {
   setGlobalTier: (tier: TierSelection) => void;
   setGameTier: (gameId: GameId, tier: Tier) => void;
-  getAdaptiveState: (gameId: GameId, focus: TrainingFocus) => AdaptiveState;
+  handleFocusChange: (newFocus: TrainingFocus) => void;
+  getAdaptiveState: (gameId: GameId) => AdaptiveState;
   updateAdaptiveState: (gameId: GameId, newState: AdaptiveState) => void;
   resetGameToTierDefault: (gameId: GameId) => void;
 };
@@ -45,42 +46,26 @@ export const usePerformanceStore = create<PerformanceStateData & PerformanceActi
         });
       },
 
-      getAdaptiveState: (gameId, focus) => {
-        const state = get();
-        let gameState = state.gameStates[gameId];
-        
-        let effectiveTier: Tier;
-        if (state.globalTier === 4) { // Auto mode
-            const allGameStates = Object.values(state.gameStates);
-            const avgLevel = allGameStates.length > 0 ? allGameStates.reduce((sum, s) => sum + s.currentLevel, 0) / allGameStates.length : TIER_CONFIG[1].range[0];
-            
-            if (avgLevel <= TIER_CONFIG[0].range[1]) effectiveTier = 0;
-            else if (avgLevel <= TIER_CONFIG[1].range[1]) effectiveTier = 1;
-            else if (avgLevel <= TIER_CONFIG[2].range[1]) effectiveTier = 2;
-            else effectiveTier = 3;
-        } else {
-            effectiveTier = state.globalTier;
-        }
+      handleFocusChange: (newFocus: TrainingFocus) => {
+        set(state => {
+            for (const gameId in state.gameStates) {
+                const gameState = state.gameStates[gameId as GameId];
+                if (gameState && gameState.lastFocus !== newFocus) {
+                    gameState.uncertainty = Math.min(1.0, gameState.uncertainty + 0.3);
+                    gameState.consecutiveCorrect = 0;
+                    gameState.consecutiveWrong = 0;
+                    gameState.smoothedAccuracy = 0.75;
+                    gameState.smoothedRT = null;
+                    gameState.lastFocus = newFocus;
+                }
+            }
+        });
+      },
 
-        if (!gameState) {
-          gameState = getDefaultState(gameId, effectiveTier);
-          set(s => { s.gameStates[gameId] = gameState!; });
-        }
-        
-        if (gameState.lastFocus !== focus) {
-            set(s => {
-                const stateToUpdate = s.gameStates[gameId]!;
-                stateToUpdate.uncertainty = Math.min(1.0, stateToUpdate.uncertainty + 0.3);
-                stateToUpdate.consecutiveCorrect = 0;
-                stateToUpdate.consecutiveWrong = 0;
-                stateToUpdate.smoothedAccuracy = 0.75;
-                stateToUpdate.smoothedRT = null;
-                stateToUpdate.lastFocus = focus;
-            });
-            return get().gameStates[gameId]!;
-        }
-
-        return gameState;
+      getAdaptiveState: (gameId) => {
+        // This function is now a pure selector.
+        // It relies on `handleFocusChange` to have been called to update the state.
+        return get().gameStates[gameId]!;
       },
 
       updateAdaptiveState: (gameId, newState) => {

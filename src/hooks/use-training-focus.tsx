@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useCallback, createContext, useContext, useMemo } from 'react';
 import type { TrainingFocus } from '@/types';
+import { usePerformanceStore } from './use-performance-store';
 
 const TRAINING_FOCUS_KEY = 'trainingFocus';
 
@@ -17,6 +18,7 @@ const TrainingFocusContext = createContext<TrainingFocusContextType | undefined>
 export function TrainingFocusProvider({ children }: { children: React.ReactNode }) {
   const [focus, setFocusState] = useState<TrainingFocus>('neutral');
   const [isLoaded, setIsLoaded] = useState(false);
+  const handleFocusChangeInPerformanceStore = usePerformanceStore((state) => state.handleFocusChange);
 
   useEffect(() => {
     try {
@@ -34,10 +36,11 @@ export function TrainingFocusProvider({ children }: { children: React.ReactNode 
     try {
       setFocusState(newFocus);
       window.localStorage.setItem(TRAINING_FOCUS_KEY, newFocus);
+      handleFocusChangeInPerformanceStore(newFocus);
     } catch (error) {
       console.error("Failed to save training focus to localStorage", error);
     }
-  }, []);
+  }, [handleFocusChangeInPerformanceStore]);
 
   const value = useMemo(() => ({ focus, setFocus, isLoaded }), [focus, setFocus, isLoaded]);
 
