@@ -136,6 +136,17 @@ export function FocusSwitchReactor() {
     }
   }, [currentMode]);
   
+  const startNewTrial = useCallback((state: AdaptiveState) => {
+    generateStimulus();
+    // Rule switching logic from original component. A more advanced version would use the policy.
+    if (Math.random() < 0.3) { 
+      generateRule();
+    }
+    setInlineFeedback({ message: '', type: '' });
+    setGameState('running');
+    trialStartTime.current = Date.now();
+  }, [generateStimulus, generateRule]);
+  
   const startNewSession = useCallback(() => {
     if (!adaptiveState) return;
     const sessionState = startSession(adaptiveState);
@@ -145,17 +156,6 @@ export function FocusSwitchReactor() {
     setScore(0);
     startNewTrial(sessionState);
   }, [adaptiveState, startNewTrial]);
-
-  const startNewTrial = (state: AdaptiveState) => {
-    generateStimulus();
-    // Rule switching logic from original component. A more advanced version would use the policy.
-    if (Math.random() < 0.3) { 
-      generateRule();
-    }
-    setInlineFeedback({ message: '', type: '' });
-    setGameState('running');
-    trialStartTime.current = Date.now();
-  };
 
   const processNextTurn = useCallback((correct: boolean) => {
     if (gameState !== 'running' || !adaptiveState) return;
@@ -185,7 +185,7 @@ export function FocusSwitchReactor() {
             startNewTrial(newState);
         }
     }, 2000);
-  }, [gameState, adaptiveState, sessionTrials, updateAdaptiveState, generateRule, generateStimulus, startNewTrial]);
+  }, [gameState, adaptiveState, sessionTrials, updateAdaptiveState, startNewTrial]);
   
   const handleAnswer = useCallback((answer: string) => {
     if (gameState !== 'running') return;
@@ -356,5 +356,3 @@ export function FocusSwitchReactor() {
     </Card>
   );
 }
-
-    
