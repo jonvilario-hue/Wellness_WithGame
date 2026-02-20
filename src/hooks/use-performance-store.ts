@@ -3,96 +3,86 @@
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import type { CHCDomain } from '@/types';
+import { immer } from 'zustand/middleware/immer';
+import type { GameId, Tier, AdaptiveState, TrialResult } from '@/types';
+import { getDefaultState, TIER_CONFIG } from '@/lib/adaptive-engine';
+import { chcDomains } from '@/types';
 
-type TrainingMode = 'neutral' | 'math' | 'music';
-
-type PerformanceMetric = {
-  score: number;
-  totalTime: number; // in seconds
-  sessions: number;
-  trend: number; // calculated on the fly
-  history: number[]; // last 5 scores
-  thresholdHistory: number[]; // For auditory or other threshold-based tasks
+type PerformanceStateData = {
+  globalTier: Tier;
+  gameStates: Record<GameId, AdaptiveState>;
 };
 
-type DomainPerformance = {
-  neutral: PerformanceMetric;
-  math: PerformanceMetric;
-  music: PerformanceMetric;
+type PerformanceActions = {
+  setGlobalTier: (tier: Tier) => void;
+  setGameTier: (gameId: GameId, tier: Tier) => void;
+  getAdaptiveState: (gameId: GameId) => AdaptiveState;
+  updateAdaptiveState: (gameId: GameId, newState: AdaptiveState) => void;
+  resetGameToTierDefault: (gameId: GameId) => void;
 };
 
-type PerformanceState = {
-  performance: Record<CHCDomain, DomainPerformance>;
-  logGameResult: (domain: CHCDomain, mode: TrainingMode, result: { score: number; time: number }) => void;
+const initialGameStates = (): Record<GameId, AdaptiveState> => {
+  const state: Partial<Record<GameId, AdaptiveState>> = {};
+  for (const domain of chcDomains) {
+    state[domain.id] = getDefaultState(domain.id, 1); // Default to Tier 1
+  }
+  return state as Record<GameId, AdaptiveState>;
 };
 
-const initialMetric = (): PerformanceMetric => ({
-  score: 0,
-  totalTime: 0,
-  sessions: 0,
-  trend: 0,
-  history: [],
-  thresholdHistory: [],
-});
-
-const initialDomainPerformance = (): DomainPerformance => ({
-  neutral: initialMetric(),
-  math: initialMetric(),
-  music: initialMetric(),
-});
-
-const initialPerformanceState = (): Record<CHCDomain, DomainPerformance> => ({
-  Gf: initialDomainPerformance(),
-  Gc: initialDomainPerformance(),
-  Gwm: initialDomainPerformance(),
-  Gs: initialDomainPerformance(),
-  Gv: initialDomainPerformance(),
-  Ga: initialDomainPerformance(),
-  Glr: initialDomainPerformance(),
-  EF: initialDomainPerformance(),
-});
-
-
-export const usePerformanceStore = create<PerformanceState>()(
+export const usePerformanceStore = create<PerformanceStateData & PerformanceActions>()(
   persist(
-    (set, get) => ({
-      performance: initialPerformanceState(),
+    immer((set, get) => ({
+      globalTier: 1, // Default to "Developing"
+      gameStates: initialGameStates(),
       
-      logGameResult: (domain, mode, result) => {
+      setGlobalTier: (tier) => {
         set((state) => {
-          const newPerformance = { ...state.performance };
-          const domainData = { ...newPerformance[domain] };
-          const modeData = { ...domainData[mode] };
-          
-          // For Ga, score is the threshold. We'll store it in a separate history.
-          const isThresholdGame = domain === 'Ga';
-          const newThresholdHistory = isThresholdGame ? [...modeData.thresholdHistory, result.score].slice(-10) : modeData.thresholdHistory;
-
-          const newHistory = [...modeData.history, result.score].slice(-5);
-          const oldAverageScore = modeData.score;
-          const newAverageScore = newHistory.reduce((a, b) => a + b, 0) / newHistory.length;
-
-          const newModeData: PerformanceMetric = {
-            sessions: modeData.sessions + 1,
-            score: Math.round(newAverageScore),
-            totalTime: modeData.totalTime + result.time,
-            history: newHistory,
-            trend: oldAverageScore > 0 ? Math.round(((newAverageScore - oldAverageScore) / oldAverageScore) * 100) : 0,
-            thresholdHistory: newThresholdHistory,
-          };
-
-          newPerformance[domain] = {
-            ...domainData,
-            [mode]: newModeData,
-          };
-          
-          return { performance: newPerformance };
+          state.globalTier = tier;
+          // When global tier changes, reset any game that was using the global tier
+          for (const gameId in state.gameStates) {
+             const gameState = state.gameStates[gameId as GameId];
+             if (gameState.tier === get().globalTier) { // Check against old global tier
+                state.gameStates[gameId as GameId] = getDefaultState(gameId as GameId, tier);
+             }
+          }
         });
       },
-    }),
+
+      setGameTier: (gameId, tier) => {
+        set((state) => {
+            state.gameStates[gameId] = getDefaultState(gameId, tier);
+        });
+      },
+
+      getAdaptiveState: (gameId) => {
+        const state = get();
+        const gameState = state.gameStates[gameId];
+        // If a game state somehow doesn't exist, create it.
+        if (!gameState) {
+          const newGameState = getDefaultState(gameId, state.globalTier);
+          set(s => {
+              s.gameStates[gameId] = newGameState;
+          });
+          return newGameState;
+        }
+        return gameState;
+      },
+
+      updateAdaptiveState: (gameId, newState) => {
+        set(state => {
+            state.gameStates[gameId] = newState;
+        });
+      },
+      
+      resetGameToTierDefault: (gameId) => {
+         set(state => {
+            const gameTier = state.gameStates[gameId]?.tier ?? state.globalTier;
+            state.gameStates[gameId] = getDefaultState(gameId, gameTier);
+         });
+      }
+    })),
     {
-      name: 'cognitive-performance-storage',
+      name: 'cognitive-performance-storage-v2-adaptive',
       storage: createJSONStorage(() => localStorage),
     }
   )
