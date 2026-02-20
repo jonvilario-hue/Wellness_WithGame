@@ -14,7 +14,7 @@ import { Progress } from '@/components/ui/progress';
 import { domainIcons, SigmaIcon } from '@/components/icons';
 import type { CHCDomain, TrainingFocus } from '@/types';
 import { useState, useEffect, memo, useMemo } from 'react';
-import { ArrowDown, ArrowUp, Info, Minus, Brain, Music, MessageSquare, View, Smile } from 'lucide-react';
+import { ArrowDown, ArrowUp, Info, Minus, Brain, Music, MessageSquare, View, Smile, Share2 } from 'lucide-react';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { useTrainingFocus } from '@/hooks/use-training-focus';
 import { cn } from '@/lib/utils';
@@ -32,6 +32,8 @@ interface ChcDomainCardProps {
     supportsMusic: boolean;
     supportsVerbal: boolean;
     supportsSpatial: boolean;
+    supportsEq: boolean;
+    supportsLogic: boolean;
   };
 }
 
@@ -64,7 +66,8 @@ const ChcDomainCardComponent = ({ domain }: ChcDomainCardProps) => {
     music: { Icon: Music, label: 'Music Cognition', color: 'text-blue-500', supported: domain.supportsMusic },
     verbal: { Icon: MessageSquare, label: 'Verbal Reasoning', color: 'text-purple-500', supported: domain.supportsVerbal },
     spatial: { Icon: View, label: 'Spatial Reasoning', color: 'text-teal-500', supported: domain.supportsSpatial },
-    eq: { Icon: Smile, label: 'Emotional Intelligence', color: 'text-pink-500', supported: false },
+    eq: { Icon: Smile, label: 'Emotional Intelligence', color: 'text-pink-500', supported: domain.supportsEq },
+    logic: { Icon: Share2, label: 'Logic & Coding', color: 'text-cyan-500', supported: domain.supportsLogic },
   };
   
   const activeMode = focusInfo[globalFocus] || focusInfo.neutral;
