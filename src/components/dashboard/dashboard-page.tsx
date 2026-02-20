@@ -3,8 +3,6 @@
 
 import { Header } from '@/components/header';
 import { MotivationalMessage } from '@/components/motivational-message';
-import { PageSpecificSettings } from '@/components/page-specific-settings';
-import { dashboardLayoutKeys } from '@/hooks/use-dashboard-settings';
 import { DashboardLayout } from './dashboard-layout';
 
 export function DashboardPage() {
@@ -17,7 +15,6 @@ export function DashboardPage() {
       <main className="flex-1 p-4 sm:p-6 md:p-8">
         <DashboardLayout />
       </main>
-      <PageSpecificSettings settingsKeys={dashboardLayoutKeys} />
     </>
   );
 }
