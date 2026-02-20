@@ -113,5 +113,13 @@ export const spatialConcepts = [
     { question: "If you are facing North and turn 180 degrees, which direction are you now facing?", answer: "South", distractors: ["East", "West", "North"], explanation: "A 180-degree turn is a complete reversal of direction." },
 ];
 
+// --- Word Lists for Fluency & Retrieval Games ---
+export const generalWordList = ["apple", "car", "house", "river", "mountain", "book", "chair", "music", "light", "ocean", "star", "forest", "fire", "cloud", "dream", "journey", "key", "mirror", "shadow", "silence", "time", "voice", "water", "wind", "world"];
+export const mathWordList = ["algebra", "calculus", "geometry", "integer", "prime", "fraction", "decimal", "vertex", "angle", "matrix", "vector", "theorem", "proof", "integral", "derivative"];
+export const musicWordList = ["harmony", "melody", "rhythm", "tempo", "chord", "scale", "octave", "clef", "crescendo", "sonata", "fugue", "concerto", "aria", "pitch", "timbre"];
+export const verbalWordList = ["metaphor", "irony", "syntax", "phoneme", "morpheme", "paradox", "alliteration", "onomatopoeia", "hyperbole", "prose", "verse", "narrative"];
+
 export const realWords = Array.from(validationWordList);
 export const pseudowords = ["flib", "glorp", "wux", "blicket", "zorp", "dax"];
+
+    

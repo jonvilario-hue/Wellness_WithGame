@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,16 +13,10 @@ import { Archive, Loader2 } from "lucide-react";
 import type { TrainingFocus } from "@/types";
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
-import { generalCategories, mathCategories, musicCategories, verbalCategories } from "@/data/verbal-content";
+import { generalCategories, mathCategories, musicCategories, verbalCategories, generalWordList, mathWordList, musicWordList, verbalWordList } from "@/data/verbal-content";
 import { GameStub } from "../game-stub";
 import { AlgorithmFluency } from "../logic/algorithm-fluency";
 import { SpacedRetrievalMode } from "./spaced-retrieval-mode";
-
-// --- Domain-specific content ---
-const generalWordList = ["apple", "car", "house", "river", "mountain", "book", "chair", "music", "light", "ocean", "star", "forest", "fire", "cloud", "dream", "journey", "key", "mirror", "shadow", "silence", "time", "voice", "water", "wind", "world"];
-const mathWordList = ["algebra", "calculus", "geometry", "integer", "prime", "fraction", "decimal", "vertex", "angle", "matrix", "vector", "theorem", "proof", "integral", "derivative"];
-const musicWordList = ["harmony", "melody", "rhythm", "tempo", "chord", "scale", "octave", "clef", "crescendo", "sonata", "fugue", "concerto", "aria", "pitch", "timbre"];
-const verbalWordList = ["metaphor", "irony", "syntax", "phoneme", "morpheme", "paradox", "alliteration", "onomatopoeia", "hyperbole", "prose", "verse", "narrative"];
 
 const generalAntonyms: Record<string, string> = { "hot": "cold", "fast": "slow", "happy": "sad", "big": "small", "up": "down", "light": "dark", "day": "night", "rich": "poor", "old": "new", "true": "false" };
 
@@ -313,3 +308,5 @@ function CategorySwitchingMode({ onComplete, focus }: { onComplete: (score: numb
         </div>
     );
 }
+
+    
