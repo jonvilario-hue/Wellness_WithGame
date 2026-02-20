@@ -5,13 +5,14 @@ import { Settings, BrainCircuit } from 'lucide-react';
 import { Button } from './ui/button';
 import Link from 'next/link';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { GlobalFocusSwitcher } from './global-focus-switcher';
   
 export function Header() {
   return (
     <header className="px-4 sm:px-6 md:px-8 py-2 border-b bg-card">
       <div className="mx-auto max-w-7xl flex items-center justify-between">
-        <div className="flex-1 flex justify-start items-center gap-1">
-            {/* Left side can be empty or have other branding */}
+        <div className="flex-1 flex justify-start items-center gap-2">
+            <GlobalFocusSwitcher />
         </div>
 
         <div className="flex items-center gap-2">
