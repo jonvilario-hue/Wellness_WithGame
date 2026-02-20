@@ -24,33 +24,42 @@ type WordPuzzle = {
   hint: string;
 };
 
-const generatePuzzleForLevel = (level: number): WordPuzzle => {
+// NOTE: This generator is a simplified placeholder based on the verbal spec.
+// A real implementation would use a larger word corpus.
+const generatePuzzleForLevel = (level: number, focus: TrainingFocus): WordPuzzle => {
   const { content_config } = policy.levelMap[level] || policy.levelMap[1];
-  const params = content_config.verbal.params;
+  const params = content_config[focus]?.params || content_config['neutral']!.params;
   
-  let parts: string[] = [];
-  let answer: string = '';
-  let hint: string = '';
+  let parts: string[];
+  let answer: string;
+  let hint: string;
 
   if (params.type === 'compound') {
-    parts = ['SUN', 'FLOWER'];
-    answer = 'SUNFLOWER';
-    hint = 'A tall yellow plant that faces the sun.';
+    const word = wordParts.compound_words[Math.floor(Math.random() * wordParts.compound_words.length)];
+    parts = word.parts;
+    answer = word.answer;
+    hint = word.hint;
   } else { // affixes
-    parts = ['UN', 'FRIEND', 'LY'];
-    answer = 'UNFRIENDLY';
-    hint = 'Not disposed to friendship or amity.';
+    const word = wordParts.affix_words[Math.floor(Math.random() * wordParts.affix_words.length)];
+    parts = word.parts;
+    answer = word.answer;
+    hint = word.hint;
   }
 
   const options: string[] = [answer];
-  const decoy1 = parts.slice().reverse().join('');
-  if (decoy1 !== answer) options.push(decoy1);
-  options.push('FRIENDLYUN', 'LYFRIENDUN');
+  const decoy1 = [...parts].reverse().join('');
+  if (decoy1 !== answer && !options.includes(decoy1)) options.push(decoy1);
+  while(options.length < 4) {
+      const shuffled = [...parts].sort(() => 0.5 - Math.random()).join('');
+      if(shuffled !== answer && !options.includes(shuffled)) {
+          options.push(shuffled);
+      }
+  }
   
   return {
     parts: parts.sort(() => Math.random() - 0.5),
     answer,
-    options: Array.from(new Set(options)).slice(0, 4).sort(() => Math.random() - 0.5),
+    options: options.sort(() => Math.random() - 0.5),
     hint,
   };
 };
@@ -86,12 +95,16 @@ export function OrthographicConstruction({ focus }: { focus: TrainingFocus }) {
   }, [focus, getAdaptiveState]);
   
   const startNewTrial = useCallback((state: AdaptiveState) => {
-    setPuzzle(generatePuzzleForLevel(state.currentLevel));
+    const onRamp = state.uncertainty > 0.7;
+    const loadedLevel = onRamp
+      ? Math.max(state.levelFloor, state.currentLevel - 2)
+      : state.currentLevel;
+    setPuzzle(generatePuzzleForLevel(loadedLevel, focus));
     setSelectedOption(null);
     setInlineFeedback({ message: '', type: '' });
     setGameState('playing');
     trialStartTime.current = Date.now();
-  }, []);
+  }, [focus]);
 
   const startNewSession = useCallback(() => {
     if (!adaptiveState) return;
@@ -166,7 +179,7 @@ export function OrthographicConstruction({ focus }: { focus: TrainingFocus }) {
         
         <div className="h-6 text-sm font-semibold">
           {inlineFeedback.message && (
-            <p={cn("animate-in fade-in", inlineFeedback.type === 'success' ? 'text-green-600' : 'text-amber-600')}>
+            <p className={cn("animate-in fade-in", inlineFeedback.type === 'success' ? 'text-green-600' : 'text-amber-600')}>
               {inlineFeedback.message}
             </p>
           )}
