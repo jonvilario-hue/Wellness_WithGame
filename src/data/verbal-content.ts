@@ -61,3 +61,10 @@ export const prosodySentences = [
     { sentence: "Oh, that's just great.", options: ['Sarcastic', 'Sincere'], answer: 'Sarcastic' },
     { sentence: "You finished the project? That's great!", options: ['Sarcastic', 'Sincere'], answer: 'Sincere' },
 ];
+
+export const grammarScrambleSentences = [
+    { sentence: "The quick brown fox jumps over the lazy dog." },
+    { sentence: "Cognitive training can improve mental flexibility." },
+    { sentence: "Working memory is crucial for complex reasoning." },
+    { sentence: "The cat sat on the warm, sunny windowsill." },
+];
