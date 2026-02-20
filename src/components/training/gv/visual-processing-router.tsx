@@ -35,10 +35,11 @@ export function VisualProcessingRouter() {
         return <TypographicSearch focus={effectiveFocus} />;
     case 'spatial':
         return <GameStub 
-            title="Voxel Jigsaw / Proportion Match"
-            description="Assemble an 'exploded view' of a complex 3D object, or select its correctly scaled 2D shadow from a set of distorted options. This is the purest test of part-to-whole visualization."
+            title="Voxel Jigsaw"
+            description="Assemble an 'exploded view' of a complex object made of voxels (3D pixels). Then, select the correctly assembled final shape from a set of highly similar options, some with subtle assembly errors."
             subdomain="Spatial Visualization"
             assetComplexity="High"
+            fallback="Use 2D 'pixel art' sprites on an isometric grid. The task becomes assembling a 2.5D object from its parts, preserving the part-to-whole visualization goal."
         />;
     case 'neutral':
     default:

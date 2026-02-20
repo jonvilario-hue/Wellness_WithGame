@@ -242,9 +242,10 @@ export function PatternMatrix() {
     if (currentMode === 'spatial') {
         return <GameStub 
             title="Assembly Logic" 
-            description="Deduce an assembly rule from a 3x3 grid showing a sequence of 3D parts being assembled. Then, select the correct final object for the empty slot."
+            description="Deduce the assembly rule from a 3x3 grid showing a sequence of 3D parts being assembled. Then, select the correct final object for the empty slot."
             subdomain="Assembly/Disassembly"
             assetComplexity="High"
+            fallback="Use animated SVGs. The assembly sequence is shown as 2D shapes merging and transforming, preserving the rule-inference mechanic without real-time 3D."
         />;
     }
 

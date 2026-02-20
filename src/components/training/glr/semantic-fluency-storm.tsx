@@ -50,9 +50,10 @@ export function SemanticFluencyStorm() {
     if (currentTrainingFocus === 'spatial') {
         return <GameStub 
             title="Route Retrieval" 
-            description="Answer text-based questions about routes and relative locations from memory after being shown a complex map. This tests your ability to store and retrieve complex spatial information."
+            description="A complex 3D 'memory palace' or city map is shown briefly. The map disappears. User must answer prompts like 'Which room was next to the library?' or 'Describe the path from the fountain to the tower.'"
             subdomain="Spatial Orientation"
             assetComplexity="High"
+            fallback="Use a complex 2D SVG subway-style map. The core mechanic of retrieving valid paths from memory is preserved."
         />;
     }
 

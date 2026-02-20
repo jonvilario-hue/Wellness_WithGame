@@ -146,7 +146,7 @@ export function RapidCodeMatch() {
     return { type: 'numeracy', values: [val1.str, val2.str], correctAnswer };
   }, []);
 
-  const startNewTrial = (state: AdaptiveState) => {
+  const startNewTrial = useCallback((state: AdaptiveState) => {
       const onRamp = state.uncertainty > 0.7;
       const loadedLevel = onRamp
           ? Math.max(state.levelFloor, state.currentLevel - 2)
@@ -159,6 +159,9 @@ export function RapidCodeMatch() {
       if (currentMode === 'verbal') {
           trialVariant.current = 'lexical_decision';
           setProblem(generateLexicalProblem());
+      } else if (currentMode === 'spatial') {
+          // Placeholder for spatial mode logic for Gs
+          // For now, it will use the GameStub
       } else {
         const subVariant = contentParams.sub_variant || 'symbol_substitution';
         if (subVariant === 'magnitude_comparison' && Math.random() > 0.5) {
@@ -172,7 +175,7 @@ export function RapidCodeMatch() {
       
       setGameState('running');
       trialStartTime.current = Date.now();
-  };
+  }, [currentMode, generateLexicalProblem, generateNumeracyProblem, generateSymbolProblem]);
 
   const startNewSession = useCallback(() => {
     if (!adaptiveState) return;
@@ -238,16 +241,21 @@ export function RapidCodeMatch() {
     setTimeout(() => {
         if(timeLeft > 0) {
             startNewTrial(newState);
+        } else {
+            setGameState('finished');
+            const finalState = endSession(newState, sessionTrials);
+            updateAdaptiveState(finalState);
         }
     }, 500);
   }, [gameState, problem, adaptiveState, timeLeft, startNewTrial, updateAdaptiveState]);
 
   if (currentMode === 'spatial') {
     return <GameStub 
-        title="Rapid Rotation / Target Interception"
-        description="Rapidly decide which of two shapes is a valid rotation of a target, or predict where a moving object will intersect a target line. This trains speeded spatial judgment and predictive tracking."
+        title="Rapid Rotation" 
+        description="A simple 3D object (like an 'L' shape) is shown. Two other versions appear next to it. User must rapidly decide which of the two options is a valid rotation of the target and which is an impossible mirror image."
         subdomain="Mental Rotation"
         assetComplexity="High"
+        fallback="Use 2D character sprites (e.g. 'F') and their rotated/mirrored versions. The cognitive task is nearly identical and avoids 3D rendering overhead."
     />;
   }
 

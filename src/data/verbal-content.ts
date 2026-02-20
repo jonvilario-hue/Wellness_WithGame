@@ -1,3 +1,4 @@
+
 // This file acts as a mock database for all verbal content,
 // simulating what would be stored in a production Firestore collection.
 
@@ -104,6 +105,13 @@ export const efCategories = {
   rhymesWithCat: ['hat', 'bat', 'mat'],
   rhymesWithDog: ['log', 'frog', 'bog'],
 };
+
+// For Gc Spatial Lexicon
+export const spatialConcepts = [
+    { question: "Which term describes the front of a ship?", answer: "Bow", distractors: ["Stern", "Port", "Starboard"], explanation: "The 'bow' is the forward part of a ship's hull." },
+    { question: "In architecture, what is a 'keystone'?", answer: "The central stone of an arch", distractors: ["A foundation stone", "A decorative cornerstone", "A type of column"], explanation: "The keystone locks all other stones into position, completing the arch." },
+    { question: "If you are facing North and turn 180 degrees, which direction are you now facing?", answer: "South", distractors: ["East", "West", "North"], explanation: "A 180-degree turn is a complete reversal of direction." },
+];
 
 export const realWords = Array.from(validationWordList);
 export const pseudowords = ["flib", "glorp", "wux", "blicket", "zorp", "dax"];

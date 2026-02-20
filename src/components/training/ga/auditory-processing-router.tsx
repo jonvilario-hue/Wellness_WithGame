@@ -242,9 +242,10 @@ export function AuditoryProcessingRouter() {
     if (currentMode === 'spatial') {
         return <GameStub 
             title="Audio-Locator"
-            description="Pinpoint a sound's origin in a simulated 3D audio space. A sound (beep or word) is played, and you must click on a 2D map representing the room to indicate where the sound came from."
+            description="A sound (beep or word) is played in a simulated 3D audio space. User clicks on a 2D map representing their 'room' to pinpoint the sound's origin (left/right, front/back)."
             subdomain="Spatial Orientation"
             assetComplexity="High"
+            fallback="Use simple stereo panning (left/right only) instead of full 3D audio. The task becomes a 1D localization problem, which is less complex but preserves the core mechanic."
         />;
     }
 

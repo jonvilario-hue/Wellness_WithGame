@@ -313,6 +313,7 @@ export function FocusSwitchReactor() {
         description="A simple scene contains several distinct objects (e.g., a red cube, a blue sphere). A question appears ('Is the red cube on the left?'), but a cue randomly switches between 'YOUR VIEW' and 'MAP VIEW', forcing you to rapidly switch your mental frame of reference."
         subdomain="Spatial Orientation"
         assetComplexity="High"
+        fallback="Use a 2D grid with labeled icons. 'YOUR VIEW' is the standard grid view. 'MAP VIEW' is the grid rotated 180 degrees. The user must answer questions about relative positions."
     />;
   }
 

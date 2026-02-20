@@ -13,12 +13,13 @@ import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
-import { clozeSentences, morphologyWordPairs } from "@/data/verbal-content";
+import { clozeSentences, morphologyWordPairs, spatialConcepts } from "@/data/verbal-content";
 import { GameStub } from "../game-stub";
 
 const GAME_ID: GameId = 'gc_verbal_inference';
 const policy = difficultyPolicies[GAME_ID];
 
+// --- Puzzle Types ---
 type Puzzle = {
   type: string;
   question: string;
@@ -27,6 +28,7 @@ type Puzzle = {
   explanation: string;
 };
 
+// --- Puzzle Generation ---
 const generatePuzzleForLevel = (level: number, focus: TrainingFocus): Puzzle => {
     const levelDef = policy.levelMap[level] || policy.levelMap[Object.keys(policy.levelMap).pop() as any];
     const contentConfig = levelDef.content_config[focus];
@@ -35,8 +37,18 @@ const generatePuzzleForLevel = (level: number, focus: TrainingFocus): Puzzle => 
     }
     const { sub_variant, params } = contentConfig;
     
-    // In a real implementation, you would dynamically generate puzzles here.
-    // For this prototype, we'll use pre-made templates.
+    if (sub_variant === 'spatial_lexicon') {
+        const concept = spatialConcepts[Math.floor(Math.random() * spatialConcepts.length)];
+        const options = [...concept.distractors, concept.answer].sort(() => Math.random() - 0.5);
+        return {
+            type: 'spatial_lexicon',
+            question: concept.question,
+            options,
+            answer: concept.answer,
+            explanation: concept.explanation
+        }
+    }
+    
     let puzzleTemplate;
     if (sub_variant === 'cloze_deletion') {
         puzzleTemplate = clozeSentences.find(p => p.difficulty === params.word_rarity) || clozeSentences[0];
@@ -53,6 +65,7 @@ const generatePuzzleForLevel = (level: number, focus: TrainingFocus): Puzzle => 
     };
 };
 
+// --- Main Game Component ---
 export function VerbalInferenceBuilder() {
   const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
@@ -138,16 +151,6 @@ export function VerbalInferenceBuilder() {
     return "secondary";
   }
 
-  if (currentMode === 'spatial') {
-    return <GameStub 
-        title="Spatial Lexicon"
-        description="Answer a multiple-choice question about spatial prepositions or relative directions. This tests your stored knowledge of spatial language and concepts without requiring visual manipulation."
-        subdomain="Spatial Orientation"
-        assetComplexity="Low"
-    />;
-  }
-
-
   const renderContent = () => {
     if (gameState === 'loading' || !isComponentLoaded) {
       return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
@@ -217,9 +220,14 @@ export function VerbalInferenceBuilder() {
       <CardHeader>
         <CardTitle className="flex items-center justify-center gap-2">
             <BookOpenText />
-            (Gc) Verbal Inference Builder
+            (Gc) {currentMode === 'spatial' ? 'Spatial Lexicon' : 'Verbal Inference'}
         </CardTitle>
-        <CardDescription className="text-center">Deduce the meaning or relationship from the context provided.</CardDescription>
+        <CardDescription className="text-center">
+          {currentMode === 'spatial' 
+            ? 'Test your knowledge of spatial vocabulary and concepts.' 
+            : 'Deduce the meaning or relationship from the context provided.'
+          }
+        </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-6 min-h-[400px] justify-center">
         {renderContent()}
