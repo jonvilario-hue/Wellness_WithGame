@@ -16,6 +16,7 @@ import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types"
 import { clozeSentences, morphologyWordPairs, spatialConcepts } from "@/data/verbal-content";
 import { GameStub } from "../game-stub";
 import { GcSpatialLexicon } from "./gc-spatial-lexicon";
+import { RegulationArchitect } from "./regulation-architect";
 
 const GAME_ID: GameId = 'gc_verbal_inference';
 const policy = difficultyPolicies[GAME_ID];
@@ -52,9 +53,15 @@ const generatePuzzleForLevel = (level: number, focus: TrainingFocus): Puzzle => 
     
     let puzzleTemplate;
     if (sub_variant === 'cloze_deletion') {
-        puzzleTemplate = clozeSentences.find(p => p.difficulty === params.word_rarity) || clozeSentences[0];
+        const filteredSentences = clozeSentences.filter(p => p.difficulty === params.word_rarity);
+        puzzleTemplate = filteredSentences[Math.floor(Math.random() * filteredSentences.length)] || clozeSentences[0];
     } else { // Default to math word problems or other fallbacks
-        puzzleTemplate = (policy.levelMap[1].content_config.math as any)[0];
+        puzzleTemplate = {
+            question: "A train travels at 60 mph for 2 hours. How far did it go?",
+            options: ["100 miles", "150 miles"],
+            answer: "120 miles",
+            explanation: "Distance = Speed x Time. 60 * 2 = 120."
+        }
     }
 
     return {
@@ -152,12 +159,22 @@ export function VerbalInferenceBuilder() {
     return "secondary";
   }
 
+  // --- ROUTER LOGIC ---
+  if (!isComponentLoaded) {
+      return <Card className="w-full max-w-2xl min-h-[400px] flex items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-primary" /></Card>;
+  }
+
   if (currentMode === 'spatial') {
     return <GcSpatialLexicon />;
   }
 
+  if (currentMode === 'eq') {
+      return <RegulationArchitect focus={currentMode} />;
+  }
+  // --- END ROUTER LOGIC ---
+
   const renderContent = () => {
-    if (gameState === 'loading' || !isComponentLoaded) {
+    if (gameState === 'loading') {
       return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
     }
     if (gameState === 'start') {
@@ -225,13 +242,10 @@ export function VerbalInferenceBuilder() {
       <CardHeader>
         <CardTitle className="flex items-center justify-center gap-2">
             <BookOpenText />
-            (Gc) {currentMode === 'spatial' ? 'Spatial Lexicon' : 'Verbal Inference'}
+            (Gc) Verbal Inference
         </CardTitle>
         <CardDescription className="text-center">
-          {currentMode === 'spatial' 
-            ? 'Test your knowledge of spatial vocabulary and concepts.' 
-            : 'Deduce the meaning or relationship from the context provided.'
-          }
+            Deduce the meaning or relationship from the context provided.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-6 min-h-[400px] justify-center">
