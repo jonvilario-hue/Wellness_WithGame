@@ -72,6 +72,7 @@ export function FocusSwitchReactor() {
   const [rule, setRule] = useState<NeutralRule | MathRule | MusicRule>('word');
   const [stimulus, setStimulus] = useState<any>({ word: 'PRIMARY', color: 'text-primary', value: 7, noteSequence: ['C','E','G'] });
   const [inlineFeedback, setInlineFeedback] = useState({ message: '', type: '' });
+  const [shuffledOptions, setShuffledOptions] = useState<string[]>([]);
 
   const ruleRef = useRef(rule);
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
@@ -123,29 +124,45 @@ export function FocusSwitchReactor() {
   const generateRule = useCallback(() => {
     const noGoChance = 0.2;
     if (Math.random() < noGoChance) {
-        setRule('no_go');
-        return;
+        return 'no_go';
     }
     
     if (currentMode === 'math') {
-        setRule(Math.random() < 0.5 ? 'parity' : 'primality');
+        return (Math.random() < 0.5 ? 'parity' : 'primality');
     } else if (currentMode === 'music') {
-        setRule('quality');
+        return 'quality';
     } else { // Neutral mode
-        setRule(Math.random() < 0.5 ? 'color' : 'word');
+        return (Math.random() < 0.5 ? 'color' : 'word');
     }
   }, [currentMode]);
   
   const startNewTrial = useCallback((state: AdaptiveState) => {
     generateStimulus();
-    // Rule switching logic from original component. A more advanced version would use the policy.
+    
+    let newRule = ruleRef.current;
     if (Math.random() < 0.3) { 
-      generateRule();
+      newRule = generateRule();
     }
+    setRule(newRule as any);
+
+    let options: string[] = [];
+    if (currentMode === 'math') {
+        if (newRule === 'parity') options = ['EVEN', 'ODD'];
+        else if (newRule === 'primality') options = ['PRIME', 'COMPOSITE'];
+        else options = ['EVEN', 'ODD', 'PRIME', 'COMPOSITE'];
+    } else if (currentMode === 'music') {
+        options = qualities;
+    } else { // Neutral mode
+        options = colorMap.map(c => c.name);
+    }
+    
+    options.sort(() => Math.random() - 0.5);
+    setShuffledOptions(options);
+
     setInlineFeedback({ message: '', type: '' });
     setGameState('running');
     trialStartTime.current = Date.now();
-  }, [generateStimulus, generateRule]);
+  }, [generateStimulus, generateRule, currentMode]);
   
   const startNewSession = useCallback(() => {
     if (!adaptiveState) return;
@@ -246,20 +263,6 @@ export function FocusSwitchReactor() {
       return '';
   }
   
-  const getAnswerOptions = () => {
-      if (currentMode === 'math') {
-        if (rule === 'parity') return ['EVEN', 'ODD'];
-        if (rule === 'primality') return ['PRIME', 'COMPOSITE'];
-        return ['EVEN', 'ODD', 'PRIME', 'COMPOSITE']; // Fallback for no-go
-      }
-      if (currentMode === 'music') {
-        return qualities;
-      }
-      // Neutral mode
-      return colorMap.map(c => c.name);
-  }
-  
-  const answerOptions = useMemo(getAnswerOptions, [rule, currentMode]);
   const buttonGridCols = currentMode === 'neutral' ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-2';
 
   const renderContent = () => {
@@ -309,7 +312,7 @@ export function FocusSwitchReactor() {
                 )}
               </div>
               <div className={cn("grid gap-4 w-full", buttonGridCols)}>
-                {answerOptions.map(option => {
+                {shuffledOptions.map(option => {
                   if (currentMode === 'neutral') {
                       const colorInfo = colorMap.find(c => c.name === option);
                       if (colorInfo) {
