@@ -159,9 +159,6 @@ export function RapidCodeMatch() {
       if (currentMode === 'verbal') {
           trialVariant.current = 'lexical_decision';
           setProblem(generateLexicalProblem());
-      } else if (currentMode === 'spatial') {
-          // Placeholder for spatial mode logic for Gs
-          // For now, it will use the GameStub
       } else {
         const subVariant = contentParams.sub_variant || 'symbol_substitution';
         if (subVariant === 'magnitude_comparison' && Math.random() > 0.5) {
@@ -251,11 +248,12 @@ export function RapidCodeMatch() {
 
   if (currentMode === 'spatial') {
     return <GameStub 
-        title="Rapid Rotation" 
+        name="Rapid Rotation" 
         description="A simple 3D object (like an 'L' shape) is shown. Two other versions appear next to it. User must rapidly decide which of the two options is a valid rotation of the target and which is an impossible mirror image."
-        subdomain="Mental Rotation"
-        assetComplexity="High"
-        fallback="Use 2D character sprites (e.g. 'F') and their rotated/mirrored versions. The cognitive task is nearly identical and avoids 3D rendering overhead."
+        chcFactor="Processing Speed (Gs) / Mental Rotation"
+        techStack={['CSS 3D Transforms']}
+        complexity="High"
+        fallbackPlan="Use 2D character sprites (e.g. 'F') and their rotated/mirrored versions. The cognitive task is nearly identical and avoids 3D rendering overhead."
     />;
   }
 

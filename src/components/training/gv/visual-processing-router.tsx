@@ -35,11 +35,12 @@ export function VisualProcessingRouter() {
         return <TypographicSearch focus={effectiveFocus} />;
     case 'spatial':
         return <GameStub 
-            title="Voxel Jigsaw"
+            name="Voxel Jigsaw"
             description="Assemble an 'exploded view' of a complex object made of voxels (3D pixels). Then, select the correctly assembled final shape from a set of highly similar options, some with subtle assembly errors."
-            subdomain="Spatial Visualization"
-            assetComplexity="High"
-            fallback="Use 2D 'pixel art' sprites on an isometric grid. The task becomes assembling a 2.5D object from its parts, preserving the part-to-whole visualization goal."
+            chcFactor="Visual Processing (Gv) / Spatial Visualization"
+            techStack={['Three.js', 'Voxel Engine']}
+            complexity="High"
+            fallbackPlan="Use 2D 'pixel art' sprites on an isometric grid. The task becomes assembling a 2.5D object from its parts, preserving the part-to-whole visualization goal."
         />;
     case 'neutral':
     default:

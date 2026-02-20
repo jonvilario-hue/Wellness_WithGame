@@ -15,6 +15,7 @@ import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
 import { clozeSentences, morphologyWordPairs, spatialConcepts } from "@/data/verbal-content";
 import { GameStub } from "../game-stub";
+import { GcSpatialLexicon } from "./gc-spatial-lexicon";
 
 const GAME_ID: GameId = 'gc_verbal_inference';
 const policy = difficultyPolicies[GAME_ID];
@@ -149,6 +150,10 @@ export function VerbalInferenceBuilder() {
     if (option === puzzle.answer) return "bg-green-600 hover:bg-green-700 text-white";
     if (option === selectedAnswer) return "bg-destructive hover:bg-destructive/90 text-destructive-foreground";
     return "secondary";
+  }
+
+  if (currentMode === 'spatial') {
+    return <GcSpatialLexicon />;
   }
 
   const renderContent = () => {

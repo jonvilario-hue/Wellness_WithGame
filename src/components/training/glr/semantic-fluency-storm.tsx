@@ -49,11 +49,12 @@ export function SemanticFluencyStorm() {
 
     if (currentTrainingFocus === 'spatial') {
         return <GameStub 
-            title="Route Retrieval" 
+            name="Route Retrieval" 
             description="A complex 3D 'memory palace' or city map is shown briefly. The map disappears. User must answer prompts like 'Which room was next to the library?' or 'Describe the path from the fountain to the tower.'"
-            subdomain="Spatial Orientation"
-            assetComplexity="High"
-            fallback="Use a complex 2D SVG subway-style map. The core mechanic of retrieving valid paths from memory is preserved."
+            chcFactor="Long-Term Retrieval (Glr) / Spatial Orientation"
+            techStack={['CSS 3D Transforms', 'SVG']}
+            complexity="High"
+            fallbackPlan="Use a complex 2D SVG subway-style map. The core mechanic of retrieving valid paths from memory is preserved."
         />;
     }
 
@@ -134,7 +135,6 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (score: numbe
         const newLevel = Math.max(currentState.levelFloor, Math.min(currentState.levelCeiling, 4 + Math.min(6, Math.floor(chain.length / 2))));
 
         updateAdaptiveState(
-            'glr_fluency_storm',
             {
                 ...currentState,
                 currentLevel: newLevel,
@@ -261,7 +261,7 @@ function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (score: number
             else if (phase === 'recall') {
                 const currentState = getAdaptiveState('glr_fluency_storm');
                 const newLevel = Math.max(currentState.levelFloor, Math.min(currentState.levelCeiling, 4 + score));
-                updateAdaptiveState('glr_fluency_storm', { ...currentState, currentLevel: newLevel, lastFocus: focus, sessionCount: currentState.sessionCount + 1, lastSessionAt: Date.now() });
+                updateAdaptiveState({ ...currentState, currentLevel: newLevel, lastFocus: focus, sessionCount: currentState.sessionCount + 1, lastSessionAt: Date.now() });
                 onComplete(score);
                 setPhase('finished');
             }
@@ -370,7 +370,7 @@ function CategorySwitchingMode({ onComplete, focus }: { onComplete: (score: numb
                     clearInterval(totalTimer);
                     const currentState = getAdaptiveState('glr_fluency_storm');
                     const newLevel = Math.max(currentState.levelFloor, Math.min(currentState.levelCeiling, 4 + Math.min(6, Math.floor(score / 5))));
-                    updateAdaptiveState('glr_fluency_storm', { ...currentState, currentLevel: newLevel, lastFocus: focus, sessionCount: currentState.sessionCount + 1, lastSessionAt: Date.now() });
+                    updateAdaptiveState({ ...currentState, currentLevel: newLevel, lastFocus: focus, sessionCount: currentState.sessionCount + 1, lastSessionAt: Date.now() });
                     onComplete(score);
                     return 0;
                 }

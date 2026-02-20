@@ -309,11 +309,12 @@ export function FocusSwitchReactor() {
 
   if (currentMode === 'spatial') {
     return <GameStub 
-        title="Perspective Shift" 
-        description="A simple scene contains several distinct objects (e.g., a red cube, a blue sphere). A question appears ('Is the red cube on the left?'), but a cue randomly switches between 'YOUR VIEW' and 'MAP VIEW', forcing you to rapidly switch your mental frame of reference."
-        subdomain="Spatial Orientation"
-        assetComplexity="High"
-        fallback="Use a 2D grid with labeled icons. 'YOUR VIEW' is the standard grid view. 'MAP VIEW' is the grid rotated 180 degrees. The user must answer questions about relative positions."
+        name="Perspective Shift" 
+        description="A simple scene contains several distinct 3D objects. A cue randomly switches between 'YOUR VIEW' and 'MAP VIEW' (top-down), forcing you to rapidly switch your mental frame of reference to answer questions about relative object positions."
+        chcFactor="Executive Function (EF) / Spatial Orientation"
+        techStack={['CSS 3D Transforms']}
+        complexity="High"
+        fallbackPlan="Use 2D icons on a grid. 'MAP VIEW' is the grid rotated 180 degrees. The core mechanic of switching mental reference frames is preserved without 3D rendering."
     />;
   }
 

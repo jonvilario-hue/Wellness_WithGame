@@ -1,53 +1,77 @@
 
 'use client';
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Layers3, Cpu, AudioLines, Code, Redo } from "lucide-react";
-import { Separator } from "../ui/separator";
+import React from 'react';
+import { Wrench, MonitorSmartphone, Code } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '../ui/separator';
 
 interface GameStubProps {
-    title: string;
-    description: string;
-    subdomain: string;
-    assetComplexity: 'Low' | 'Medium' | 'High';
-    fallback?: string;
+  name: string;
+  chcFactor: string;
+  description: string;
+  techStack: string[];
+  complexity: 'Low' | 'Medium' | 'High';
+  fallbackPlan: string;
 }
 
-const complexityInfo = {
-    'Low': { icon: Cpu, label: 'Low (Text/2D)', color: 'bg-green-500/10 text-green-700' },
-    'Medium': { icon: Layers3, label: 'Medium (2.5D/SVG)', color: 'bg-amber-500/10 text-amber-700' },
-    'High': { icon: AudioLines, label: 'High (3D/Web Audio)', color: 'bg-destructive/10 text-destructive' },
-};
-
-export function GameStub({ title, description, subdomain, assetComplexity, fallback }: GameStubProps) {
-  const { icon: Icon, label, color } = complexityInfo[assetComplexity];
-  
+export const GameStub: React.FC<GameStubProps> = ({ 
+  name, 
+  chcFactor, 
+  description, 
+  techStack, 
+  complexity,
+  fallbackPlan 
+}) => {
   return (
     <Card className="w-full max-w-2xl text-center border-dashed animate-in fade-in-50">
       <CardHeader>
-        <CardTitle className="text-2xl">{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
+        <div className="flex justify-between items-start">
+          <div>
+            <CardTitle className="text-xl font-bold">{name}</CardTitle>
+            <p className="text-sm text-muted-foreground font-mono mt-1">Factor: {chcFactor}</p>
+          </div>
+          <Badge variant={complexity === 'High' ? 'destructive' : 'secondary'}>
+            Complexity: {complexity}
+          </Badge>
+        </div>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex justify-center gap-4">
-            <Badge variant="secondary">Subdomain: {subdomain}</Badge>
-            <Badge className={color}><Icon className="w-3 h-3 mr-1.5"/>Complexity: {label}</Badge>
+      <CardContent className="space-y-6">
+        
+        <div className="space-y-2 text-left">
+          <p className="text-foreground">{description}</p>
         </div>
+
         <Separator />
-        <div className="text-sm text-muted-foreground bg-muted/50 p-4 rounded-lg space-y-3">
-            <div>
-                <h4 className="font-bold mb-2 text-foreground flex items-center justify-center gap-2"><Code /> Implementation Prompt</h4>
-                <p className="text-left">To complete this game, provide a prompt to an AI with the following goal: "Implement the '{title}' game. The user must {description.toLowerCase().replace('.', '')} by interacting with the described stimuli. The core cognitive skill being tested is '{subdomain}'."</p>
+
+        <div className="space-y-3 text-left">
+            <h4 className="text-sm font-semibold uppercase text-muted-foreground flex items-center gap-2"><Code className="w-4 h-4"/>Required Tech Stack</h4>
+            <div className="flex flex-wrap gap-2">
+              {techStack.map(tech => (
+                <Badge key={tech} variant="outline">
+                  {tech}
+                </Badge>
+              ))}
             </div>
-            {fallback && (
-                <div>
-                    <h4 className="font-bold mb-2 text-foreground flex items-center justify-center gap-2"><Redo /> 2D Fallback Plan</h4>
-                    <p className="text-left">{fallback}</p>
-                </div>
-            )}
         </div>
+
+        <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-md text-left">
+            <div className="flex items-center gap-2 mb-2 text-amber-700">
+                <MonitorSmartphone className="w-4 h-4" />
+                <h4 className="text-sm font-bold uppercase">2D Fallback Strategy</h4>
+            </div>
+            <p className="text-sm text-amber-900 dark:text-amber-200">
+                {fallbackPlan}
+            </p>
+        </div>
+
+        <div className="flex items-center gap-2 text-xs text-muted-foreground pt-4 border-t justify-center">
+            <Wrench className="w-3 h-3" />
+            <span>Development Placeholder - Game Logic Pending</span>
+        </div>
+
       </CardContent>
     </Card>
   );
-}
+};

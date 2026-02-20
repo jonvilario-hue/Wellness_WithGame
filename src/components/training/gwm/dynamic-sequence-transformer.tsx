@@ -190,11 +190,12 @@ export function DynamicSequenceTransformer() {
   
   if (currentMode === 'spatial') {
     return <GameStub 
-        title="Spatial Span"
-        description="Repeat a sequence of flashing 3D cubes by clicking them in the correct order. This tests your ability to hold and recall a series of spatial locations in working memory."
-        subdomain="Dynamic Tracking"
-        assetComplexity="High"
-        fallback="Use a 2D grid. The core mechanic of recalling a sequence of locations is preserved, but without the 3D rendering overhead."
+        name="Spatial Span"
+        description="A set of 3D cubes in space flash in a specific sequence. User must repeat the sequence by clicking the cubes in the correct order. This tests your ability to hold and recall a series of spatial locations in working memory."
+        chcFactor="Working Memory (Gwm) / Dynamic Tracking"
+        techStack={['CSS 3D Transforms']}
+        complexity="High"
+        fallbackPlan="Use a 2D grid. The core mechanic of recalling a sequence of locations is preserved, but without the 3D rendering overhead."
     />;
   }
 
