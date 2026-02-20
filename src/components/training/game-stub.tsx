@@ -2,8 +2,8 @@
 'use client';
 
 import React from 'react';
-import { Wrench, MonitorSmartphone, Code } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Wrench, MonitorSmartphone, Code, ChevronsRight } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '../ui/separator';
 
@@ -14,6 +14,10 @@ interface GameStubProps {
   techStack: string[];
   complexity: 'Low' | 'Medium' | 'High';
   fallbackPlan: string;
+  difficultyExamples?: {
+    level1: string;
+    level8: string;
+  };
 }
 
 export const GameStub: React.FC<GameStubProps> = ({ 
@@ -22,7 +26,8 @@ export const GameStub: React.FC<GameStubProps> = ({
   description, 
   techStack, 
   complexity,
-  fallbackPlan 
+  fallbackPlan,
+  difficultyExamples,
 }) => {
   return (
     <Card className="w-full max-w-2xl text-center border-dashed animate-in fade-in-50">
@@ -44,6 +49,22 @@ export const GameStub: React.FC<GameStubProps> = ({
         </div>
 
         <Separator />
+        
+        {difficultyExamples && (
+          <div className="space-y-3 text-left">
+            <h4 className="text-sm font-semibold uppercase text-muted-foreground flex items-center gap-2"><ChevronsRight className="w-4 h-4"/>Difficulty Scaling</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div className="p-3 bg-muted/50 rounded-md">
+                    <p className="font-bold">Level 1 Example</p>
+                    <p className="text-muted-foreground">{difficultyExamples.level1}</p>
+                </div>
+                 <div className="p-3 bg-muted/50 rounded-md">
+                    <p className="font-bold">Level 8+ Example</p>
+                    <p className="text-muted-foreground">{difficultyExamples.level8}</p>
+                </div>
+            </div>
+          </div>
+        )}
 
         <div className="space-y-3 text-left">
             <h4 className="text-sm font-semibold uppercase text-muted-foreground flex items-center gap-2"><Code className="w-4 h-4"/>Required Tech Stack</h4>

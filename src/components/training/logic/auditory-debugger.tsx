@@ -1,3 +1,4 @@
+
 'use client';
 
 import { GameStub } from '../game-stub';
@@ -11,6 +12,10 @@ export function AuditoryDebugger() {
       techStack={['Web Audio API', 'Tone.js']}
       complexity="High"
       fallbackPlan="If audio synthesis fails, the game presents the sequence visually as a series of animated icons with one 'buggy' icon, turning it into a visual sequential scanning task."
+      difficultyExamples={{
+        level1: "Listen to a 4-tone sequence; one tone is clearly the wrong pitch. Identify it.",
+        level8: "Listen to an 8-part rhythmic sequence with background noise; one step has a 15% timing deviation. Identify it."
+      }}
     />
   );
 }

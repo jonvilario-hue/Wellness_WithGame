@@ -1,3 +1,4 @@
+
 'use client';
 
 import { GameStub } from '../game-stub';
@@ -11,6 +12,10 @@ export function GateSpeed() {
       techStack={['SVG']}
       complexity="Low"
       fallbackPlan="Not required. This game uses basic DOM elements and SVGs that are universally supported."
+      difficultyExamples={{
+        level1: "Evaluate '[T] OR [F]' with a 2000ms time limit.",
+        level8: "Evaluate 'NOT ([T] XOR [F])' with a 700ms time limit, requiring knowledge of operator precedence."
+      }}
     />
   );
 }

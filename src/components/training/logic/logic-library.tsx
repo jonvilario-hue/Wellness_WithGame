@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,6 +46,13 @@ const logicQuestions = [
   },
   {
     level: 8,
+    question: "What is the primary trade-off between a hash table and a binary search tree for data retrieval?",
+    options: ["Speed vs. Memory", "Speed vs. Ordered Traversal", "Memory vs. Complexity", "Complexity vs. Readability"],
+    answer: "Speed vs. Ordered Traversal",
+    explanation: "Hash tables offer average O(1) lookups (very fast) but do not store keys in order. Binary search trees have O(log n) lookups but allow for efficient in-order traversal."
+  },
+  {
+    level: 9,
     question: "Which of these describes a 'base case' in recursion?",
     options: ["The first line of the function", "A condition that causes the function to call itself", "A condition that stops the recursion and returns a value", "An error state"],
     answer: "A condition that stops the recursion and returns a value",

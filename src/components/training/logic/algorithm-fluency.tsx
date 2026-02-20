@@ -1,3 +1,4 @@
+
 'use client';
 
 import { GameStub } from '../game-stub';
@@ -11,6 +12,10 @@ export function AlgorithmFluency() {
       techStack={['DOM', 'Text Input']}
       complexity="Low"
       fallbackPlan="Not required. This is a text-based game."
+      difficultyExamples={{
+        level1: "Prompt: 'Name examples of 'sorting'.'",
+        level8: "Prompt: 'Describe scenarios where a 'greedy algorithm' fails to find the optimal solution.'"
+      }}
     />
   );
 }
