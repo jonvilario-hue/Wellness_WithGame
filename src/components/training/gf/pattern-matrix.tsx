@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { cn } from "@/lib/utils";
-import { BrainCircuit, Loader2 } from "lucide-react";
+import { BrainCircuit, Loader2, PieChart } from "lucide-react";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
@@ -17,69 +17,116 @@ import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types"
 const GAME_ID: GameId = 'gf_pattern_matrix';
 const policy = difficultyPolicies[GAME_ID];
 
-// --- Stimulus Generation ---
+type GameVariant = 'neutral' | 'math' | 'probability';
+
+// --- Display Components ---
+const ElementComponent = ({ element }: { element: any }) => {
+    if(element.type === 'probability_sample') {
+        return <div className="text-3xl font-bold text-primary">{element.value}%</div>
+    }
+    if (element.type === 'math') {
+      return <div className={cn("text-4xl font-bold text-primary")}>{element.value}</div>;
+    }
+
+    // Default Neutral Element
+    const { shape, color, rotation, fill } = element;
+    const baseClasses = "w-10 h-10 transition-all";
+    const style = { transform: `rotate(${rotation}deg)` };
+    const outlineClasses = `bg-transparent border-4 ${color.replace('bg-','border-')}`;
+    if (shape === 'circle') return <div className={cn(baseClasses, "rounded-full", fill === 'fill' ? color : outlineClasses)} style={style} />;
+    if (shape === 'square') return <div className={cn(baseClasses, "rounded-md", fill === 'fill' ? color : outlineClasses)} style={style} />;
+    if (shape === 'triangle') {
+        if (fill === 'fill') {
+            const triangleColorClass = color.replace('bg-', 'border-b-');
+            const triangleStyle = { ...style, width: 0, height: 0, borderLeft: '20px solid transparent', borderRight: '20px solid transparent', borderBottomWidth: '40px', borderBottomStyle: 'solid' };
+            return <div style={triangleStyle} className={cn("!bg-transparent", triangleColorClass, 'h-auto w-auto')} />;
+        }
+        return <div className="w-10 h-10" style={style}> <svg viewBox="0 0 100 100" className={`fill-transparent ${color.replace('bg-', 'stroke-')}`} strokeWidth="10"><polygon points="50,10 90,90 10,90" /></svg></div>
+    }
+    if (shape === 'diamond') return <div className={cn(baseClasses, "transform rotate-45 rounded-sm", fill === 'fill' ? color : outlineClasses)} style={{ transform: `rotate(${rotation + 45}deg)` }}/>;
+    return <div className={cn(baseClasses, color)} />;
+};
+
 const neutralShapes = ['circle', 'square', 'triangle', 'diamond'];
 const neutralColors = ['bg-primary', 'bg-accent', 'bg-chart-3', 'bg-chart-4'];
 const neutralRotations = [0, 90, 180, 270];
 const neutralFills = ['fill', 'outline'];
-type NeutralElement = { type: 'neutral', shape: string; color: string; rotation: number; fill: 'fill' | 'outline' };
-
-const mathSymbols = ['∑', 'π', '∞', '≠', '∫', '∂'];
-const mathColors = ['text-chart-1', 'text-chart-2', 'text-chart-3', 'text-chart-4'];
-type MathElement = { type: 'math', symbol: string; color: string; size: number };
-
-const musicSymbols = ['♩', '♪', '♫', '♭', '♯', '♮'];
-const musicPositions = ['-translate-y-2', 'translate-y-0', 'translate-y-2', 'translate-y-4'];
-type MusicElement = { type: 'music', symbol: string; position: string; duration: number }; // duration as 1,2,4
-
-type PuzzleElement = NeutralElement | MathElement | MusicElement;
-type Puzzle = { grid: (PuzzleElement | null)[]; missingIndex: number; answer: PuzzleElement; options: PuzzleElement[]; size: number };
 
 const getNextInSequence = <T,>(val: T, collection: T[]) => {
   const currentIndex = collection.indexOf(val);
   return collection[(currentIndex + 1) % collection.length];
 };
 
-const generatePuzzleForLevel = (level: number, focus: TrainingFocus): Puzzle => {
-    const params = policy.levelMap[level] || policy.levelMap[Object.keys(policy.levelMap).pop() as any];
-    const size = params.gridSize === "3x3" ? 3 : 2;
-    const grid: (PuzzleElement | null)[] = Array(size * size).fill(null);
-    const missingIndex = Math.floor(Math.random() * (size * size));
-    const ruleTypes = (params.ruleType as string).split('+');
-    let baseElement: PuzzleElement;
-    let elementSet: any;
+const generatePuzzleForLevel = (level: number, variant: GameVariant) => {
+    const params = policy.levelMap[level] || policy.levelMap[20];
+    const size = params[variant]?.gridSize === "3x3" ? 3 : 2;
 
-    if (focus === 'math') {
-        baseElement = { type: 'math', symbol: mathSymbols[0], color: mathColors[0], size: 1 };
-        elementSet = { symbol: mathSymbols, color: mathColors, size: [1, 1.2, 1.4, 1.6] };
-    } else if (focus === 'music') {
-        baseElement = { type: 'music', symbol: musicSymbols[0], position: musicPositions[0], duration: 1 };
-        elementSet = { symbol: musicSymbols, position: musicPositions, duration: [1, 2, 4] };
-    } else { // Neutral
-        baseElement = { type: 'neutral', shape: neutralShapes[0], color: neutralColors[0], rotation: 0, fill: 'fill' };
-        elementSet = { shape: neutralShapes, color: neutralColors, rotation: neutralRotations, fill: neutralFills };
-    }
+    if (variant === 'probability') {
+        const probParams = params.probability;
+        const populationRatio = Math.random() * 0.4 + 0.3; // 30-70%
+        const population = Array(probParams.populationSize).fill(0).map((_, i) => i < probParams.populationSize * populationRatio);
+        
+        const samples = Array(probParams.samples).fill(0).map(() => {
+            const sampleIndex = Math.floor(Math.random() * population.length);
+            return population[sampleIndex];
+        });
+        const sampleRatio = samples.filter(Boolean).length / samples.length;
 
-    for (let i = 0; i < size * size; i++) {
-        const row = Math.floor(i / size);
-        const col = i % size;
-        let newElement: any = { ...baseElement };
-
-        for (const rule of ruleTypes) {
-            if (rule in newElement) {
-                newElement[rule] = Array(col).fill(0).reduce(p => getNextInSequence(p, elementSet[rule]), newElement[rule]);
-            }
+        const options = new Set<number>([Math.round(populationRatio * 100)]);
+        while (options.size < 4) {
+            const noise = (Math.random() - 0.5) * 0.4; // +/- 20%
+            options.add(Math.round(Math.max(0, Math.min(100, (populationRatio + noise) * 100))));
         }
-        grid[i] = newElement;
+        
+        return {
+            type: 'probability',
+            grid: [{ type: 'probability_sample', value: Math.round(sampleRatio * 100) }],
+            options: Array.from(options).sort((a,b) => a-b).map(o => ({type: 'probability_sample', value: o})),
+            answer: { type: 'probability_sample', value: Math.round(populationRatio*100) },
+            size: 1,
+        };
+    }
+    
+    const grid: any[] = Array(size * size).fill(null);
+    const missingIndex = Math.floor(Math.random() * (size * size));
+
+    if (variant === 'math') {
+        const mathParams = params.math;
+        // Simplified math puzzle generation
+        const start = Math.floor(Math.random()*5) + 1;
+        const step = Math.floor(Math.random()*3) + 1;
+        for(let i = 0; i < size * size; i++) grid[i] = { type: 'math', value: start + i * step };
+    } else { // neutral
+        const neutralParams = params.neutral;
+        const ruleTypes = (neutralParams.ruleType as string).split('+');
+        const baseElement = { type: 'neutral', shape: neutralShapes[0], color: neutralColors[0], rotation: 0, fill: 'fill' };
+        const elementSet = { shape: neutralShapes, color: neutralColors, rotation: neutralRotations, fill: neutralFills };
+
+        for (let i = 0; i < size * size; i++) {
+            const row = Math.floor(i / size);
+            const col = i % size;
+            let newElement: any = { ...baseElement };
+            for (const rule of ruleTypes) {
+                if (rule in newElement) {
+                    newElement[rule] = Array(col).fill(0).reduce(p => getNextInSequence(p, elementSet[rule]), newElement[rule]);
+                }
+            }
+            grid[i] = newElement;
+        }
     }
 
     const answer = grid[missingIndex]!;
-    const options: PuzzleElement[] = [answer];
-
+    const options: any[] = [answer];
     while (options.length < 6) {
         let tempDecoy: any = { ...answer };
-        const changeProp = Object.keys(elementSet)[Math.floor(Math.random() * Object.keys(elementSet).length)];
-        tempDecoy[changeProp] = getNextInSequence(tempDecoy[changeProp], elementSet[changeProp]);
+        if(variant === 'math') {
+            tempDecoy.value += (Math.random() > 0.5 ? 1 : -1) * (Math.floor(Math.random()*3)+1);
+        } else {
+             const changeProp = Object.keys(tempDecoy)[Math.floor(Math.random() * Object.keys(tempDecoy).length)];
+             if(typeof tempDecoy[changeProp] !== 'string' || changeProp === 'type') continue;
+             const propOptions = {shape: neutralShapes, color: neutralColors, rotation: neutralRotations, fill: neutralFills}[changeProp];
+             if(propOptions) tempDecoy[changeProp] = getNextInSequence(tempDecoy[changeProp], propOptions as any);
+        }
         if (!options.some(o => JSON.stringify(o) === JSON.stringify(tempDecoy))) {
             options.push(tempDecoy);
         }
@@ -87,36 +134,7 @@ const generatePuzzleForLevel = (level: number, focus: TrainingFocus): Puzzle => 
     
     options.sort(() => Math.random() - 0.5);
     grid[missingIndex] = null;
-    return { grid, missingIndex, answer, options, size };
-};
-
-// --- Display Components ---
-const ElementComponent = ({ element }: { element: PuzzleElement }) => {
-  switch (element.type) {
-    case 'neutral':
-        const { shape, color, rotation, fill } = element;
-        const baseClasses = "w-10 h-10 transition-all";
-        const style = { transform: `rotate(${rotation}deg)` };
-        const outlineClasses = `bg-transparent border-4 ${color.replace('bg-','border-')}`;
-        if (shape === 'circle') return <div className={cn(baseClasses, "rounded-full", fill === 'fill' ? color : outlineClasses)} style={style} />;
-        if (shape === 'square') return <div className={cn(baseClasses, "rounded-md", fill === 'fill' ? color : outlineClasses)} style={style} />;
-        if (shape === 'triangle') {
-            if (fill === 'fill') {
-                const triangleColorClass = color.replace('bg-', 'border-b-');
-                const triangleStyle = { ...style, width: 0, height: 0, borderLeft: '20px solid transparent', borderRight: '20px solid transparent', borderBottomWidth: '40px', borderBottomStyle: 'solid' };
-                return <div style={triangleStyle} className={cn("!bg-transparent", triangleColorClass, 'h-auto w-auto')} />;
-            }
-            return <div className="w-10 h-10" style={style}> <svg viewBox="0 0 100 100" className={`fill-transparent ${color.replace('bg-', 'stroke-')}`} strokeWidth="10"><polygon points="50,10 90,90 10,90" /></svg></div>
-        }
-        if (shape === 'diamond') return <div className={cn(baseClasses, "transform rotate-45 rounded-sm", fill === 'fill' ? color : outlineClasses)} style={{ transform: `rotate(${rotation + 45}deg)` }}/>;
-        return <div className={cn(baseClasses, color)} />;
-    case 'math':
-      return <div className={cn("text-4xl font-bold", element.color)} style={{ transform: `scale(${element.size})` }}>{element.symbol}</div>;
-    case 'music':
-      return <div className={cn("text-4xl font-bold text-primary", element.position)}>{element.symbol}</div>;
-    default:
-      return null;
-  }
+    return { type: variant, grid, missingIndex, answer, options, size };
 };
 
 export function PatternMatrix() {
@@ -128,12 +146,13 @@ export function PatternMatrix() {
     const [gameState, setGameState] = useState<'loading' | 'start' | 'playing' | 'feedback' | 'finished'>('loading');
     const [sessionTrials, setSessionTrials] = useState<TrialResult[]>([]);
     
-    const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
-    const [selectedOption, setSelectedOption] = useState<PuzzleElement | null>(null);
+    const [puzzle, setPuzzle] = useState<any | null>(null);
+    const [selectedOption, setSelectedOption] = useState<any | null>(null);
     const [feedback, setFeedback] = useState('');
 
     const trialStartTime = useRef(0);
     const currentTrialIndex = useRef(0);
+    const trialVariant = useRef<GameVariant>('neutral');
 
     const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
     const currentMode = isComponentLoaded ? (override || globalFocus) : 'neutral';
@@ -152,7 +171,13 @@ export function PatternMatrix() {
           ? Math.max(state.levelFloor, state.currentLevel - 2)
           : state.currentLevel;
           
-        setPuzzle(generatePuzzleForLevel(loadedLevel, currentMode));
+        if (currentMode === 'math') {
+            trialVariant.current = trialVariant.current === 'math' ? 'probability' : 'math';
+        } else {
+            trialVariant.current = 'neutral';
+        }
+        
+        setPuzzle(generatePuzzleForLevel(loadedLevel, trialVariant.current));
         setSelectedOption(null);
         setFeedback('');
         setGameState('playing');
@@ -168,7 +193,7 @@ export function PatternMatrix() {
         startNewTrial(sessionState);
     }, [adaptiveState, startNewTrial]);
 
-    const handleSelectOption = (option: PuzzleElement) => {
+    const handleSelectOption = (option: any) => {
         if (gameState !== 'playing' || !puzzle || !adaptiveState) return;
 
         setGameState('feedback');
@@ -219,7 +244,49 @@ export function PatternMatrix() {
             case 'playing':
             case 'feedback':
                 if (!puzzle) return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
-                const gridClass = puzzle.size === 3 ? "grid-cols-3" : "grid-cols-2";
+                const gridClass = puzzle.size === 3 ? "grid-cols-3" : (puzzle.size === 2 ? "grid-cols-2" : "grid-cols-1");
+
+                if (puzzle.type === 'probability') {
+                    return (
+                        <div className="flex flex-col items-center gap-6 w-full">
+                            <div className="flex justify-between w-full font-mono text-sm">
+                                <span>Trial: {currentTrialIndex.current + 1} / {policy.sessionLength}</span>
+                                <span>Level: {adaptiveState?.currentLevel}</span>
+                            </div>
+                            <div className="text-center">
+                                <p className="text-muted-foreground mb-2">A sample was drawn from a hidden population.</p>
+                                <div className="flex items-center justify-center gap-4 p-4 bg-muted rounded-lg">
+                                    <PieChart className="w-10 h-10 text-primary" />
+                                    <p className="text-3xl font-bold">Sample has {puzzle.grid[0].value}% blue items.</p>
+                                </div>
+                                <p className="text-muted-foreground mt-4">Which population was it most likely drawn from?</p>
+                            </div>
+                            <div className="h-6 text-sm font-semibold mb-2 text-center">
+                                {feedback && (
+                                    <p className={cn("animate-in fade-in", feedback.includes('Incorrect') ? 'text-amber-600' : 'text-green-600')}>{feedback}</p>
+                                )}
+                            </div>
+                             <div className="grid grid-cols-4 gap-3">
+                                {puzzle.options.map((option: any, index: number) => (
+                                <button 
+                                    key={index} 
+                                    onClick={() => handleSelectOption(option)}
+                                    className={cn(
+                                    "h-24 bg-muted/50 rounded-lg flex items-center justify-center transition-all border-2",
+                                    selectedOption === option && gameState !== 'feedback' ? 'border-primary scale-105' : 'border-transparent hover:border-muted-foreground/50',
+                                    gameState === 'feedback' && JSON.stringify(option) === JSON.stringify(puzzle.answer) && 'bg-green-500/20 border-green-500 animate-pulse',
+                                    gameState === 'feedback' && selectedOption === option && JSON.stringify(option) !== JSON.stringify(puzzle.answer) && 'bg-destructive/20 border-destructive',
+                                    )}
+                                    disabled={gameState === 'feedback'}
+                                >
+                                    <ElementComponent element={option} />
+                                </button>
+                                ))}
+                            </div>
+                        </div>
+                    )
+                }
+
                 return (
                     <div className="flex flex-col items-center gap-6 w-full">
                          <div className="flex justify-between w-full font-mono text-sm">
@@ -227,7 +294,7 @@ export function PatternMatrix() {
                             <span>Level: {adaptiveState?.currentLevel}</span>
                         </div>
                         <div className={cn("grid gap-2 p-3 bg-muted rounded-lg", gridClass)}>
-                        {puzzle.grid.map((cell, index) => (
+                        {puzzle.grid.map((cell: any, index: number) => (
                             <div key={index} className="w-20 h-20 bg-background/50 rounded-md flex items-center justify-center">
                             {index === puzzle.missingIndex ? (
                                 selectedOption ? <ElementComponent element={selectedOption} /> : <span className="text-4xl font-bold text-primary">?</span>
@@ -245,7 +312,7 @@ export function PatternMatrix() {
                                 )}
                             </div>
                             <div className="grid grid-cols-3 gap-3">
-                                {puzzle.options.map((option, index) => (
+                                {puzzle.options.map((option: any, index: number) => (
                                 <button 
                                     key={index} 
                                     onClick={() => handleSelectOption(option)}
@@ -282,5 +349,3 @@ export function PatternMatrix() {
     </Card>
   );
 }
-
-    

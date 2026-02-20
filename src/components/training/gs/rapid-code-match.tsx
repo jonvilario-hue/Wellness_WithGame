@@ -12,15 +12,31 @@ import { getFailureFeedback } from "@/lib/feedback-system";
 import { Loader2 } from "lucide-react";
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
-import type { AdaptiveState, TrialResult, GameId } from "@/types";
+import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
 
 const GAME_ID: GameId = 'gs_rapid_code';
 const policy = difficultyPolicies[GAME_ID];
 
-const neutralSymbols = ['★', '●', '▲', '■', '◆', '✚', '❤', '⚡', '☺'];
-const musicSymbols = ['♩', '♪', '♫', '♭', '♯', '♮', '𝄞', '𝄢', '𝄡'];
-const mathSymbols = ['+', '−', '×', '÷', '%', '∑', '√', '∞', '='];
+const symbolKeyPool = ['★', '●', '▲', '■', '◆', '✚', '❤', '⚡', '☺'];
+const mathSymbolKeyPool = ['+', '−', '×', '÷', '%', '∑', '√', '∞', '='];
+const musicSymbolKeyPool = ['♩', '♪', '♫', '♭', '♯', '♮', '𝄞', '𝄢', '𝄡'];
 const digits = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+type GameVariant = 'symbol' | 'numeracy';
+
+type NumeracyProblem = {
+    type: 'numeracy';
+    values: (string | number)[];
+    correctAnswer: string | number;
+};
+
+type SymbolProblem = {
+    type: 'symbol';
+    keyMap: { [key: string]: number };
+    stimulus: string;
+};
+
+type Problem = NumeracyProblem | SymbolProblem;
 
 const NoiseOverlay = () => (
   <div 
@@ -39,61 +55,96 @@ export function RapidCodeMatch() {
   const [sessionTrials, setSessionTrials] = useState<TrialResult[]>([]);
 
   const [timeLeft, setTimeLeft] = useState(policy.sessionLength);
-  const [currentSymbol, setCurrentSymbol] = useState('');
+  const [problem, setProblem] = useState<Problem | null>(null);
   const [inlineFeedback, setInlineFeedback] = useState({ message: '', type: '' });
   
   const trialStartTime = useRef(0);
   const keyChangeCounter = useRef(0);
+  const trialVariant = useRef<GameVariant>('symbol');
 
   const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
   const currentMode = isComponentLoaded ? (override || globalFocus) : 'neutral';
   
-  const symbols = useMemo(() => {
+  const symbolPool = useMemo(() => {
     switch (currentMode) {
-        case 'music': return musicSymbols;
-        case 'math': return mathSymbols;
-        default: return neutralSymbols;
+        case 'music': return musicSymbolKeyPool;
+        case 'math': return mathSymbolKeyPool;
+        default: return symbolKeyPool;
     }
   }, [currentMode]);
-
-  const generateKeyMap = useCallback((level: number) => {
-    const params = policy.levelMap[level] || policy.levelMap[Object.keys(policy.levelMap).pop() as any];
-    const numSymbols = params.distractorCount + 1; // Simplified mapping from policy
-    const shuffledSymbols = [...symbols].sort(() => Math.random() - 0.5);
+  
+  const generateSymbolProblem = useCallback((level: number): SymbolProblem => {
+    const params = policy.levelMap[level]?.symbol || policy.levelMap[1].symbol;
+    const numSymbols = params.distractorCount + 1;
+    const shuffledSymbols = [...symbolPool].sort(() => Math.random() - 0.5);
     const map: { [key: string]: number } = {};
     shuffledSymbols.slice(0, numSymbols).forEach((symbol, index) => {
       map[symbol] = digits[index];
     });
-    return map;
-  }, [symbols]);
-
-  const [keyMap, setKeyMap] = useState<{ [key: string]: number }>(() => generateKeyMap(1));
-  const keyEntries = useMemo(() => Object.entries(keyMap), [keyMap]);
-
-  useEffect(() => {
-    if (isComponentLoaded) {
-      const initialState = getAdaptiveState(GAME_ID, currentMode);
-      setAdaptiveState(initialState);
-      setGameState('start');
+    
+    let currentKeyMap = (problem?.type === 'symbol' && problem.keyMap) ? problem.keyMap : map;
+    if (keyChangeCounter.current >= 5) {
+        currentKeyMap = map;
+        keyChangeCounter.current = 0;
+        setInlineFeedback({ message: "Key changed!", type: 'success' });
+        setTimeout(() => setInlineFeedback({ message: '', type: '' }), 1500);
     }
-  }, [isComponentLoaded, currentMode, getAdaptiveState]);
-  
+    const symbolsInKey = Object.keys(currentKeyMap);
+    const stimulus = symbolsInKey[Math.floor(Math.random() * symbolsInKey.length)];
+    
+    return { type: 'symbol', keyMap: currentKeyMap, stimulus };
+  }, [symbolPool, problem]);
+
+  const generateNumeracyProblem = useCallback((level: number): NumeracyProblem => {
+      const params = policy.levelMap[level]?.numeracy || policy.levelMap[1].numeracy;
+      const numOptions = params.options;
+      const format = params.formats[Math.floor(Math.random() * params.formats.length)];
+
+      let correctAnswer: string | number;
+      const options = new Set<string | number>();
+
+      if (format === 'fraction') {
+          const denominator = [4, 5, 8, 10, 20][Math.floor(Math.random() * 5)];
+          const numerator = Math.floor(Math.random() * (denominator - 1)) + 1;
+          correctAnswer = `${numerator}/${denominator}`;
+          options.add(correctAnswer);
+          while (options.size < numOptions) {
+              const d = [4, 5, 8, 10, 20][Math.floor(Math.random() * 5)];
+              const n = Math.floor(Math.random() * (d - 1)) + 1;
+              options.add(`${n}/${d}`);
+          }
+      } else { // decimal or percent
+          const value = Math.round((Math.random() * 0.8 + 0.1) * 100) / 100;
+          correctAnswer = format === 'percent' ? `${value * 100}%` : value;
+          options.add(correctAnswer);
+           while (options.size < numOptions) {
+              const v = Math.round((Math.random() * 0.8 + 0.1) * 100) / 100;
+              options.add(format === 'percent' ? `${v * 100}%` : v);
+          }
+      }
+      
+      return { type: 'numeracy', values: Array.from(options), correctAnswer };
+  }, []);
+
   const startNewTrial = (state: AdaptiveState) => {
       const onRamp = state.uncertainty > 0.7;
       const loadedLevel = onRamp
           ? Math.max(state.levelFloor, state.currentLevel - 2)
           : state.currentLevel;
 
-      let newKeyMap = keyMap;
-      if (keyChangeCounter.current >= 5) {
-          newKeyMap = generateKeyMap(loadedLevel);
-          setKeyMap(newKeyMap);
-          keyChangeCounter.current = 0;
-          setInlineFeedback({ message: "Key changed!", type: 'success' });
-          setTimeout(() => setInlineFeedback({ message: '', type: '' }), 1500);
+      // 50/50 Rule: Alternate between variants
+      if (currentMode === 'math') {
+          trialVariant.current = trialVariant.current === 'symbol' ? 'numeracy' : 'symbol';
+      } else {
+          trialVariant.current = 'symbol';
       }
-      const symbolsInKey = Object.keys(newKeyMap);
-      setCurrentSymbol(symbolsInKey[Math.floor(Math.random() * symbolsInKey.length)]);
+      
+      if (trialVariant.current === 'numeracy') {
+          setProblem(generateNumeracyProblem(loadedLevel));
+      } else {
+          setProblem(generateSymbolProblem(loadedLevel));
+      }
+
       setGameState('running');
       trialStartTime.current = Date.now();
   };
@@ -109,6 +160,14 @@ export function RapidCodeMatch() {
   }, [adaptiveState]);
 
   useEffect(() => {
+    if (isComponentLoaded) {
+      const initialState = getAdaptiveState(GAME_ID, currentMode);
+      setAdaptiveState(initialState);
+      setGameState('start');
+    }
+  }, [isComponentLoaded, currentMode, getAdaptiveState]);
+
+  useEffect(() => {
     let timer: NodeJS.Timeout;
     if (gameState === 'running' && timeLeft > 0) {
       timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
@@ -120,8 +179,8 @@ export function RapidCodeMatch() {
     return () => clearTimeout(timer);
   }, [gameState, timeLeft, adaptiveState, currentMode, sessionTrials, updateAdaptiveState]);
 
-  const handleAnswer = useCallback((digit: number) => {
-    if (gameState !== 'running' || !adaptiveState) return;
+  const handleAnswer = useCallback((answer: number | string) => {
+    if (gameState !== 'running' || !adaptiveState || !problem) return;
     
     setGameState('feedback');
     const reactionTimeMs = Date.now() - trialStartTime.current;
@@ -130,9 +189,17 @@ export function RapidCodeMatch() {
     const loadedLevel = onRamp
       ? Math.max(adaptiveState.levelFloor, adaptiveState.currentLevel - 2)
       : adaptiveState.currentLevel;
-    const params = policy.levelMap[loadedLevel] || policy.levelMap[20];
+    const params = policy.levelMap[loadedLevel]?.symbol || policy.levelMap[1].symbol;
     
-    const isCorrect = keyMap[currentSymbol] === digit && reactionTimeMs < params.responseWindowMs;
+    let isCorrect = false;
+    if(problem.type === 'symbol') {
+        isCorrect = problem.keyMap[problem.stimulus] === answer;
+    } else { // numeracy
+        const evalAnswer = typeof answer === 'string' ? eval(answer) : answer;
+        const evalCorrect = typeof problem.correctAnswer === 'string' ? eval(problem.correctAnswer) : problem.correctAnswer;
+        isCorrect = Math.abs(evalAnswer - evalCorrect) < 0.001;
+    }
+    isCorrect = isCorrect && reactionTimeMs < params.responseWindowMs;
 
     const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs };
     setSessionTrials(prev => [...prev, trialResult]);
@@ -141,7 +208,7 @@ export function RapidCodeMatch() {
     setAdaptiveState(newState);
 
     if (isCorrect) {
-        keyChangeCounter.current++;
+        if(problem.type === 'symbol') keyChangeCounter.current++;
     } else {
         setInlineFeedback({ message: getFailureFeedback('Gs'), type: 'failure' });
     }
@@ -151,7 +218,7 @@ export function RapidCodeMatch() {
             startNewTrial(newState);
         }
     }, 500);
-  }, [gameState, keyMap, currentSymbol, adaptiveState, timeLeft]);
+  }, [gameState, problem, adaptiveState, timeLeft]);
 
   const renderContent = () => {
     if (gameState === 'loading' || !isComponentLoaded) {
@@ -175,21 +242,26 @@ export function RapidCodeMatch() {
         </div>
       );
     }
+    if (!problem) return <Loader2 className="animate-spin"/>;
+    
     return (
       <div className="w-full">
         <div className="flex justify-between w-full text-lg font-mono mb-4">
           <span>Score: {sessionTrials.filter(t => t.correct).length}</span>
           <span>Time: {timeLeft}s</span>
         </div>
-        <div className="flex justify-center gap-4 p-3 bg-muted rounded-lg mb-6 flex-wrap">
-          {keyEntries.map(([symbol, digit]) => (
-            <div key={symbol} className="flex flex-col items-center p-2">
-              <span className="text-3xl font-bold text-primary">{symbol}</span>
-              <span className="text-xl font-mono">{digit}</span>
-            </div>
-          ))}
-        </div>
         
+        {problem.type === 'symbol' && (
+            <div className="flex justify-center gap-4 p-3 bg-muted rounded-lg mb-6 flex-wrap">
+              {Object.entries(problem.keyMap).map(([symbol, digit]) => (
+                <div key={symbol} className="flex flex-col items-center p-2">
+                  <span className="text-3xl font-bold text-primary">{symbol}</span>
+                  <span className="text-xl font-mono">{digit}</span>
+                </div>
+              ))}
+            </div>
+        )}
+
         <div className="h-6 text-sm font-semibold mb-2">
           {inlineFeedback.message && (
             <p className={cn("animate-in fade-in", inlineFeedback.type === 'success' ? 'text-green-600' : 'text-amber-600')}>
@@ -198,17 +270,30 @@ export function RapidCodeMatch() {
           )}
         </div>
 
-        <div className="relative inline-block mb-6">
-          <div className="text-8xl font-extrabold text-primary">
-            {currentSymbol}
-          </div>
-          <NoiseOverlay />
+        <div className="relative inline-block mb-6 h-24 flex items-center justify-center">
+            {problem.type === 'symbol' ? (
+                <>
+                    <div className="text-8xl font-extrabold text-primary">
+                        {problem.stimulus}
+                    </div>
+                    <NoiseOverlay />
+                </>
+            ) : (
+                <div className="text-4xl font-extrabold text-primary">
+                    Which of these is equal to {problem.correctAnswer}?
+                </div>
+            )}
         </div>
         
-        <div className="grid grid-cols-5 md:grid-cols-5 gap-2 justify-center max-w-md mx-auto">
-          {keyEntries.map(([_, digit]) => (
+        <div className={cn("grid gap-2 justify-center max-w-md mx-auto", problem.type === 'symbol' ? 'grid-cols-5' : 'grid-cols-2')}>
+          {problem.type === 'symbol' && Object.entries(problem.keyMap).map(([_, digit]) => (
             <Button key={digit} onClick={() => handleAnswer(digit)} variant="secondary" size="lg" className="text-2xl h-16" disabled={gameState === 'feedback'}>
               {digit}
+            </Button>
+          ))}
+          {problem.type === 'numeracy' && problem.values.map((val) => (
+             <Button key={String(val)} onClick={() => handleAnswer(String(val))} variant="secondary" size="lg" className="text-2xl h-16" disabled={gameState === 'feedback'}>
+              {val}
             </Button>
           ))}
         </div>
@@ -228,5 +313,3 @@ export function RapidCodeMatch() {
     </Card>
   );
 }
-
-    

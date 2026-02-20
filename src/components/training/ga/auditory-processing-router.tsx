@@ -12,6 +12,9 @@ import { cn } from "@/lib/utils";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
+import { AuditoryCalculationTask } from "./auditory-calculation-task";
+import { useTrainingFocus } from "@/hooks/use-training-focus";
+import { useTrainingOverride } from "@/hooks/use-training-override";
 
 
 const GAME_ID: GameId = 'ga_auditory_lab';
@@ -160,35 +163,27 @@ const GapDetectionModule = ({ onComplete }: { onComplete: (result: { score: numb
     );
 };
 
-// Placeholder modules
-const FrequencyDiscriminationModule = ({ onComplete }: { onComplete: (result: { score: number }) => void }) => {
-     useEffect(() => {
-        const timer = setTimeout(() => onComplete({ score: 80 }), 2000);
-        return () => clearTimeout(timer);
-    }, [onComplete]);
-    return <div className="text-center space-y-4"><CardTitle>Module 2: Frequency Discrimination</CardTitle><p>Coming soon...</p><Loader2 className="animate-spin mx-auto"/></div>;
-};
-
 // --- Main Lab Component ---
-const moduleComponents = [GapDetectionModule, FrequencyDiscriminationModule];
-const moduleRotation: [number, number][] = [[0, 1], [1, 0]];
-
 export function AuditoryProcessingRouter() {
     const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
     const { setVolume, resumeContext } = useAudioEngine();
     
     const [adaptiveState, setAdaptiveState] = useState<AdaptiveState | null>(null);
-    const [gameState, setGameState] = useState<'idle' | 'headphoneCheck' | 'calibration' | 'running' | 'rest' | 'finished'>('idle');
+    const [gameState, setGameState] = useState<'idle' | 'headphoneCheck' | 'calibration' | 'running' | 'finished'>('idle');
     const [volume, setLocalVolume] = useState(0.5);
-    const [currentModuleIndex, setCurrentModuleIndex] = useState(0);
-    const [results, setResults] = useState<any[]>([]);
     
-    const currentMode: TrainingFocus = 'neutral';
+    const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
+    const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
+    const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
+    const currentMode = isComponentLoaded ? (override || globalFocus) : 'neutral';
 
     useEffect(() => {
-        const initialState = getAdaptiveState(GAME_ID, currentMode);
-        setAdaptiveState(initialState);
-    }, [getAdaptiveState]);
+        if (isComponentLoaded) {
+            const initialState = getAdaptiveState(GAME_ID, currentMode);
+            setAdaptiveState(initialState);
+        }
+    }, [isComponentLoaded, currentMode, getAdaptiveState]);
+
 
     const startSessionFlow = () => {
         if (!adaptiveState) return;
@@ -199,49 +194,12 @@ export function AuditoryProcessingRouter() {
     const startTraining = () => {
         if (!adaptiveState) return;
         setVolume(volume);
-        const sessionState = startSession(adaptiveState);
-        setAdaptiveState(sessionState);
-        setResults([]);
-        setCurrentModuleIndex(0);
         setGameState('running');
     };
-
-    const handleModuleComplete = (result: { score: number }) => {
-        if (!adaptiveState) return;
-
-        const newResults = [...results, result];
-        setResults(newResults);
-        
-        // This is a simplified integration for the placeholder. A real trial-by-trial update would be better.
-        const mockTrials: TrialResult[] = Array.from({length: policy.sessionLength}).map((_, i) => ({
-            correct: i < (result.score / 100) * policy.sessionLength,
-            reactionTimeMs: 500
-        }));
-
-        let tempState = adaptiveState;
-        mockTrials.forEach(trial => {
-            tempState = adjustDifficulty(trial, tempState, policy);
-        });
-
-        if (currentModuleIndex < 1) {
-            setAdaptiveState(tempState); // Save intermediate state
-            setCurrentModuleIndex(1);
-            setGameState('rest');
-            setTimeout(() => setGameState('running'), 3000);
-        } else {
-            const finalState = endSession(tempState, mockTrials);
-            updateAdaptiveState(GAME_ID, currentMode, finalState);
-            setGameState('finished');
-        }
-    };
-
-    const modulesForSession = useMemo(() => {
-        const sessionCount = adaptiveState?.sessionCount || 0;
-        const [mod1, mod2] = moduleRotation[sessionCount % moduleRotation.length];
-        return [moduleComponents[mod1], moduleComponents[mod2]];
-    }, [adaptiveState]);
     
-    const CurrentModule = modulesForSession[currentModuleIndex];
+    const handleGameComplete = () => {
+        setGameState('finished');
+    }
 
     const renderGameState = () => {
         switch (gameState) {
@@ -277,22 +235,22 @@ export function AuditoryProcessingRouter() {
                 );
 
             case 'running':
-                return <CurrentModule onComplete={handleModuleComplete} />;
-            
-            case 'rest':
-                return <div className="text-center space-y-2"><p>Great work. Take a short break.</p><Loader2 className="animate-spin mx-auto"/></div>;
+                 if (currentMode === 'math') {
+                    return <AuditoryCalculationTask focus={currentMode} onComplete={handleGameComplete} />;
+                }
+                // Fallback for neutral and music modes
+                return <GapDetectionModule onComplete={handleGameComplete} />;
 
             case 'finished':
                 return (
                     <div className="text-center space-y-4">
                         <CardTitle>Session Complete!</CardTitle>
                         <p>You've completed your auditory workout.</p>
-                        {results.map((r, i) => (
-                            <p key={i}>Module {i + 1} Score: {r.score.toFixed(0)}</p>
-                        ))}
                         <Button onClick={() => setGameState('idle')}>Back to Menu</Button>
                     </div>
                 );
+            default:
+                return <Loader2 className="w-12 h-12 animate-spin text-primary" />;
         }
     };
 
@@ -308,5 +266,3 @@ export function AuditoryProcessingRouter() {
         </Card>
     );
 }
-
-    

@@ -10,8 +10,6 @@ import { useTrainingOverride } from "@/hooks/use-training-override";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-
-// --- Imports for adaptive engine ---
 import { Loader2 } from 'lucide-react';
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
@@ -32,15 +30,8 @@ type NeutralRule = 'color' | 'word' | 'no_go';
 
 
 // --- Math Mode Config ---
-type MathRule = 'parity' | 'primality' | 'no_go';
+type MathRule = 'parity' | 'magnitude' | 'digit_sum' | 'no_go';
 
-const isPrime = (num: number) => {
-  if (num <= 1) return false;
-  for (let i = 2; i < num; i++) {
-    if (num % i === 0) return false;
-  }
-  return true;
-};
 
 // --- Music Mode Config ---
 const notes = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
@@ -76,10 +67,7 @@ export function FocusSwitchReactor() {
   const currentTrialIndex = useRef(0);
   const ruleSwitchCounter = useRef(0);
   const ruleRef = useRef(rule);
-
-  const [hasSeenPrimalityHint, setHasSeenPrimalityHint] = useState(false);
-  const [hasSeenQualityHint, setHasSeenQualityHint] = useState(false);
-
+  
   const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
   const currentMode = isComponentLoaded ? (override || globalFocus) : 'neutral';
   
@@ -102,7 +90,7 @@ export function FocusSwitchReactor() {
   }, []);
   
   const generateMathStimulus = useCallback(() => {
-    const value = Math.floor(Math.random() * 20) + 2; // numbers from 2 to 21
+    const value = Math.floor(Math.random() * 98) + 2; // numbers from 2 to 99
     setStimulus({ value });
   }, []);
   
@@ -133,7 +121,7 @@ export function FocusSwitchReactor() {
     const params = policy.levelMap[loadedLevel] || policy.levelMap[20];
     const ruleCount = params.ruleCount;
     let baseRules: (NeutralRule | MathRule | MusicRule)[] = [];
-    if (currentMode === 'math') baseRules = ['parity', 'primality'];
+    if (currentMode === 'math') baseRules = ['parity', 'magnitude', 'digit_sum'];
     else if (currentMode === 'music') baseRules = ['quality'];
     else baseRules = ['color', 'word'];
 
@@ -164,8 +152,9 @@ export function FocusSwitchReactor() {
     let options: any[] = [];
     if (currentMode === 'math') {
         if (newRule === 'parity') options = ['EVEN', 'ODD'];
-        else if (newRule === 'primality') options = ['PRIME', 'COMPOSITE'];
-        else options = ['EVEN', 'ODD', 'PRIME', 'COMPOSITE'];
+        else if (newRule === 'magnitude') options = ['< 50', '> 50'];
+        else if (newRule === 'digit_sum') options = ['SUM < 10', 'SUM > 10'];
+        else options = ['EVEN', 'ODD', '< 50', '> 50'];
     } else if (currentMode === 'music') {
         options = qualities;
     } else { // Neutral mode
@@ -245,9 +234,13 @@ export function FocusSwitchReactor() {
         if (rule === 'parity') {
             const parity = num % 2 === 0 ? 'EVEN' : 'ODD';
             isCorrect = (answer === parity);
-        } else if (rule === 'primality') {
-            const primality = isPrime(num) ? 'PRIME' : 'COMPOSITE';
-            isCorrect = (answer === primality);
+        } else if (rule === 'magnitude') {
+            const magnitude = num > 50 ? '> 50' : '< 50';
+            isCorrect = (answer === magnitude);
+        } else if (rule === 'digit_sum') {
+            const sum = String(num).split('').reduce((acc, digit) => acc + parseInt(digit), 0);
+            const digitSum = sum > 10 ? 'SUM > 10' : 'SUM < 10';
+            isCorrect = (answer === digitSum);
         }
     } else { // Music mode
         const quality = isMajor(stimulus.noteSequence) ? 'MAJOR' : 'MINOR';
@@ -280,30 +273,11 @@ export function FocusSwitchReactor() {
       if (rule === 'color') text = 'Respond to the COLOR';
       if (rule === 'word') text = 'Respond to the WORD';
       if (rule === 'parity') text = 'Is the number EVEN or ODD?';
-      if (rule === 'primality') text = 'Is the number PRIME or COMPOSITE?';
+      if (rule === 'magnitude') text = 'Is the number GREATER or LESS than 50?';
+      if (rule === 'digit_sum') text = 'Is the SUM OF DIGITS GREATER or LESS than 10?';
       if (rule === 'quality') text = 'Is the sequence MAJOR or MINOR?';
       if (rule === 'no_go') text = "DON'T RESPOND";
-
-      let hint = '';
-      if (rule === 'primality' && !hasSeenPrimalityHint) {
-          hint = 'A prime number is only divisible by 1 and itself (e.g., 2, 3, 5, 7, 11).';
-          setTimeout(() => setHasSeenPrimalityHint(true), 5000);
-      }
-      if (rule === 'quality' && !hasSeenQualityHint) {
-          hint = 'Major sequences often sound "happy" or "bright."';
-          setTimeout(() => setHasSeenQualityHint(true), 5000);
-      }
-
-      if (hint) {
-          return (
-              <TooltipProvider>
-                  <Tooltip>
-                      <TooltipTrigger asChild><span className="font-bold text-primary uppercase underline decoration-dashed">{text}</span></TooltipTrigger>
-                      <TooltipContent><p>{hint}</p></TooltipContent>
-                  </Tooltip>
-              </TooltipProvider>
-          )
-      }
+      
       return <span className="font-bold text-primary uppercase">{text}</span>;
   }
   
@@ -400,5 +374,3 @@ export function FocusSwitchReactor() {
     </Card>
   );
 }
-
-    
