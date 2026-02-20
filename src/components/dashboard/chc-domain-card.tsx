@@ -15,7 +15,7 @@ import { Progress } from '@/components/ui/progress';
 import { domainIcons, SigmaIcon } from '@/components/icons';
 import type { CHCDomain, TrainingFocus } from '@/types';
 import { useState, useEffect, memo } from 'react';
-import { ArrowDown, ArrowUp, Info, Minus, Brain, Music } from 'lucide-react';
+import { ArrowDown, ArrowUp, Info, Minus, Brain, Music, MessageSquare } from 'lucide-react';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { useTrainingFocus } from '@/hooks/use-training-focus';
 import { cn } from '@/lib/utils';
@@ -32,6 +32,7 @@ interface ChcDomainCardProps {
     tasks: string[];
     supportsMath: boolean;
     supportsMusic: boolean;
+    supportsVerbal: boolean;
   };
 }
 
@@ -59,9 +60,10 @@ const ChcDomainCardComponent = ({ domain }: ChcDomainCardProps) => {
     neutral: { Icon: Brain, label: 'Core Thinking', color: 'text-muted-foreground', supported: true },
     math: { Icon: SigmaIcon, label: 'Math Reasoning', color: 'text-energize', supported: domain.supportsMath },
     music: { Icon: Music, label: 'Music Cognition', color: 'text-blue-500', supported: domain.supportsMusic },
+    verbal: { Icon: MessageSquare, label: 'Verbal Reasoning', color: 'text-purple-500', supported: domain.supportsVerbal },
   };
   
-  const activeMode = focusInfo[globalFocus];
+  const activeMode = focusInfo[globalFocus] || focusInfo.neutral;
   
   const isLoaded = isGlobalFocusLoaded && isClient && gameStates && gameStates[domain.id];
   
