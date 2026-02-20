@@ -1,12 +1,8 @@
-
 'use client';
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { messages, type MessageTrigger } from '@/data/motivational-messages';
-import { useHydratedJournalStore } from './use-journal';
-import { usePomodoroStore } from './use-pomodoro-store';
-
 
 type MotivationState = {
   message: string | null;
@@ -25,22 +21,6 @@ const getRandomMessage = (trigger: MessageTrigger): string => {
 
 // Determines the most relevant message based on a data-driven priority
 const determineMessageTrigger = (): MessageTrigger => {
-  try {
-    // Check for recent activity based on stores
-    const { getTodaysEntry } = useHydratedJournalStore.getState();
-    const { lastSessionDate } = usePomodoroStore.getState();
-    const today = new Date().toISOString().split('T')[0];
-
-    if (getTodaysEntry()) {
-      return 'journal_used';
-    }
-    if (lastSessionDate === today) {
-      return 'focus_used';
-    }
-  } catch (e) {
-    // This can happen on the server, it's safe to ignore.
-  }
-  
   // 1. Time of Day
   const hour = new Date().getHours();
   if (hour < 12) return 'morning';
