@@ -4,6 +4,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
+import type { TrainingFocus } from '@/types';
 
 // --- Types ---
 const anHour = 60 * 60 * 1000;
@@ -11,6 +12,7 @@ const aDay = 24 * anHour;
 export const spacedRetrievalIntervals = [
     2 * 60 * 1000, // 2 minutes
     10 * 60 * 1000, // 10 minutes
+    anHour,
     aDay, // 1 day
     3 * aDay, // 3 days
     7 * aDay, // 7 days
@@ -26,6 +28,8 @@ export type SpacedPair = {
     intervalStage: number; // index in the intervals array
 };
 
+const gameModes: ('associative' | 'spaced' | 'category')[] = ['category', 'associative', 'spaced'];
+
 type GlrState = {
     spacedPairs: Record<string, SpacedPair>;
     submittedWords: Record<string, string[]>; // category -> words[]
@@ -33,7 +37,7 @@ type GlrState = {
 };
 
 type GlrActions = {
-    getNextMode: () => 'associative' | 'spaced' | 'category';
+    getNextMode: (focus: TrainingFocus) => 'associative' | 'spaced' | 'category';
     // Spaced Retrieval
     addSpacedPairs: (pairs: { word1: string; word2: string }[]) => void;
     getDueReviewPairs: () => SpacedPair[];
@@ -49,13 +53,17 @@ export const useGlrStore = create<GlrState & GlrActions>()(
         immer((set, get) => ({
             spacedPairs: {},
             submittedWords: {},
-            lastModeIndex: 2, // Start with 2 so first mode is 0 (associative)
+            lastModeIndex: 2, // Start with 2 so first mode is 0 (category)
 
-            getNextMode: () => {
-                const nextIndex = (get().lastModeIndex + 1) % 3;
+            getNextMode: (focus) => {
+                // Math and Music modes have more specific, mechanically distinct games
+                if (focus === 'math') return 'associative';
+                if (focus === 'music') return 'spaced';
+
+                // For Neutral/Verbal, rotate through all games
+                const nextIndex = (get().lastModeIndex + 1) % gameModes.length;
                 set({ lastModeIndex: nextIndex });
-                const modes = ['associative', 'spaced', 'category'] as const;
-                return modes[nextIndex];
+                return gameModes[nextIndex];
             },
 
             addSpacedPairs: (pairs) => {
@@ -122,7 +130,7 @@ export const useGlrStore = create<GlrState & GlrActions>()(
 
         })),
         {
-            name: 'glr-training-storage',
+            name: 'glr-training-storage-v2',
             storage: createJSONStorage(() => localStorage),
         }
     )

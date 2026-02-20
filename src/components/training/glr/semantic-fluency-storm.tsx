@@ -37,7 +37,7 @@ export function SemanticFluencyStorm() {
     const currentTrainingFocus = isComponentLoaded ? (override || globalFocus) : 'neutral';
 
     const handleStart = () => {
-        const mode = getNextMode();
+        const mode = getNextMode(currentTrainingFocus);
         setCurrentMode(mode);
         setGameState('running');
     };
@@ -240,7 +240,7 @@ function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (score: number
         const pairsToReview = getDueReviewPairs();
         if (pairsToReview.length > 0) {
             setDuePairs(pairsToReview);
-            setPhase('review');
+            setPhase('recall'); // Start with recall if there are due pairs
         } else {
             const generated = Array.from({ length: 6 }).map(() => {
                 const word1 = wordList1[Math.floor(Math.random() * wordList1.length)];
@@ -256,12 +256,11 @@ function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (score: number
     }, [addSpacedPairs, getDueReviewPairs, wordList1]);
 
     const handleNext = () => {
-        const currentList = phase === 'review' ? duePairs : newPairs;
+        const currentList = phase === 'recall' ? (duePairs.length > 0 ? duePairs : newPairs) : newPairs;
         if (currentIndex < currentList.length - 1) {
             setCurrentIndex(i => i + 1);
         } else {
-            if (phase === 'review') setPhase('learn');
-            else if (phase === 'learn') setPhase('distract');
+            if (phase === 'learn') setPhase('distract');
             else if (phase === 'recall') {
                 const currentState = getAdaptiveState('glr_fluency_storm');
                 const newLevel = Math.max(currentState.levelFloor, Math.min(currentState.levelCeiling, 4 + score));
@@ -275,7 +274,7 @@ function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (score: number
     
     const handleRecallSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        const pair = (phase === 'review' ? duePairs : newPairs)[currentIndex];
+        const pair = (duePairs.length > 0 ? duePairs : newPairs)[currentIndex];
         const isCorrect = userInput.trim().toLowerCase() === pair.word2.toLowerCase();
         
         updatePairOnResult(pair.id || `${pair.word1}-${pair.word2}`, isCorrect);
@@ -291,7 +290,7 @@ function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (score: number
         return <Distractor onComplete={() => { setCurrentIndex(0); setPhase('recall'); }} />;
     }
     
-    const pairToShow = (phase === 'review' ? duePairs : newPairs)[currentIndex];
+    const pairToShow = (phase === 'recall' ? (duePairs.length > 0 ? duePairs : newPairs) : newPairs)[currentIndex];
 
     return (
         <div className="w-full flex flex-col items-center gap-4">
@@ -304,7 +303,7 @@ function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (score: number
                     <Button onClick={handleNext} className="mt-4">Next</Button>
                 </div>
             )}
-            {(phase === 'review' || phase === 'recall') && pairToShow && (
+            {(phase === 'recall') && pairToShow && (
                 <div className="w-full text-center space-y-4">
                     <p className="text-muted-foreground">What word was paired with:</p>
                     <p className="text-5xl font-bold">{pairToShow.word1}</p>

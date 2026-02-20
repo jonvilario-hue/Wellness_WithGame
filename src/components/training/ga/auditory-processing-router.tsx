@@ -11,7 +11,6 @@ import { cn } from "@/lib/utils";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
-import { AuditoryCalculationTask } from "./auditory-calculation-task";
 import { CocktailPartyDecoder } from './cocktail-party-decoder';
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
@@ -291,18 +290,9 @@ export function AuditoryProcessingRouter() {
                 );
 
             case 'running':
-                if (currentMode === 'math') {
-                    return <AuditoryCalculationTask onComplete={handleGameComplete} />;
-                }
-                if (currentMode === 'music') {
-                     // The music-specific module was complex and is stubbed out
-                     // in favor of the more robust verbal implementation.
-                    return <PhonemeInNoiseModule onComplete={handleGameComplete} level={adaptiveState.currentLevel} />;
-                }
-                if (currentMode === 'verbal') {
-                    return <PhonemeInNoiseModule onComplete={handleGameComplete} level={adaptiveState.currentLevel} />;
-                }
-                // Fallback for neutral mode
+                // The invalid AuditoryCalculationTask is removed.
+                // All modes (Math, Music, Verbal, Neutral) will now use the valid PhonemeInNoiseModule
+                // which is a true Ga task. This ensures psychometric integrity.
                 return <PhonemeInNoiseModule onComplete={handleGameComplete} level={adaptiveState.currentLevel} />;
 
             case 'finished':

@@ -24,19 +24,11 @@ const mathSymbolKeyPool = ['+', '−', '×', '÷', '%', '∑', '√', '∞', '='
 const musicSymbolKeyPool = ['♩', '♪', '♫', '♭', '♯', '♮', '𝄞', '𝄢', '𝄡'];
 const digits = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
-type GameVariant = 'symbol_substitution' | 'magnitude_comparison' | 'lexical_decision';
-
 type LexicalProblem = {
     type: 'lexical';
     word: string;
     isReal: boolean;
 }
-
-type NumeracyProblem = {
-    type: 'numeracy';
-    values: string[];
-    correctAnswer: string;
-};
 
 type SymbolProblem = {
     type: 'symbol';
@@ -44,7 +36,7 @@ type SymbolProblem = {
     stimulus: string;
 };
 
-type Problem = NumeracyProblem | SymbolProblem | LexicalProblem;
+type Problem = SymbolProblem | LexicalProblem;
 
 const NoiseOverlay = () => (
   <div 
@@ -68,7 +60,6 @@ export function RapidCodeMatch() {
   
   const trialStartTime = useRef(0);
   const keyChangeCounter = useRef(0);
-  const trialVariant = useRef<GameVariant>('symbol_substitution');
 
   const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
   const currentMode = isComponentLoaded ? (override || globalFocus) : 'neutral';
@@ -92,8 +83,6 @@ export function RapidCodeMatch() {
   const generateSymbolProblem = useCallback((level: number): SymbolProblem => {
     const levelDef = policy.levelMap[level] || policy.levelMap[1];
     const { mechanic_config } = levelDef;
-    const content_config = levelDef.content_config[currentMode];
-    if (!content_config) throw new Error("Invalid content config");
     
     const numSymbols = mechanic_config.distractorCount + 1;
     const shuffledSymbols = [...symbolPool].sort(() => Math.random() - 0.5);
@@ -113,38 +102,7 @@ export function RapidCodeMatch() {
     const stimulus = symbolsInKey[Math.floor(Math.random() * symbolsInKey.length)];
     
     return { type: 'symbol', keyMap: currentKeyMap, stimulus };
-  }, [symbolPool, problem, currentMode]);
-
-  const generateNumeracyProblem = useCallback((level: number): NumeracyProblem => {
-    const levelDef = policy.levelMap[level] || policy.levelMap[1];
-    const content_config = levelDef.content_config.math;
-    if(!content_config || !content_config.params) throw new Error("Invalid numeracy config");
-    const params = content_config.params;
-    const formats = params.formats as ('decimal' | 'fraction' | 'percent')[];
-
-    const generateValue = () => {
-        const format = formats[Math.floor(Math.random() * formats.length)];
-        if (format === 'fraction') {
-            const d = Math.floor(Math.random() * (params.max_denominator - 2)) + 2;
-            const n = Math.floor(Math.random() * (d - 1)) + 1;
-            return { str: `${n}/${d}`, val: n/d };
-        }
-        if (format === 'percent') {
-            const val = Math.floor(Math.random() * 99) + 1;
-            return { str: `${val}%`, val: val / 100 };
-        }
-        // decimal
-        return { str: (Math.random() * 0.98 + 0.01).toFixed(params.decimal_places || 2), val: Math.random() };
-    }
-
-    let val1 = generateValue();
-    let val2 = generateValue();
-    while(Math.abs(val1.val - val2.val) < 0.05) val2 = generateValue();
-
-    const correctAnswer = val1.val > val2.val ? val1.str : val2.str;
-      
-    return { type: 'numeracy', values: [val1.str, val2.str], correctAnswer };
-  }, []);
+  }, [symbolPool, problem]);
 
   const startNewTrial = useCallback((state: AdaptiveState) => {
       const onRamp = state.uncertainty > 0.7;
@@ -152,27 +110,17 @@ export function RapidCodeMatch() {
           ? Math.max(state.levelFloor, state.currentLevel - 2)
           : state.currentLevel;
 
-      const levelDef = policy.levelMap[loadedLevel] || policy.levelMap[1];
-      const contentParams = levelDef.content_config[currentMode];
-      if (!contentParams) throw new Error("Invalid content params for mode " + currentMode);
-
       if (currentMode === 'verbal') {
-          trialVariant.current = 'lexical_decision';
           setProblem(generateLexicalProblem());
       } else {
-        const subVariant = contentParams.sub_variant || 'symbol_substitution';
-        if (subVariant === 'magnitude_comparison' && Math.random() > 0.5) {
-             trialVariant.current = 'magnitude_comparison';
-             setProblem(generateNumeracyProblem(loadedLevel));
-        } else {
-            trialVariant.current = 'symbol_substitution';
-            setProblem(generateSymbolProblem(loadedLevel));
-        }
+        // Math mode is simplified to only use symbol substitution to preserve the Gs factor.
+        // Magnitude comparison is removed to prevent cognitive drift to calculation (Gq).
+        setProblem(generateSymbolProblem(loadedLevel));
       }
       
       setGameState('running');
       trialStartTime.current = Date.now();
-  }, [currentMode, generateLexicalProblem, generateNumeracyProblem, generateSymbolProblem]);
+  }, [currentMode, generateLexicalProblem, generateSymbolProblem]);
 
   const startNewSession = useCallback(() => {
     if (!adaptiveState) return;
@@ -218,8 +166,6 @@ export function RapidCodeMatch() {
         isCorrect = problem.isReal === answer;
     } else if(problem.type === 'symbol') {
         isCorrect = problem.keyMap[problem.stimulus] === answer;
-    } else { // numeracy
-        isCorrect = problem.correctAnswer === answer;
     }
     isCorrect = isCorrect && reactionTimeMs < mechanic_config.responseWindowMs;
 
@@ -302,27 +248,6 @@ export function RapidCodeMatch() {
                     <Button onClick={() => handleAnswer(true)} variant="secondary" size="lg" className="text-2xl h-32" disabled={gameState === 'feedback'}>
                         REAL WORD
                     </Button>
-                </div>
-            </div>
-        )
-    }
-
-    if (problem.type === 'numeracy') {
-        return (
-            <div className="w-full">
-                <div className="flex justify-between w-full text-lg font-mono mb-4">
-                    <span>Score: {sessionTrials.filter(t => t.correct).length}</span>
-                    <span>Time: {timeLeft}s</span>
-                </div>
-                 <div className="relative mb-6 h-24 flex flex-col items-center justify-center">
-                    <p className="text-3xl font-bold text-primary mb-4">Which is larger?</p>
-                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  {problem.values.map((val) => (
-                     <Button key={String(val)} onClick={() => handleAnswer(String(val))} variant="secondary" size="lg" className="text-4xl h-32" disabled={gameState === 'feedback'}>
-                      {val}
-                    </Button>
-                  ))}
                 </div>
             </div>
         )
