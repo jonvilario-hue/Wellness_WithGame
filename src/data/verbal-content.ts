@@ -66,12 +66,36 @@ export const grammaticallyIncorrectSentences = [
   { incorrect: "The dogs is barking.", correct: "The dogs are barking." },
 ];
 
+export const grammarScrambleSentences = [
+    { sentence: "The quick brown fox jumps over the lazy dog.", complexity: 1 },
+    { sentence: "She sells seashells by the seashore.", complexity: 1 },
+    { sentence: "How much wood would a woodchuck chuck if a woodchuck could chuck wood?", complexity: 2 },
+];
+
+
 // For Gc cloze task
 export const clozeSentences = [
-    { question: "The man was ___ because his dog died.", options: ["ecstatic", "ambivalent"], answer: "grieving", explanation: "'Grieving' describes sorrow after a loss." },
-    { question: "To write well, one must select the ___ word.", options: ["approximate", "verbose"], answer: "precise", explanation: "'Precise' means exact and accurate, a key quality of good writing." },
-    { question: "Despite the market crash, she remained ___ and did not panic.", options: ["agitated", "flustered"], answer: "nonchalant", explanation: "'Nonchalant' means calm and unconcerned, fitting the context." },
+    { question: "The man was ___ because his dog died.", options: ["ecstatic", "ambivalent"], answer: "grieving", explanation: "'Grieving' describes sorrow after a loss.", difficulty: "high" },
+    { question: "To write well, one must select the ___ word.", options: ["approximate", "verbose"], answer: "precise", explanation: "'Precise' means exact and accurate, a key quality of good writing.", difficulty: "medium" },
+    { question: "Despite the market crash, she remained ___ and did not panic.", options: ["agitated", "flustered"], answer: "nonchalant", explanation: "'Nonchalant' means calm and unconcerned, fitting the context.", difficulty: "high" },
 ];
+
+export const morphologyWordPairs = {
+    pluralization: [
+        { base: 'cat', derived: 'cats' },
+        { base: 'dog', derived: 'dogs' },
+    ],
+    tense_change: [
+        { base: 'walk', derived: 'walked' },
+        { base: 'sing', derived: 'sang' },
+    ]
+}
+
+// For Glr category fluency task
+export const generalCategories = ["Animals", "Fruits", "Countries", "Colors", "Items in a kitchen"];
+export const mathCategories = ["Geometric Shapes", "Units of Measurement", "Prime Numbers", "Famous Mathematicians"];
+export const musicCategories = ["Musical Instruments", "Music Genres", "Famous Composers", "Italian Terms"];
+export const verbalCategories = ["Nouns", "Verbs", "Adjectives", "Figures of Speech"];
 
 // For EF semantic shift
 export const efCategories = {
@@ -80,3 +104,6 @@ export const efCategories = {
   rhymesWithCat: ['hat', 'bat', 'mat'],
   rhymesWithDog: ['log', 'frog', 'bog'],
 };
+
+export const realWords = Array.from(validationWordList);
+export const pseudowords = ["flib", "glorp", "wux", "blicket", "zorp", "dax"];
