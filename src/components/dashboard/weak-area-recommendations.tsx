@@ -34,8 +34,7 @@ export function WeakAreaRecommendations() {
     startTransition(async () => {
       try {
         const flatPerformanceData = chcDomains.map(domainInfo => {
-            const focusToUse = domainInfo.supportsMath && globalFocus === 'math' ? 'math' : domainInfo.supportsMusic && globalFocus === 'music' ? 'music' : 'neutral';
-            const gameState = gameStates[domainInfo.id]?.[focusToUse];
+            const gameState = gameStates[domainInfo.id];
           return {
             domain: domainInfo.key,
             score: gameState ? Math.round((gameState.currentLevel / gameState.levelCeiling) * 100) : 0,

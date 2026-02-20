@@ -13,14 +13,19 @@ import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
+import { morphologyWordPairs } from "@/data/verbal-content";
 
 const GAME_ID: GameId = 'gf_pattern_matrix';
 const policy = difficultyPolicies[GAME_ID];
 
-type GameVariant = 'neutral' | 'math' | 'probability';
+type GameVariant = 'neutral' | 'math' | 'probability' | 'verbal';
 
 // --- Display Components ---
 const ElementComponent = ({ element }: { element: any }) => {
+    if (!element) return null;
+    if (element.type === 'verbal') {
+        return <div className="text-2xl font-semibold text-primary">{element.value}</div>;
+    }
     if(element.type === 'probability_sample') {
         return <div className="text-3xl font-bold text-primary">{element.value}%</div>
     }
@@ -57,17 +62,21 @@ const getNextInSequence = <T,>(val: T, collection: T[]) => {
   return collection[(currentIndex + 1) % collection.length];
 };
 
-const generatePuzzleForLevel = (level: number, variant: GameVariant, focus: TrainingFocus) => {
+const generatePuzzleForLevel = (level: number, focus: TrainingFocus) => {
     const levelDef = policy.levelMap[level] || policy.levelMap[20];
     const { mechanic_config, content_config } = levelDef;
     const size = mechanic_config.gridSize === "3x3" ? 3 : 2;
+    
+    const focusConfig = content_config[focus];
+    if (!focusConfig) return generatePuzzleForLevel(level, 'neutral');
 
-    if (focus === 'math' && content_config.math.sub_variant === 'probabilistic') {
-        const probParams = content_config.math;
+    const { sub_variant, params } = focusConfig;
+
+    if (sub_variant === 'probabilistic') {
         const populationRatio = Math.random() * 0.4 + 0.3; // 30-70%
-        const population = Array(probParams.populationSize).fill(0).map((_, i) => i < probParams.populationSize * populationRatio);
+        const population = Array(params.populationSize).fill(0).map((_, i) => i < params.populationSize * populationRatio);
         
-        const samples = Array(probParams.samples).fill(0).map(() => {
+        const samples = Array(params.samples).fill(0).map(() => {
             const sampleIndex = Math.floor(Math.random() * population.length);
             return population[sampleIndex];
         });
@@ -75,7 +84,7 @@ const generatePuzzleForLevel = (level: number, variant: GameVariant, focus: Trai
 
         const options = new Set<number>([Math.round(populationRatio * 100)]);
         while (options.size < 4) {
-            const noise = (Math.random() - 0.5) * (probParams.noise * 2 || 0.4);
+            const noise = (Math.random() - 0.5) * (params.noise * 2 || 0.4);
             options.add(Math.round(Math.max(0, Math.min(100, (populationRatio + noise) * 100))));
         }
         
@@ -90,14 +99,23 @@ const generatePuzzleForLevel = (level: number, variant: GameVariant, focus: Trai
     
     const grid: any[] = Array(size * size).fill(null);
     const missingIndex = Math.floor(Math.random() * (size * size));
+    
+    if (sub_variant === 'morphological_analogy') {
+        const rule = params.rule as keyof typeof morphologyWordPairs;
+        const pair = morphologyWordPairs[rule][0];
+        const secondPair = morphologyWordPairs[rule][1];
 
-    if (focus === 'math') {
+        grid[0] = { type: 'verbal', value: pair.base };
+        grid[1] = { type: 'verbal', value: pair.derived };
+        grid[2] = { type: 'verbal', value: secondPair.base };
+        grid[3] = { type: 'verbal', value: secondPair.derived };
+    }
+    else if (focus === 'math') {
         const start = Math.floor(Math.random()*5) + 1;
         const step = Math.floor(Math.random()*3) + 1;
         for(let i = 0; i < size * size; i++) grid[i] = { type: 'math', value: start + i * step };
     } else { // neutral
-        const neutralParams = content_config.neutral;
-        const ruleTypes = (neutralParams.rule as string).split('+');
+        const ruleTypes = (params.rule as string).split('+');
         const baseElement = { type: 'neutral', shape: neutralShapes[0], color: neutralColors[0], rotation: 0, fill: 'fill' };
         const elementSet = { shape: neutralShapes, color: neutralColors, rotation: neutralRotations, fill: neutralFills };
 
@@ -120,6 +138,13 @@ const generatePuzzleForLevel = (level: number, variant: GameVariant, focus: Trai
         let tempDecoy: any = { ...answer };
         if(focus === 'math') {
             tempDecoy.value += (Math.random() > 0.5 ? 1 : -1) * (Math.floor(Math.random()*3)+1);
+        } else if (focus === 'verbal') {
+            const otherWords = Object.values(morphologyWordPairs).flat().map(p => [p.base, p.derived]).flat();
+            let randomWord = otherWords[Math.floor(Math.random() * otherWords.length)];
+            while(randomWord === answer.value) {
+                randomWord = otherWords[Math.floor(Math.random() * otherWords.length)];
+            }
+            tempDecoy.value = randomWord;
         } else {
              const changeProp = Object.keys(tempDecoy)[Math.floor(Math.random() * Object.keys(tempDecoy).length)];
              if(typeof tempDecoy[changeProp] !== 'string' || changeProp === 'type') continue;
@@ -133,7 +158,7 @@ const generatePuzzleForLevel = (level: number, variant: GameVariant, focus: Trai
     
     options.sort(() => Math.random() - 0.5);
     grid[missingIndex] = null;
-    return { type: variant, grid, missingIndex, answer, options, size };
+    return { type: focus, grid, missingIndex, answer, options, size };
 };
 
 export function PatternMatrix() {
@@ -151,7 +176,6 @@ export function PatternMatrix() {
 
     const trialStartTime = useRef(0);
     const currentTrialIndex = useRef(0);
-    const trialVariant = useRef<GameVariant>('neutral');
 
     const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
     const currentMode = isComponentLoaded ? (override || globalFocus) : 'neutral';
@@ -169,16 +193,8 @@ export function PatternMatrix() {
         const loadedLevel = onRamp
           ? Math.max(state.levelFloor, state.currentLevel - 2)
           : state.currentLevel;
-          
-        const levelDef = policy.levelMap[loadedLevel] || policy.levelMap[20];
-
-        if (currentMode === 'math') {
-            trialVariant.current = levelDef.content_config.math.sub_variant === 'probabilistic' ? 'probability' : 'math';
-        } else {
-            trialVariant.current = 'neutral';
-        }
         
-        setPuzzle(generatePuzzleForLevel(loadedLevel, trialVariant.current, currentMode));
+        setPuzzle(generatePuzzleForLevel(loadedLevel, currentMode));
         setSelectedOption(null);
         setFeedback('');
         setGameState('playing');
@@ -215,7 +231,7 @@ export function PatternMatrix() {
             if (currentTrialIndex.current >= policy.sessionLength) {
                 setGameState('finished');
                 const finalState = endSession(newState, [...sessionTrials, trialResult]);
-                updateAdaptiveState(GAME_ID, finalState);
+                updateAdaptiveState(finalState);
             } else {
                 startNewTrial(newState);
             }
@@ -312,7 +328,7 @@ export function PatternMatrix() {
                                     <p className={cn("animate-in fade-in", feedback.includes('Incorrect') ? 'text-amber-600' : 'text-green-600')}>{feedback}</p>
                                 )}
                             </div>
-                            <div className="grid grid-cols-3 gap-3">
+                            <div className={cn("grid gap-3", puzzle.type === 'verbal' ? 'grid-cols-2' : 'grid-cols-3')}>
                                 {puzzle.options.map((option: any, index: number) => (
                                 <button 
                                     key={index} 
@@ -350,5 +366,3 @@ export function PatternMatrix() {
     </Card>
   );
 }
-
-    

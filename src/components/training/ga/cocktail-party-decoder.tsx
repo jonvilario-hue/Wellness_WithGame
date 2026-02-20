@@ -9,8 +9,8 @@ import { cn } from '@/lib/utils';
 import { minimalPairs, prosodySentences } from '@/data/verbal-content';
 import type { TrainingFocus } from '@/types';
 
-// This is a visual simulation of the "Cocktail Party Decoder" task.
-// In a real app, this would involve playing audio with background noise.
+// This component simulates the "Cocktail Party Decoder" task for Gc.
+// Ga tasks (like stream segregation) would need a more complex audio engine.
 
 type Puzzle = {
   type: 'minimal_pair' | 'prosody';
@@ -21,6 +21,10 @@ type Puzzle = {
 };
 
 const generatePuzzle = (level: number): Puzzle => {
+  // At level 10+, the original spec called for sarcasm detection.
+  // This is a Gc (pragmatic inference) task, not a Ga (auditory processing) task.
+  // High-level Ga would be stream segregation or fine-grained phoneme discrimination in heavy noise.
+  // We will keep this Gc-flavored task here as a stand-in for a pure Ga high-level task.
   const isProsody = level > 5 && Math.random() > 0.5;
   
   if (isProsody) {
@@ -66,9 +70,10 @@ export function CocktailPartyDecoder({ onComplete, level }: { onComplete: (resul
   const [trial, setTrial] = useState(0);
   const [feedback, setFeedback] = useState<'correct' | 'incorrect' | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
+  const trialsPerSession = 10; // Fixed number of trials for this module
 
   const startNewTrial = useCallback(() => {
-    if (trial >= 10) {
+    if (trial >= trialsPerSession) {
       setGameState('finished');
       onComplete({ score });
       return;
@@ -81,7 +86,8 @@ export function CocktailPartyDecoder({ onComplete, level }: { onComplete: (resul
 
   useEffect(() => {
     startNewTrial();
-  }, [startNewTrial]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   
   const handleAnswer = (answer: string) => {
     if (gameState !== 'playing' || !puzzle) return;
@@ -104,13 +110,13 @@ export function CocktailPartyDecoder({ onComplete, level }: { onComplete: (resul
   
   useEffect(() => {
     if(gameState === 'feedback') {
-       // This effect triggers the next trial after the feedback timeout
        const timer = setTimeout(() => {
          startNewTrial();
        }, 2000);
        return () => clearTimeout(timer);
     }
-  }, [trial]); // Reruns when trial count changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trial]);
 
 
   if (gameState === 'loading' || !puzzle) {
@@ -118,13 +124,13 @@ export function CocktailPartyDecoder({ onComplete, level }: { onComplete: (resul
   }
 
   if (gameState === 'finished') {
-    return <div className="text-xl font-bold">Mode Complete! Score: {score}/10</div>;
+    return <div className="text-xl font-bold">Mode Complete! Score: {score}/{trialsPerSession}</div>;
   }
   
   return (
     <div className="w-full max-w-md text-center space-y-6">
       <div className="flex justify-between w-full font-mono text-sm">
-        <span>Trial: {trial + 1} / 10</span>
+        <span>Trial: {trial + 1} / {trialsPerSession}</span>
         <span>Score: {score}</span>
       </div>
       

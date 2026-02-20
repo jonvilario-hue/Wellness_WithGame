@@ -33,6 +33,21 @@ type MathRule = 'parity' | 'magnitude' | 'digit_sum' | 'no_go';
 // --- Music Mode Config ---
 type MusicRule = 'pitch_direction' | 'rhythm_evenness' | 'harmony_quality' | 'timbre_family' | 'no_go';
 
+// --- Verbal Mode Config ---
+type VerbalRule = 'rhyme' | 'category' | 'no_go';
+
+type Stimulus = {
+    word: string;
+    color: string;
+    value: number;
+    pitch: number;
+    rhythm: number[];
+    harmony: string;
+    timbre: string;
+    category?: 'animal' | 'object';
+};
+
+
 export function FocusSwitchReactor() {
   const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
@@ -43,8 +58,8 @@ export function FocusSwitchReactor() {
   const [sessionTrials, setSessionTrials] = useState<TrialResult[]>([]);
   
   const [score, setScore] = useState(0);
-  const [rule, setRule] = useState<NeutralRule | MathRule | MusicRule>('word');
-  const [stimulus, setStimulus] = useState<any>({ word: 'PRIMARY', color: 'text-primary', value: 7, pitch: 440, rhythm: [0.5, 0.5], harmony: 'major', timbre: 'piano' });
+  const [rule, setRule] = useState<NeutralRule | MathRule | MusicRule | VerbalRule>('word');
+  const [stimulus, setStimulus] = useState<Partial<Stimulus>>({ word: 'PRIMARY', color: 'text-primary', value: 7 });
   const [inlineFeedback, setInlineFeedback] = useState({ message: '', type: '' });
   const [shuffledOptions, setShuffledOptions] = useState<any[]>([]);
 
@@ -75,16 +90,22 @@ export function FocusSwitchReactor() {
     const onRamp = state.uncertainty > 0.7;
     const loadedLevel = onRamp ? Math.max(state.levelFloor, state.currentLevel - 2) : state.currentLevel;
     const levelDef = policy.levelMap[loadedLevel] || policy.levelMap[20];
-    const { content_config } = levelDef;
-    const contentParams = content_config[currentMode].params;
+    const contentConfig = levelDef.content_config[currentMode];
+    if (!contentConfig) return;
 
-    if (currentMode === 'math') {
+    const contentParams = contentConfig.params;
+
+    if (currentMode === 'verbal') {
+        const wordPool = contentParams.word_pool || ['BAT', 'CAT', 'DOG', 'LOG'];
+        const randomWord = wordPool[Math.floor(Math.random() * wordPool.length)];
+        setStimulus({ word: randomWord, category: contentParams.categories[randomWord] });
+    } else if (currentMode === 'math') {
         const value = Math.floor(Math.random() * 98) + 2;
         setStimulus({ value });
     } else if (currentMode === 'music') {
         const pitchDirection = Math.random() > 0.5 ? 'ascending' : 'descending';
         const isEven = Math.random() > 0.5;
-        const rhythm = isEven ? [0.5, 0.5] : [0.75, 0.25]; // Simple vs syncopated
+        const rhythm = isEven ? [0.5, 0.5] : [0.75, 0.25];
         const harmony = Math.random() > 0.5 ? 'major' : 'minor';
         const families = ['piano', 'guitar', 'strings', 'brass'];
         const timbre = families[Math.floor(Math.random() * families.length)];
@@ -106,9 +127,9 @@ export function FocusSwitchReactor() {
       : state.currentLevel;
     const levelDef = policy.levelMap[loadedLevel] || policy.levelMap[20];
     const { mechanic_config, content_config } = levelDef;
-    const contentParams = content_config[currentMode].params;
+    const contentParams = content_config[currentMode]?.params;
     
-    let availableRules: (NeutralRule | MathRule | MusicRule)[] = contentParams.rules || ['color', 'word'];
+    let availableRules: (NeutralRule | MathRule | MusicRule | VerbalRule)[] = contentParams.rules || ['color', 'word'];
     if(mechanic_config.noGo) availableRules.push('no_go');
 
     let newRule = ruleRef.current;
@@ -121,7 +142,11 @@ export function FocusSwitchReactor() {
     setRule(newRule as any);
 
     let options: any[] = [];
-    if (currentMode === 'math') {
+    if (currentMode === 'verbal') {
+        if (newRule === 'rhyme') options = ['RHYMES WITH HAT', 'RHYMES WITH FOG'];
+        else if (newRule === 'category') options = ['IS AN ANIMAL', 'IS AN OBJECT'];
+        else options = ['IS AN ANIMAL', 'IS AN OBJECT'];
+    } else if (currentMode === 'math') {
         if (newRule === 'parity') options = ['EVEN', 'ODD'];
         else if (newRule === 'magnitude') options = ['< 50', '> 50'];
         else if (newRule === 'digit_sum') options = ['SUM < 10', 'SUM > 10'];
@@ -193,7 +218,18 @@ export function FocusSwitchReactor() {
     }
     
     let isCorrect = false;
-    if (currentMode === 'neutral') {
+    if (currentMode === 'verbal') {
+        const word = stimulus.word?.toLowerCase();
+        if (rule === 'rhyme') {
+            const rhymesWithHat = ['bat', 'cat', 'hat', 'flat'].includes(word || '');
+            const correctBin = rhymesWithHat ? 'RHYMES WITH HAT' : 'RHYMES WITH FOG';
+            isCorrect = (answer === correctBin);
+        } else if (rule === 'category') {
+            const category = stimulus.category;
+            const correctBin = category === 'animal' ? 'IS AN ANIMAL' : 'IS AN OBJECT';
+            isCorrect = (answer === correctBin);
+        }
+    } else if (currentMode === 'neutral') {
         const answerName = (answer as {name: string}).name;
         let correctAnswer;
         if (rule === 'word') {
@@ -204,7 +240,7 @@ export function FocusSwitchReactor() {
         }
         isCorrect = (answerName === correctAnswer);
     } else if (currentMode === 'math') {
-        const num = stimulus.value;
+        const num = stimulus.value!;
         if (rule === 'parity') {
             const parity = num % 2 === 0 ? 'EVEN' : 'ODD';
             isCorrect = (answer === parity);
@@ -218,14 +254,14 @@ export function FocusSwitchReactor() {
         }
     } else { // Music mode
         if (rule === 'pitch_direction') {
-            isCorrect = (stimulus.pitchDirection.toUpperCase() === answer);
+            isCorrect = (stimulus.pitchDirection!.toUpperCase() === answer);
         } else if (rule === 'rhythm_evenness') {
-            const evenness = stimulus.rhythm[0] === 0.5 ? 'EVEN' : 'UNEVEN';
+            const evenness = stimulus.rhythm![0] === 0.5 ? 'EVEN' : 'UNEVEN';
             isCorrect = (evenness === answer);
         } else if (rule === 'harmony_quality') {
-            isCorrect = (stimulus.harmony.toUpperCase() === answer);
+            isCorrect = (stimulus.harmony!.toUpperCase() === answer);
         } else if (rule === 'timbre_family') {
-            isCorrect = (stimulus.timbre.toUpperCase() === answer);
+            isCorrect = (stimulus.timbre!.toUpperCase() === answer);
         }
     }
     
@@ -261,6 +297,8 @@ export function FocusSwitchReactor() {
       if (rule === 'rhythm_evenness') text = 'Is the rhythm EVEN or UNEVEN?';
       if (rule === 'harmony_quality') text = 'Is the harmony MAJOR or MINOR?';
       if (rule === 'timbre_family') text = 'What is the instrument family?';
+      if (rule === 'rhyme') text = 'Does it RHYME with HAT or FOG?';
+      if (rule === 'category') text = 'Is it an ANIMAL or an OBJECT?';
       if (rule === 'no_go') text = "DON'T RESPOND";
       
       return <span className="font-bold text-primary uppercase">{text}</span>;
@@ -301,6 +339,7 @@ export function FocusSwitchReactor() {
                 <div className="text-6xl font-extrabold" >
                   {currentMode === 'neutral' && <span className={stimulus.color}>{stimulus.word}</span>}
                   {currentMode === 'math' && <span className="text-primary">{stimulus.value}</span>}
+                  {currentMode === 'verbal' && <span className="text-primary">{stimulus.word}</span>}
                   {currentMode === 'music' && <span className="text-primary tracking-widest">{stimulus.timbre}</span>}
                 </div>
               </div>
@@ -334,7 +373,7 @@ export function FocusSwitchReactor() {
                           </Button>
                       )
                   }
-                  // Fallback for math/music modes
+                  // Fallback for math/music/verbal modes
                   const optionKey = typeof option === 'object' ? JSON.stringify(option) : option;
                   return (
                       <Button key={optionKey + index} onClick={() => handleAnswer(option)} disabled={gameState === 'feedback'} variant="secondary" size="lg">

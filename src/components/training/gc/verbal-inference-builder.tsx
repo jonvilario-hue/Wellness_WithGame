@@ -13,6 +13,7 @@ import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
+import { clozeSentences, morphologyWordPairs } from "@/data/verbal-content";
 
 const GAME_ID: GameId = 'gc_verbal_inference';
 const policy = difficultyPolicies[GAME_ID];
@@ -26,15 +27,28 @@ type Puzzle = {
 };
 
 const generatePuzzleForLevel = (level: number, focus: TrainingFocus): Puzzle => {
-    const params = policy.levelMap[level] || policy.levelMap[Object.keys(policy.levelMap).pop() as any];
-    const puzzlePool = params[focus] || params['neutral']; // Fallback to neutral
-    const puzzleTemplate = puzzlePool[Math.floor(Math.random() * puzzlePool.length)];
-
+    const levelDef = policy.levelMap[level] || policy.levelMap[Object.keys(policy.levelMap).pop() as any];
+    const contentConfig = levelDef.content_config[focus];
+    if (!contentConfig) { // Fallback to neutral if focus not implemented
+      return generatePuzzleForLevel(level, 'neutral');
+    }
+    const { sub_variant, params } = contentConfig;
+    
     // In a real implementation, you would dynamically generate puzzles here.
-    // For this prototype, we'll use the templates directly.
+    // For this prototype, we'll use pre-made templates.
+    let puzzleTemplate;
+    if (sub_variant === 'cloze_deletion') {
+        puzzleTemplate = clozeSentences.find(p => p.difficulty === params.word_rarity) || clozeSentences[0];
+    } else { // Default to math word problems or other fallbacks
+        puzzleTemplate = (policy.levelMap[1].content_config.math as any)[0];
+    }
+
     return {
-        ...puzzleTemplate,
-        options: [...puzzleTemplate.options, puzzleTemplate.answer].sort(() => Math.random() - 0.5)
+        type: sub_variant,
+        question: puzzleTemplate.question,
+        options: [...puzzleTemplate.options, puzzleTemplate.answer].sort(() => Math.random() - 0.5),
+        answer: puzzleTemplate.answer,
+        explanation: puzzleTemplate.explanation,
     };
 };
 
@@ -109,7 +123,7 @@ export function VerbalInferenceBuilder() {
         if (currentTrialIndex.current >= policy.sessionLength) {
             setGameState('finished');
             const finalState = endSession(newState, [...sessionTrials, trialResult]);
-            updateAdaptiveState(GAME_ID, currentMode, finalState);
+            updateAdaptiveState(finalState);
         } else {
             startNewTrial(newState);
         }
@@ -202,5 +216,3 @@ export function VerbalInferenceBuilder() {
     </Card>
   );
 }
-
-    

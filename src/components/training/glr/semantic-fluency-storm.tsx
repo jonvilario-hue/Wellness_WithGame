@@ -13,18 +13,15 @@ import { Archive, Loader2 } from "lucide-react";
 import type { TrainingFocus } from "@/types";
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
+import { generalCategories, mathCategories, musicCategories, verbalCategories } from "@/data/verbal-content";
 
 // --- Domain-specific content ---
 const generalWordList = ["apple", "car", "house", "river", "mountain", "book", "chair", "music", "light", "ocean", "star", "forest", "fire", "cloud", "dream", "journey", "key", "mirror", "shadow", "silence", "time", "voice", "water", "wind", "world"];
 const mathWordList = ["algebra", "calculus", "geometry", "integer", "prime", "fraction", "decimal", "vertex", "angle", "matrix", "vector", "theorem", "proof", "integral", "derivative"];
 const musicWordList = ["harmony", "melody", "rhythm", "tempo", "chord", "scale", "octave", "clef", "crescendo", "sonata", "fugue", "concerto", "aria", "pitch", "timbre"];
+const verbalWordList = ["metaphor", "irony", "syntax", "phoneme", "morpheme", "paradox", "alliteration", "onomatopoeia", "hyperbole", "prose", "verse", "narrative"];
 
 const generalAntonyms: Record<string, string> = { "hot": "cold", "fast": "slow", "happy": "sad", "big": "small", "up": "down", "light": "dark", "day": "night", "rich": "poor", "old": "new", "true": "false" };
-
-const mathCategories = ["Geometric Shapes", "Units of Measurement", "Mathematical Operations", "Famous Mathematicians", "Branches of Mathematics", "Types of Numbers", "Statistical Terms", "Constants"];
-const musicCategories = ["Musical Instruments", "Music Genres", "Elements of Music", "Time Signatures", "Famous Composers", "Types of Scales", "Italian Terms", "Vocal Ranges"];
-const generalCategories = ["Animals", "Tools", "Countries", "Foods", "Body Parts", "Professions", "Clothing", "Colors"];
-
 
 export function SemanticFluencyStorm() {
     const [gameState, setGameState] = useState<'idle' | 'running' | 'finished'>('idle');
@@ -105,6 +102,7 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (score: numbe
     const wordList = useMemo(() => {
         if (focus === 'math') return mathWordList;
         if (focus === 'music') return musicWordList;
+        if (focus === 'verbal') return verbalWordList;
         return generalWordList;
     }, [focus]);
 
@@ -208,6 +206,7 @@ function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (score: number
     const wordList1 = useMemo(() => {
         if (focus === 'math') return mathWordList;
         if (focus === 'music') return musicWordList;
+        if (focus === 'verbal') return verbalWordList;
         return generalWordList;
     }, [focus]);
     
@@ -337,6 +336,7 @@ function CategorySwitchingMode({ onComplete, focus }: { onComplete: (score: numb
     const categories = useMemo(() => {
         if (focus === 'math') return mathCategories;
         if (focus === 'music') return musicCategories;
+        if (focus === 'verbal') return verbalCategories;
         return generalCategories;
     }, [focus]);
 
@@ -352,7 +352,7 @@ function CategorySwitchingMode({ onComplete, focus }: { onComplete: (score: numb
         const totalTimer = setInterval(() => {
             setTotalTimeLeft(prev => {
                 if (prev <= 1) {
-                    clearInterval(categoryTimerRef.current);
+                    clearInterval(categoryTimerRef.current as NodeJS.Timeout);
                     clearInterval(totalTimer);
                     const currentState = getAdaptiveState('glr_fluency_storm', focus);
                     const newLevel = Math.max(currentState.levelFloor, Math.min(currentState.levelCeiling, 4 + Math.min(6, Math.floor(score / 5))));

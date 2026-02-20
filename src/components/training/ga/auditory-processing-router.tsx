@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -95,8 +94,8 @@ const PitchDiscriminationModule = ({ onComplete, level }: { onComplete: (result:
     const currentTrialRef = useRef<{ secondIsHigher: boolean } | null>(null);
     
     const { content_config } = policy.levelMap[level] || policy.levelMap[1];
-    const contentParams = content_config['music'].params;
-    const freqDelta = contentParams.freqDelta || 50;
+    const contentParams = content_config['music']?.params;
+    const freqDelta = contentParams?.freqDelta || 50;
 
     const runTrial = useCallback(() => {
         resumeContext();

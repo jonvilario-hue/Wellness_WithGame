@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useTrainingFocus } from '@/hooks/use-training-focus';

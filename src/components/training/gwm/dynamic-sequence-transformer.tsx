@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,18 +13,20 @@ import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
+import { nonsenseWords, grammarScrambleSentences } from "@/data/verbal-content";
 
 const GAME_ID: GameId = 'gwm_dynamic_sequence';
 const policy = difficultyPolicies[GAME_ID];
 
 const generateSequence = (length: number, charSet: string) => {
   let chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  if(charSet === 'alphanumeric') chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  if (charSet === 'alphanumeric') chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   if (charSet === 'numeric') chars = '0123456789';
   if (charSet === 'numeric_ops') chars = '0123456789+-*/=';
   if (charSet === 'notes') chars = 'CDEFGAB';
   if (charSet === 'notes_symbols') chars = 'CDEFGAB♩♪♫♭♯♮';
-  
+  if (charSet === 'phonological') return Array.from({ length }, () => nonsenseWords[Math.floor(Math.random() * nonsenseWords.length)]).join(' ');
+
   let result = '';
   for (let i = 0; i < length; i++) {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
@@ -40,6 +41,7 @@ const tasks = [
   { id: 'remove_first', label: "Repeat the sequence, removing the first character." },
   { id: 'alpha_shift', label: "Repeat the letters, shifting each forward by one (A->B, Z->A)." },
   { id: 'every_other', label: "Repeat every other character, starting with the first." },
+  { id: 'sentence_unscramble', label: "Unscramble the words to form a grammatical sentence." },
 ];
 
 export function DynamicSequenceTransformer() {
@@ -58,6 +60,7 @@ export function DynamicSequenceTransformer() {
   
   const trialStartTime = useRef(0);
   const currentTrialIndex = useRef(0);
+  const correctSentenceRef = useRef('');
 
   const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
   const currentMode = isComponentLoaded ? (override || globalFocus) : 'neutral';
@@ -77,11 +80,23 @@ export function DynamicSequenceTransformer() {
       : state.currentLevel;
 
     const levelDef = policy.levelMap[loadedLevel] || policy.levelMap[Object.keys(policy.levelMap).pop() as any];
-    const { mechanic_config, content_config } = levelDef;
-    const contentParams = content_config[currentMode];
+    const { mechanic_config } = levelDef;
+    const content_config = levelDef.content_config[currentMode];
+    if (!content_config || !content_config.params) throw new Error("Invalid content config");
+    
+    let newTask = tasks.find(t => t.id === content_config.sub_variant) || tasks[0];
+    let newSequence = '';
 
-    const newSequence = generateSequence(mechanic_config.sequenceLength, contentParams.chars);
-    const newTask = tasks[Math.floor(Math.random() * tasks.length)];
+    if(content_config.sub_variant === 'sentence_unscramble') {
+        const sentenceData = grammarScrambleSentences[Math.floor(Math.random() * grammarScrambleSentences.length)];
+        correctSentenceRef.current = sentenceData.sentence;
+        newSequence = sentenceData.sentence.split(' ').sort(() => Math.random() - 0.5).join(' ');
+        newTask = tasks.find(t => t.id === 'sentence_unscramble')!;
+    } else {
+        newSequence = generateSequence(mechanic_config.sequenceLength, content_config.params.chars);
+        const availableTasks = tasks.filter(t => t.id !== 'sentence_unscramble');
+        newTask = availableTasks[Math.floor(Math.random() * availableTasks.length)];
+    }
     
     setSequence(newSequence);
     setTask(newTask);
@@ -111,6 +126,7 @@ export function DynamicSequenceTransformer() {
         case 'alpha_only': return sequence.replace(/[^A-Z♩♪♫♭♯♮]/gi, '');
         case 'numeric_only': return sequence.replace(/[^0-9+\-*/=]/g, '');
         case 'remove_first': return sequence.substring(1);
+        case 'sentence_unscramble': return correctSentenceRef.current;
         case 'alpha_shift':
             return sequence.replace(/[^A-Z]/gi, '').split('').map(char => 
                 char.toUpperCase() === 'Z' ? 'A' : String.fromCharCode(char.charCodeAt(0) + 1)
@@ -128,7 +144,13 @@ export function DynamicSequenceTransformer() {
     
     setGameState('feedback');
     const reactionTimeMs = Date.now() - trialStartTime.current;
-    const isCorrect = userAnswer.toUpperCase().trim() === correctAnswer.toUpperCase();
+    
+    let isCorrect = userAnswer.trim().toUpperCase() === correctAnswer.toUpperCase();
+    // Normalize punctuation for sentence unscramble
+    if (task.id === 'sentence_unscramble') {
+        const normalize = (str: string) => str.toUpperCase().replace(/[.,!?]/g, '');
+        isCorrect = normalize(userAnswer.trim()) === normalize(correctAnswer);
+    }
 
     const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs };
     setSessionTrials(prev => [...prev, trialResult]);
@@ -143,13 +165,13 @@ export function DynamicSequenceTransformer() {
         if(currentTrialIndex.current >= policy.sessionLength) {
             setGameState('finished');
             const finalState = endSession(newState, [...sessionTrials, trialResult]);
-            updateAdaptiveState(GAME_ID, finalState);
+            updateAdaptiveState(finalState);
         } else {
             startNewTrial(newState);
         }
     }, 2500);
 
-  }, [gameState, userAnswer, correctAnswer, adaptiveState, sessionTrials, updateAdaptiveState, startNewTrial]);
+  }, [gameState, userAnswer, correctAnswer, adaptiveState, sessionTrials, updateAdaptiveState, startNewTrial, task.id]);
 
   const renderContent = () => {
     if (!isComponentLoaded || gameState === 'loading') {
@@ -227,5 +249,3 @@ export function DynamicSequenceTransformer() {
     </Card>
   );
 }
-
-    

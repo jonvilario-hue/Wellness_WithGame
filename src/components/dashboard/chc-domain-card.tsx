@@ -167,5 +167,3 @@ const ChcDomainCardComponent = ({ domain }: ChcDomainCardProps) => {
 };
 
 export const ChcDomainCard = memo(ChcDomainCardComponent);
-
-    

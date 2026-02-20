@@ -49,7 +49,6 @@ export const usePerformanceStore = create<PerformanceStateData & PerformanceActi
         const state = get();
         let gameState = state.gameStates[gameId];
         
-        // Determine the effective tier for this session
         let effectiveTier: Tier;
         if (state.globalTier === 4) { // Auto mode
             const allGameStates = Object.values(state.gameStates);
@@ -63,23 +62,21 @@ export const usePerformanceStore = create<PerformanceStateData & PerformanceActi
             effectiveTier = state.globalTier;
         }
 
-        if (!gameState || gameState.tier !== effectiveTier) {
+        if (!gameState) {
           gameState = getDefaultState(gameId, effectiveTier);
           set(s => { s.gameStates[gameId] = gameState!; });
         }
         
-        // --- LAYER SWITCH HANDLING ---
         if (gameState.lastFocus !== focus) {
             set(s => {
                 const stateToUpdate = s.gameStates[gameId]!;
-                stateToUpdate.uncertainty = Math.min(stateToUpdate.uncertainty + 0.3, 0.85);
+                stateToUpdate.uncertainty = Math.min(1.0, stateToUpdate.uncertainty + 0.3);
                 stateToUpdate.consecutiveCorrect = 0;
                 stateToUpdate.consecutiveWrong = 0;
                 stateToUpdate.smoothedAccuracy = 0.75;
                 stateToUpdate.smoothedRT = null;
                 stateToUpdate.lastFocus = focus;
             });
-            // Re-get the state after the update
             return get().gameStates[gameId]!;
         }
 
@@ -95,47 +92,15 @@ export const usePerformanceStore = create<PerformanceStateData & PerformanceActi
       resetGameToTierDefault: (gameId) => {
          set(state => {
             const gameTier = state.gameStates[gameId]?.tier ?? state.globalTier;
-            // Handle auto case
             const finalTier = gameTier === 4 ? 1 : gameTier;
             state.gameStates[gameId] = getDefaultState(gameId, finalTier);
          });
       }
     })),
     {
-      name: 'cognitive-performance-storage-v5-unified', // Incremented version for migration
+      name: 'cognitive-performance-storage-v6-unified',
       storage: createJSONStorage(() => localStorage),
-      // --- MIGRATION LOGIC (Rule 1) ---
-      migrate: (persistedState: any, version: number) => {
-        if (version < 5 && persistedState.gameStates) {
-          const newGameStates: Record<GameId, AdaptiveState> = {};
-          for (const gameId in persistedState.gameStates) {
-            const oldGameLayers = persistedState.gameStates[gameId];
-            if (oldGameLayers && typeof oldGameLayers === 'object' && oldGameLayers.neutral) { // Check if it's the old, nested structure
-              const layers = ['neutral', 'math', 'music', 'verbal'].map(f => oldGameLayers[f]).filter(Boolean);
-              
-              // Take the highest level achieved across all layers
-              const unifiedLevel = Math.max(...layers.map(l => l.currentLevel || 1));
-              
-              // Use the neutral layer as the base, then merge
-              newGameStates[gameId as GameId] = {
-                ...oldGameLayers.neutral,
-                currentLevel: unifiedLevel,
-                uncertainty: 0.6, // Force re-calibration
-                lastFocus: oldGameLayers.neutral.focus || 'neutral',
-              };
-            } else {
-              // It's already in the new format or is malformed, just copy it
-              newGameStates[gameId as GameId] = oldGameLayers;
-            }
-          }
-          persistedState.gameStates = newGameStates;
-        }
-        if(!persistedState.globalTier) {
-            persistedState.globalTier = 4; // Default new users to Automatic
-        }
-        return persistedState as PerformanceStateData & PerformanceActions;
-      },
-      version: 5,
+      version: 6,
     }
   )
 );

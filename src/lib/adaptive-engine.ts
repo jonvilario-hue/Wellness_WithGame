@@ -1,5 +1,5 @@
 
-import type { AdaptiveState, DifficultyPolicy, GameId, Tier, TrialResult, TrainingFocus } from "@/types";
+import type { AdaptiveState, DifficultyPolicy, GameId, Tier, TrialResult, TrainingFocus, TierSelection } from "@/types";
 
 export const TIER_CONFIG: Record<Tier, { name: string, range: [number, number] }> = {
     0: { name: "Foundation", range: [1, 5] },
@@ -29,7 +29,14 @@ export const getDefaultState = (gameId: GameId, tier: Tier): AdaptiveState => {
     };
 };
 
-
+/**
+ * The core adaptive engine. It is content-agnostic.
+ * It adjusts the user's difficulty level based on performance.
+ * @param trialResult - The result of the last trial (correct, reactionTimeMs).
+ * @param currentState - The user's current adaptive state for the game.
+ * @param policy - The difficulty policy for the specific game.
+ * @returns The new, updated adaptive state.
+ */
 export const adjustDifficulty = (
     trialResult: TrialResult,
     currentState: AdaptiveState,
@@ -55,15 +62,16 @@ export const adjustDifficulty = (
         state.consecutiveWrong++;
     }
 
-    // 2. Update Smoothed Accuracy (EWMA)
-    const alpha = 0.15;
-    state.smoothedAccuracy = alpha * (trialResult.correct ? 1 : 0) + (1 - alpha) * state.smoothedAccuracy;
+    // 2. Update Smoothed Accuracy (Exponentially Weighted Moving Average)
+    const accuracyAlpha = 0.15;
+    state.smoothedAccuracy = accuracyAlpha * (trialResult.correct ? 1 : 0) + (1 - accuracyAlpha) * state.smoothedAccuracy;
 
-    if (trialResult.correct) {
+    if (trialResult.correct && trialResult.reactionTimeMs > 50) { // Ignore accidental clicks
+        const rtAlpha = 0.1;
         if (state.smoothedRT === null) {
             state.smoothedRT = trialResult.reactionTimeMs;
         } else {
-            state.smoothedRT = alpha * trialResult.reactionTimeMs + (1 - alpha) * state.smoothedRT;
+            state.smoothedRT = rtAlpha * trialResult.reactionTimeMs + (1 - rtAlpha) * state.smoothedRT;
         }
     }
     
@@ -71,25 +79,26 @@ export const adjustDifficulty = (
     const originalLevel = state.currentLevel;
 
     // --- UNCERTAINTY-AWARE STEP SIZING (Rule 5) ---
+    // The step size is larger when the system is less certain about the user's level.
     const step = Math.max(1, Math.round(1 * (1 + state.uncertainty)));
 
-    // 4. Safety Rule (Rapid Drop)
+    // 3. Safety Rule (Rapid Drop on repeated failures)
     if (state.consecutiveWrong >= 3) {
         state.currentLevel = Math.max(state.levelFloor, state.currentLevel - step);
         state.consecutiveWrong = 0;
-        state.consecutiveCorrect = 0; // Reset both streaks
-        levelChanged = true;
-    } else {
-        // 6. Target Band Logic
+        state.consecutiveCorrect = 0; // Reset both streaks to prevent immediate bounce-back
+    } 
+    // 4. Target Band Logic (Primary adjustment mechanism)
+    else {
         const { targetAccuracyHigh, targetAccuracyLow } = policy;
+        // Level Up: High accuracy and a small streak
         if (state.smoothedAccuracy > targetAccuracyHigh && state.consecutiveCorrect >= 2) {
              state.currentLevel = Math.min(state.levelCeiling, state.currentLevel + step);
-             state.consecutiveCorrect = 0;
-             levelChanged = true;
-        } else if (state.smoothedAccuracy < targetAccuracyLow && state.consecutiveWrong > 0) {
-             state.currentLevel = Math.max(state.levelFloor, state.currentLevel - 1); // Use smaller step for single errors
-             state.consecutiveWrong = 0;
-             levelChanged = true;
+             state.consecutiveCorrect = 0; // Reset streak after level up
+        } 
+        // Level Down: Low accuracy
+        else if (state.smoothedAccuracy < targetAccuracyLow) {
+             state.currentLevel = Math.max(state.levelFloor, state.currentLevel - 1); // Use a smaller step for single errors
         }
     }
 
@@ -99,26 +108,13 @@ export const adjustDifficulty = (
     if(state.currentLevel !== originalLevel) {
         levelChanged = true;
     }
-
-    // 5. Stability Rule (Hysteresis)
-    if (state.recentTrials.length > 2) {
-        const lastTrial = state.recentTrials[state.recentTrials.length - 2];
-        if(lastTrial) {
-            const lastLevelChange = originalLevel - lastTrial.level;
-            const currentLevelChange = state.currentLevel - originalLevel;
-            if ((lastLevelChange > 0 && currentLevelChange < 0) || (lastLevelChange < 0 && currentLevelChange > 0)) {
-                state.currentLevel = originalLevel; // Revert the change
-                levelChanged = false;
-            }
-        }
-    }
     
-    // 7. DECAY UNCERTAINTY
-    // If level changed, we are less certain. If it holds, we become more certain.
+    // 5. DECAY UNCERTAINTY
+    // If the level changed, we are less certain. If it holds, we become more certain.
     if (levelChanged) {
-         state.uncertainty = Math.min(1.0, state.uncertainty * 1.05);
+         state.uncertainty = Math.min(1.0, state.uncertainty * 1.05 + 0.05); // Increase uncertainty on change
     } else {
-        state.uncertainty = Math.max(0.1, state.uncertainty * 0.98);
+        state.uncertainty = Math.max(0.1, state.uncertainty * 0.98); // Decay towards baseline
     }
 
     return state;
@@ -131,9 +127,11 @@ export const startSession = (state: AdaptiveState): AdaptiveState => {
     let uncertainty = state.uncertainty;
     let startLevel = state.currentLevel;
 
+    // If user is returning after a long break, increase uncertainty and slightly lower level
+    // to account for skill rust.
     if (isReturningAfterBreak) {
         uncertainty = 0.6; // Re-calibration mode
-        startLevel = Math.max(state.levelFloor, startLevel - 1); // Rust adjustment
+        startLevel = Math.max(state.levelFloor, startLevel - 1);
     }
     
     return {
@@ -166,5 +164,3 @@ export const endSession = (state: AdaptiveState, sessionHistory: TrialResult[]):
         levelHistory: [...state.levelHistory, newLevelHistoryEntry].slice(-20), // Keep last 20 sessions
     };
 };
-
-    

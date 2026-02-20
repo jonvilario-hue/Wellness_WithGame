@@ -1,5 +1,3 @@
-
-
 export type TrainingFocus = 'neutral' | 'math' | 'music' | 'verbal';
 export type CHCDomain = 'Gf' | 'Gc' | 'Gwm' | 'Gs' | 'Gv' | 'Ga' | 'Glr' | 'EF';
 
@@ -65,7 +63,10 @@ export type MechanicConfig = {
 };
 
 export type ContentConfig = {
-    [key: string]: any;
+    sub_variant?: string;
+    params?: {
+        [key: string]: any;
+    };
 };
 
 export type LevelDefinition = {
@@ -80,4 +81,42 @@ export interface DifficultyPolicy {
   targetAccuracyHigh: number;
   targetAccuracyLow: number;
   levelMap: Record<number, LevelDefinition>;
+}
+
+
+// --- Verbal Mode Specific Types for Database Schema Simulation ---
+
+export interface VerbalStimulus {
+    word: string;
+    phonemes: string; // e.g., "h æ p i n ə s"
+    syllables: number;
+    root?: string;
+    affixes?: string[];
+    part_of_speech: 'noun' | 'verb' | 'adjective' | 'adverb';
+    semantic_category: string[];
+    frequency_score: number; // e.g., 8.4 (higher is more common)
+    cultural_specificity: 'universal' | 'regional_us' | 'regional_uk';
+    age_appropriateness: 'all' | '12+' | '16+';
+}
+
+export interface UserSessionLog {
+    sessionId: string;
+    userId: string;
+    gameId: GameId;
+    focus: TrainingFocus;
+    sessionStartTime: number; // timestamp
+    sessionEndTime: number; // timestamp
+    startLevel: number;
+    endLevel: number;
+    trials: TrialLog[];
+}
+
+export interface TrialLog {
+    trialId: number;
+    level: number;
+    stimulus: any; // Could be a VerbalStimulus, a math problem, etc.
+    response: any;
+    isCorrect: boolean;
+    reactionTimeMs: number;
+    timestamp: number;
 }

@@ -21,14 +21,14 @@ import { useTrainingFocus } from '@/hooks/use-training-focus';
 
 export function FullStrengthProfile() {
   const [isClient, setIsClient] = useState(false);
-  const { gameStates } = usePerformanceStore();
-  const { isLoaded: isFocusLoaded } = useTrainingFocus();
+  const { getAdaptiveState } = usePerformanceStore();
+  const { focus, isLoaded: isFocusLoaded } = useTrainingFocus();
 
   useEffect(() => {
     setIsClient(true);
   }, []);
 
-  const isComponentLoaded = isClient && isFocusLoaded && gameStates;
+  const isComponentLoaded = isClient && isFocusLoaded;
 
   if (!isComponentLoaded) {
     return (
@@ -42,7 +42,7 @@ export function FullStrengthProfile() {
   }
 
   const chartData = chcDomains.map(domain => {
-    const gameState = gameStates[domain.id];
+    const gameState = getAdaptiveState(domain.id, focus);
     const score = gameState ? Math.round((gameState.currentLevel / gameState.levelCeiling) * 100) : 0;
     const displayScore = score > 0 ? score : Math.round(Math.random() * 20 + 20); // Use real score or fallback for display
 
@@ -97,5 +97,3 @@ export function FullStrengthProfile() {
     </div>
   );
 }
-
-    

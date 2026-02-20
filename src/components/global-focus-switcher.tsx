@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { useTrainingFocus } from '@/hooks/use-training-focus';
+import { useTrainingFocus, type TrainingFocus } from '@/hooks/use-training-focus';
 import { useTrainingOverride } from '@/hooks/use-training-override';
 import { Brain, Music, MessageSquare } from 'lucide-react';
 import { SigmaIcon } from './icons';
@@ -22,7 +22,7 @@ export function GlobalFocusSwitcher() {
   const { setOverride } = useTrainingOverride();
 
   const handleFocusChange = (value: string) => {
-    const newFocus = value as 'neutral' | 'math' | 'music' | 'verbal';
+    const newFocus = value as TrainingFocus;
     setFocus(newFocus);
     setOverride(null); 
   };

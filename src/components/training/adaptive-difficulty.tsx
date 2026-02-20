@@ -13,8 +13,6 @@ import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { useTheme } from '@/hooks/use-theme';
 import { GrowthDecoration } from '../ui/growth-decoration';
 import { usePerformanceStore } from '@/hooks/use-performance-store';
-import { useTrainingFocus } from '@/hooks/use-training-focus';
-
 
 const INSIGHT_KEY = 'adaptiveDifficultyInsightDismissed';
 
@@ -26,9 +24,7 @@ export function AdaptiveDifficulty() {
   const [isInsightVisible, setIsInsightVisible] = useState(false);
   const [skillLevel, setSkillLevel] = useState(50);
   const { organicGrowth } = useTheme();
-  const { getAdaptiveState } = usePerformanceStore();
-  const { focus } = useTrainingFocus();
-
+  const { gameStates } = usePerformanceStore();
 
   useEffect(() => {
     const dismissed = localStorage.getItem(INSIGHT_KEY);
@@ -39,18 +35,18 @@ export function AdaptiveDifficulty() {
 
   useEffect(() => {
     const domainInfo = chcDomains.find(d => d.key === selectedDomain);
-    if (!domainInfo) {
+    if (!domainInfo || !gameStates[domainInfo.id]) {
       setSkillLevel(50); // Default if no data
       return;
     }
-    const gameState = getAdaptiveState(domainInfo.id, focus);
+    const gameState = gameStates[domainInfo.id];
     if (gameState) {
       const calculatedSkill = Math.round((gameState.currentLevel / gameState.levelCeiling) * 100);
       setSkillLevel(calculatedSkill);
     } else {
       setSkillLevel(50);
     }
-  }, [selectedDomain, getAdaptiveState, focus]);
+  }, [selectedDomain, gameStates]);
   
 
   const handleSubmit = (e: React.FormEvent) => {
