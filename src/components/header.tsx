@@ -12,7 +12,6 @@ export function Header() {
   const pathname = usePathname();
 
   const navItems = [
-    { href: '/', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/settings', label: 'Settings', icon: Settings },
   ];
 
@@ -27,7 +26,7 @@ export function Header() {
 
         {/* Center: Branding */}
         <div className="flex-1 flex justify-center items-center">
-            <Link href="/" className="flex items-center gap-2">
+            <Link href="/" className="flex items-center gap-2 rounded-lg p-2 transition-colors hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring">
                  <BrainCircuit className="h-7 w-7 text-primary" />
                  <h1 className="text-xl font-bold text-foreground tracking-tight hidden sm:block">PuzzleMaster</h1>
             </Link>
