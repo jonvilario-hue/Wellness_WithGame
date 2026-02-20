@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useTrainingFocus } from '@/hooks/use-training-focus';
@@ -33,7 +34,7 @@ export function VisualProcessingRouter() {
         // to better align with the Gv domain (visual scanning).
         return <TypographicSearch focus={effectiveFocus} />;
     case 'spatial':
-        return <GamePlaceholder title="Voxel Jigsaw" description="A 3D spatial version of the Visual Lab is under construction. This game is the purest test of spatial visualization, challenging you to mentally assemble a complex 3D object from an 'exploded view' of its parts." />;
+        return <GamePlaceholder title="Voxel Jigsaw / Proportion Match" description="This game has two variants. 1) Voxel Jigsaw: An 'exploded view' of a complex 3D object is shown. Select the correctly assembled final shape from a set of similar options. A 2D fallback uses isometric pixel art sprites. 2) Proportion Match: A 3D object is shown. Select its correctly scaled 2D shadow from a set of distorted options." />;
     case 'neutral':
     default:
       return <MentalRotationLab focus={effectiveFocus} />;

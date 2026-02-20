@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -242,7 +243,7 @@ export function RapidCodeMatch() {
   }, [gameState, problem, adaptiveState, timeLeft, startNewTrial, updateAdaptiveState]);
 
   if (currentMode === 'spatial') {
-    return <GamePlaceholder title="Rapid Rotation" description="A 3D spatial version of Rapid Code Match is under construction. This game will challenge you to rapidly determine if a 3D object is a valid rotation of a target, or an impossible mirror image, testing your mental rotation speed." />;
+    return <GamePlaceholder title="Rapid Rotation / Target Interception" description="This game has two variants. 1) Rapid Rotation: An object is shown. Two other versions appear. Rapidly decide which is a valid rotation and which is an impossible mirror image. 2) Target Interception: Rapidly tap the screen to predict where a moving object will intersect with a target line." />;
   }
 
   const renderContent = () => {

@@ -240,7 +240,10 @@ export function PatternMatrix() {
     };
 
     if (currentMode === 'spatial') {
-        return <GamePlaceholder title="Assembly Logic" description="A 3D spatial version of Pattern Matrix is under construction. This game challenges you to deduce the rules of a 3D assembly sequence from a grid of examples, testing your ability to reason about spatial transformations." />;
+        return <GamePlaceholder 
+            title="Assembly Logic" 
+            description="A 3x3 grid shows a sequence of 3D parts being assembled. Deduce the assembly rule (e.g., 'Each step adds a gear and rotates 45 degrees') to select the correct final object for the empty slot. At high levels, this could involve multi-step or conditional logic. A 2D fallback could use animated SVGs showing 2D shapes merging to preserve the rule-inference mechanic."
+        />;
     }
 
     const renderContent = () => {

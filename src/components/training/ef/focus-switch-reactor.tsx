@@ -308,7 +308,7 @@ export function FocusSwitchReactor() {
   const buttonGridCols = (currentMode === 'neutral' || currentMode === 'music') ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-2';
 
   if (currentMode === 'spatial') {
-    return <GamePlaceholder title="Perspective Shift" description="A 3D spatial version of the Focus Switch Reactor is under construction. In this mode, you will be shown a simple scene with 3D objects and must rapidly answer questions about their relative positions. The twist is that the required perspective ('Your View' vs. 'Map View') will change randomly, testing your mental flexibility and spatial orientation." />;
+    return <GamePlaceholder title="Perspective Shift" description="A simple scene contains several distinct objects (e.g., a red cube, a blue sphere, a green pyramid). A question appears ('Is the red cube on the left?'), but a cue randomly switches between 'YOUR VIEW' and 'MAP VIEW', forcing you to rapidly switch your mental frame of reference." />;
   }
 
   const renderContent = () => {

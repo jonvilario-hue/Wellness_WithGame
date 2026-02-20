@@ -189,7 +189,7 @@ export function DynamicSequenceTransformer() {
   }, [gameState, userAnswer, correctAnswer, adaptiveState, sessionTrials, updateAdaptiveState, startNewTrial, task.id]);
   
   if (currentMode === 'spatial') {
-    return <GamePlaceholder title="Spatial Span" description="A 3D spatial version of Dynamic Sequence is under construction. This game challenges you to remember and repeat a sequence of locations in 3D space, a task known as the Corsi Block Tapping Test, adapted for a 3D environment." />;
+    return <GamePlaceholder title="Spatial Span" description="A set of cubes in space flash in a specific sequence. You must repeat the sequence by clicking the cubes in the correct order. At lower levels, this is a 2D grid. At higher levels, it's a 3D space with more items and visual distractors." />;
   }
 
 
