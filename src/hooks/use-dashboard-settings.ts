@@ -6,7 +6,6 @@ import { useState, useEffect, useCallback } from 'react';
 const defaultSettings = {
   performanceOverview: true,
   dailyChallenge: true,
-  allGames: true,
   weakAreaRecommendations: true,
   adaptiveDifficulty: true,
   hyperfocusBuilder: true,
@@ -66,7 +65,6 @@ export const useDashboardSettings = () => {
 export const componentLabels: Record<keyof DashboardSettings, string> = {
   performanceOverview: 'Performance Overview',
   dailyChallenge: 'Daily Challenge',
-  allGames: 'All Training Games',
   hyperfocusBuilder: 'Hyperfocus Builder',
   performanceInsights: 'Performance Insights',
   weakAreaRecommendations: 'Weak Area Targeting',
@@ -77,7 +75,6 @@ export const componentLabels: Record<keyof DashboardSettings, string> = {
 export const dashboardLayoutKeys: DashboardComponent[] = [
     'performanceOverview',
     'dailyChallenge',
-    'allGames',
     'performanceInsights',
     'weakAreaRecommendations',
     'adaptiveDifficulty',
