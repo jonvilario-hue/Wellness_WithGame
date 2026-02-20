@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { useGlrStore, type SpacedPair } from "@/hooks/use-glr-store";
 import { Archive, BrainCircuit, Shuffle, Loader2 } from "lucide-react";
 
@@ -396,4 +395,3 @@ function CategorySwitchingMode({ onComplete }: { onComplete: (score: number) => 
         </div>
     );
 }
-
