@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +14,7 @@ import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engin
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId } from "@/types";
 import { GameStub } from "../game-stub";
+import { RuleSwitcher } from '../logic/rule-switcher';
 
 const GAME_ID: GameId = 'ef_focus_switch';
 const policy = difficultyPolicies[GAME_ID];
@@ -327,6 +327,10 @@ export function FocusSwitchReactor() {
       complexity="Medium"
       fallbackPlan="Use colored words instead of faces (classic Stroop test) if face assets are unavailable. The core inhibition mechanic is preserved, but the emotional component is lost."
     />
+  }
+
+  if (currentMode === 'logic') {
+    return <RuleSwitcher />;
   }
 
   const renderContent = () => {

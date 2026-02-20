@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +14,7 @@ import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
 import { generalCategories, mathCategories, musicCategories, verbalCategories } from "@/data/verbal-content";
 import { GameStub } from "../game-stub";
+import { AlgorithmFluency } from "../logic/algorithm-fluency";
 
 // --- Domain-specific content ---
 const generalWordList = ["apple", "car", "house", "river", "mountain", "book", "chair", "music", "light", "ocean", "star", "forest", "fire", "cloud", "dream", "journey", "key", "mirror", "shadow", "silence", "time", "voice", "water", "wind", "world"];
@@ -56,6 +56,10 @@ export function SemanticFluencyStorm() {
             complexity="High"
             fallbackPlan="Use a complex 2D SVG subway-style map. The core mechanic of retrieving valid paths from memory is preserved."
         />;
+    }
+
+    if (currentTrainingFocus === 'logic') {
+        return <AlgorithmFluency />;
     }
 
     const renderContent = () => {

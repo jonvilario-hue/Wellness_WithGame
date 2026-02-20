@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +14,7 @@ import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
 import { morphologyWordPairs } from "@/data/verbal-content";
 import { GameStub } from "../game-stub";
+import { RuleInductionEngine } from '../logic/rule-induction-engine';
 
 const GAME_ID: GameId = 'gf_pattern_matrix';
 const policy = difficultyPolicies[GAME_ID];
@@ -248,6 +248,10 @@ export function PatternMatrix() {
             complexity="High"
             fallbackPlan="Use animated SVGs. The assembly sequence is shown as 2D shapes merging and transforming, preserving the rule-inference mechanic without real-time 3D."
         />;
+    }
+
+    if (currentMode === 'logic') {
+        return <RuleInductionEngine />;
     }
 
     const renderContent = () => {

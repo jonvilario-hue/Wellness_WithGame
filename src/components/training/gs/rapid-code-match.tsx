@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +14,7 @@ import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
 import { realWords, pseudowords } from "@/data/verbal-content";
 import { GameStub } from "../game-stub";
+import { GateSpeed } from '../logic/gate-speed';
 
 const GAME_ID: GameId = 'gs_rapid_code';
 const policy = difficultyPolicies[GAME_ID];
@@ -255,6 +255,10 @@ export function RapidCodeMatch() {
         complexity="High"
         fallbackPlan="Use 2D character sprites (e.g. 'F') and their rotated/mirrored versions. The cognitive task is nearly identical and avoids 3D rendering overhead."
     />;
+  }
+
+  if (currentMode === 'logic') {
+    return <GateSpeed />;
   }
 
   const renderContent = () => {

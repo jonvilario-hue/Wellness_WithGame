@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription } from "@/components/ui/alert-dialog";
-import { Headphones, Volume2, Loader2, Music, Check, X, MessageSquare, Mic2 } from "lucide-react";
+import { Headphones, Volume2, Loader2, Music, Check, X, MessageSquare, Mic2, Share2 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
@@ -17,6 +16,7 @@ import { CocktailPartyDecoder } from './cocktail-party-decoder';
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
 import { GameStub } from "../game-stub";
+import { AuditoryDebugger } from "../logic/auditory-debugger";
 
 const GAME_ID: GameId = 'ga_auditory_lab';
 const policy = difficultyPolicies[GAME_ID];
@@ -248,6 +248,10 @@ export function AuditoryProcessingRouter() {
             complexity="High"
             fallbackPlan="Use simple stereo panning (left/right only) instead of full 3D audio. The task becomes a 1D localization problem, which is less complex but preserves the core mechanic."
         />;
+    }
+
+    if (currentMode === 'logic') {
+        return <AuditoryDebugger />;
     }
 
 

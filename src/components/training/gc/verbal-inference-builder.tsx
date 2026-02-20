@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,6 +16,7 @@ import { clozeSentences, morphologyWordPairs, spatialConcepts } from "@/data/ver
 import { GameStub } from "../game-stub";
 import { GcSpatialLexicon } from "./gc-spatial-lexicon";
 import { RegulationArchitect } from "./regulation-architect";
+import { LogicLibrary } from '../logic/logic-library';
 
 const GAME_ID: GameId = 'gc_verbal_inference';
 const policy = difficultyPolicies[GAME_ID];
@@ -171,6 +171,10 @@ export function VerbalInferenceBuilder() {
   if (currentMode === 'eq') {
       return <RegulationArchitect focus={currentMode} />;
   }
+
+  if (currentMode === 'logic') {
+      return <LogicLibrary focus={currentMode} />;
+  }
   // --- END ROUTER LOGIC ---
 
   const renderContent = () => {
@@ -190,7 +194,7 @@ export function VerbalInferenceBuilder() {
        return (
         <div className="text-center space-y-4 animate-in fade-in">
           <CardTitle>Session Complete!</CardTitle>
-          <p className="text-xl">Accuracy: {isNaN(finalAccuracy) ? 'N/A' : (finalAccuracy * 100).toFixed(0) + '%'}</p>
+          <p className="text-xl">Accuracy: {isNaN(finalAccuracy) ? 'N/A' : (finalAccuracy * 100).toFixed(0) + '%'</p>
           <Button onClick={() => setGameState('start')} size="lg">Play Again</Button>
         </div>
       );

@@ -1,4 +1,3 @@
-
 'use client';
 
 import {
@@ -14,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useTrainingFocus, type TrainingFocus } from '@/hooks/use-training-focus';
 import { useTrainingOverride } from '@/hooks/use-training-override';
-import { Brain, Music, MessageSquare, View, Sigma, Smile } from 'lucide-react';
+import { Brain, Music, MessageSquare, View, Sigma, Smile, Share2 } from 'lucide-react';
 import { SigmaIcon } from './icons';
 
 export function GlobalFocusSwitcher() {
@@ -34,6 +33,7 @@ export function GlobalFocusSwitcher() {
     verbal: { Icon: MessageSquare, label: 'Verbal Reasoning' },
     spatial: { Icon: View, label: 'Spatial Reasoning' },
     eq: { Icon: Smile, label: 'Emotional Intelligence' },
+    logic: { Icon: Share2, label: 'Logic & Coding' }
   };
 
   const { Icon, label } = focusInfo[focus] || focusInfo.neutral;
@@ -76,6 +76,9 @@ export function GlobalFocusSwitcher() {
           </DropdownMenuRadioItem>
            <DropdownMenuRadioItem value="eq" className="gap-2">
             <Smile className="w-4 h-4"/> Emotional Intelligence
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="logic" className="gap-2">
+            <Share2 className="w-4 h-4"/> Logic & Coding
           </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>

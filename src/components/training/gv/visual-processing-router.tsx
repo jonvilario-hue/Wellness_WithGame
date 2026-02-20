@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useTrainingFocus } from '@/hooks/use-training-focus';
@@ -10,6 +9,7 @@ import { VisualMusicMatch } from './visual-music-match';
 import { OrthographicConstruction } from './orthographic-construction';
 import { TypographicSearch } from './typographic-search';
 import { GameStub } from '../game-stub';
+import { FlowchartTracer } from '../logic/flowchart-tracer';
 
 export function VisualProcessingRouter() {
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
@@ -42,6 +42,8 @@ export function VisualProcessingRouter() {
             complexity="High"
             fallbackPlan="Use 2D 'pixel art' sprites on an isometric grid. The task becomes assembling a 2.5D object from its parts, preserving the part-to-whole visualization goal."
         />;
+    case 'logic':
+        return <FlowchartTracer />;
     case 'neutral':
     default:
       return <MentalRotationLab focus={effectiveFocus} />;

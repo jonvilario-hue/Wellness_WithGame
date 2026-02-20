@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +15,7 @@ import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
 import { phoneticallySimilarSets, grammarScrambleSentences } from "@/data/verbal-content";
 import { GameStub } from "../game-stub";
+import { StateMachineTracer } from "../logic/state-machine-tracer";
 
 const GAME_ID: GameId = 'gwm_dynamic_sequence';
 const policy = difficultyPolicies[GAME_ID];
@@ -197,6 +197,10 @@ export function DynamicSequenceTransformer() {
         complexity="High"
         fallbackPlan="Use a 2D grid. The core mechanic of recalling a sequence of locations is preserved, but without the 3D rendering overhead."
     />;
+  }
+
+  if (currentMode === 'logic') {
+    return <StateMachineTracer />;
   }
 
 
