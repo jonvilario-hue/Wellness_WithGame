@@ -1,14 +1,13 @@
+
 'use client';
 
-import { Sliders, ArrowLeft } from 'lucide-react';
+import { Sliders, Palette } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
-import Link from 'next/link';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TrainingSettings } from '@/components/settings/training-settings';
 import { AppearanceSettings } from '@/components/settings/appearance-settings';
 import { Header } from '@/components/header';
 import { MotivationalMessage } from '@/components/motivational-message';
-import { Button } from '@/components/ui/button';
 
 export default function SettingsPage() {
     const searchParams = useSearchParams();
@@ -22,31 +21,29 @@ export default function SettingsPage() {
             <MotivationalMessage />
             <main className="flex-1 p-4 sm:p-6 md:p-8">
                 <div className="mx-auto max-w-5xl space-y-6">
-                    <Button asChild variant="outline" className="w-full sm:w-auto">
-                        <Link href="/">
-                            <ArrowLeft className="mr-2 h-4 w-4" />
-                            Back to Dashboard
-                        </Link>
-                    </Button>
+                    <div className="space-y-2">
+                        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
+                        <p className="text-muted-foreground">
+                            Customize your training experience and app appearance.
+                        </p>
+                    </div>
 
-                    <Tabs defaultValue={tab} orientation="vertical" className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <TabsList className="flex flex-col h-auto justify-start items-stretch p-2 space-y-1 bg-muted/50 rounded-lg w-full">
-                            <TabsTrigger value="training" className="justify-start gap-2">
-                            <Sliders className="h-4 w-4"/> Game Trainer
+                    <Tabs defaultValue={tab} className="space-y-6">
+                        <TabsList>
+                            <TabsTrigger value="training" className="gap-2">
+                                <Sliders className="h-4 w-4"/> Training
                             </TabsTrigger>
-                            <TabsTrigger value="appearance" className="justify-start gap-2">
-                            <Sliders className="h-4 w-4"/> Appearance
+                            <TabsTrigger value="appearance" className="gap-2">
+                                <Palette className="h-4 w-4"/> Appearance
                             </TabsTrigger>
                         </TabsList>
 
-                        <div className="col-span-1 md:col-span-3">
-                            <TabsContent value="training">
+                        <TabsContent value="training">
                             <TrainingSettings />
-                            </TabsContent>
-                            <TabsContent value="appearance">
+                        </TabsContent>
+                        <TabsContent value="appearance">
                             <AppearanceSettings />
-                            </TabsContent>
-                        </div>
+                        </TabsContent>
                     </Tabs>
                 </div>
             </main>
