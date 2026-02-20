@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useTrainingFocus, type TrainingFocus } from '@/hooks/use-training-focus';
 import { useTrainingOverride } from '@/hooks/use-training-override';
-import { Brain, Music, MessageSquare } from 'lucide-react';
+import { Brain, Music, MessageSquare, View } from 'lucide-react';
 import { SigmaIcon } from './icons';
 
 export function GlobalFocusSwitcher() {
@@ -27,11 +27,12 @@ export function GlobalFocusSwitcher() {
     setOverride(null); 
   };
   
-  const focusInfo = {
+  const focusInfo: Record<TrainingFocus, { Icon: React.ElementType; label: string }> = {
     neutral: { Icon: Brain, label: 'Core Thinking' },
     math: { Icon: SigmaIcon, label: 'Math Reasoning' },
     music: { Icon: Music, label: 'Music Cognition' },
     verbal: { Icon: MessageSquare, label: 'Verbal Reasoning' },
+    spatial: { Icon: View, label: 'Spatial Reasoning' },
   };
 
   const { Icon, label } = focusInfo[focus] || focusInfo.neutral;
@@ -68,6 +69,9 @@ export function GlobalFocusSwitcher() {
           </DropdownMenuRadioItem>
           <DropdownMenuRadioItem value="verbal" className="gap-2">
             <MessageSquare className="w-4 h-4"/> Verbal Reasoning
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="spatial" className="gap-2">
+            <View className="w-4 h-4"/> Spatial Reasoning
           </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>

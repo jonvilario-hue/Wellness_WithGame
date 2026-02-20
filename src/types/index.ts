@@ -1,7 +1,7 @@
 // This file is the single source of truth for all shared types in the application.
 
 // --- Core Cognitive & Domain Types ---
-export type TrainingFocus = 'neutral' | 'math' | 'music' | 'verbal';
+export type TrainingFocus = 'neutral' | 'math' | 'music' | 'verbal' | 'spatial';
 export type CHCDomain = 'Gf' | 'Gc' | 'Gwm' | 'Gs' | 'Gv' | 'Ga' | 'Glr' | 'EF';
 
 export type GameId = 
@@ -20,15 +20,19 @@ export const chcDomains: {
   name: string; 
   description: string; 
   gameTitle: string;
+  supportsMath: boolean;
+  supportsMusic: boolean;
+  supportsVerbal: boolean;
+  supportsSpatial: boolean;
 }[] = [
-  { key: 'Gf', id: 'gf_pattern_matrix', name: '(Gf) Fluid Reasoning', description: 'Solve new problems', gameTitle: 'Pattern Matrix' },
-  { key: 'Gc', id: 'gc_verbal_inference', name: '(Gc) Crystallized Intelligence', description: 'Use learned knowledge', gameTitle: 'Verbal Inference Builder' },
-  { key: 'Gwm', id: 'gwm_dynamic_sequence', name: '(Gwm) Working Memory', description: 'Use and hold information', gameTitle: 'Dynamic Sequence' },
-  { key: 'Gs', id: 'gs_rapid_code', name: '(Gs) Processing Speed', description: 'Work fast and accurately', gameTitle: 'Rapid Code Match' },
-  { key: 'Gv', id: 'gv_visual_lab', name: '(Gv) Visual Processing', description: 'Visualize and manipulate objects', gameTitle: 'Visual Processing Lab' },
-  { key: 'Ga', id: 'ga_auditory_lab', name: '(Ga) Auditory Processing', description: 'Analyze and distinguish sounds', gameTitle: 'Auditory Processing Lab' },
-  { key: 'Glr', id: 'glr_fluency_storm', name: '(Glr) Long-Term Retrieval', description: 'Store and retrieve information', gameTitle: 'Retrieval Trainer' },
-  { key: 'EF', id: 'ef_focus_switch', name: '(EF) Executive Function', description: 'Focus, switch, and control tasks', gameTitle: 'Focus Switch Reactor' },
+  { key: 'Gf', id: 'gf_pattern_matrix', name: '(Gf) Fluid Reasoning', description: 'Solve new problems', gameTitle: 'Pattern Matrix', supportsMath: true, supportsMusic: true, supportsVerbal: true, supportsSpatial: true },
+  { key: 'Gc', id: 'gc_verbal_inference', name: '(Gc) Crystallized Intelligence', description: 'Use learned knowledge', gameTitle: 'Verbal Inference Builder', supportsMath: true, supportsMusic: true, supportsVerbal: true, supportsSpatial: true },
+  { key: 'Gwm', id: 'gwm_dynamic_sequence', name: '(Gwm) Working Memory', description: 'Use and hold information', gameTitle: 'Dynamic Sequence', supportsMath: true, supportsMusic: true, supportsVerbal: true, supportsSpatial: true },
+  { key: 'Gs', id: 'gs_rapid_code', name: '(Gs) Processing Speed', description: 'Work fast and accurately', gameTitle: 'Rapid Code Match', supportsMath: true, supportsMusic: true, supportsVerbal: true, supportsSpatial: true },
+  { key: 'Gv', id: 'gv_visual_lab', name: '(Gv) Visual Processing', description: 'Visualize and manipulate objects', gameTitle: 'Visual Processing Lab', supportsMath: true, supportsMusic: true, supportsVerbal: true, supportsSpatial: true },
+  { key: 'Ga', id: 'ga_auditory_lab', name: '(Ga) Auditory Processing', description: 'Analyze and distinguish sounds', gameTitle: 'Auditory Processing Lab', supportsMath: true, supportsMusic: true, supportsVerbal: true, supportsSpatial: true },
+  { key: 'Glr', id: 'glr_fluency_storm', name: '(Glr) Long-Term Retrieval', description: 'Store and retrieve information', gameTitle: 'Retrieval Trainer', supportsMath: true, supportsMusic: true, supportsVerbal: true, supportsSpatial: true },
+  { key: 'EF', id: 'ef_focus_switch', name: '(EF) Executive Function', description: 'Focus, switch, and control tasks', gameTitle: 'Focus Switch Reactor', supportsMath: true, supportsMusic: true, supportsVerbal: true, supportsSpatial: true },
 ];
 
 // --- Difficulty & Adaptive Engine Types ---

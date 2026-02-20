@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { VisualMusicMatch } from './visual-music-match';
 import { OrthographicConstruction } from './orthographic-construction';
 import { TypographicSearch } from './typographic-search';
+import { GamePlaceholder } from '../game-placeholder';
 
 export function VisualProcessingRouter() {
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
@@ -26,11 +27,13 @@ export function VisualProcessingRouter() {
     case 'math':
       return <BalancePuzzle focus={effectiveFocus} />;
     case 'music':
-      return <VisualMusicMatch focus={effective-focus} />;
+      return <VisualMusicMatch focus={effectiveFocus} />;
     case 'verbal':
         // The Orthographic Construction task was replaced by Typographic Search 
         // to better align with the Gv domain (visual scanning).
         return <TypographicSearch focus={effectiveFocus} />;
+    case 'spatial':
+        return <GamePlaceholder title="Voxel Jigsaw" description="A 3D spatial version of the Visual Lab is under construction. This game is the purest test of spatial visualization, challenging you to mentally assemble a complex 3D object from an 'exploded view' of its parts." />;
     case 'neutral':
     default:
       return <MentalRotationLab focus={effectiveFocus} />;

@@ -15,6 +15,7 @@ import { AuditoryCalculationTask } from "./auditory-calculation-task";
 import { CocktailPartyDecoder } from './cocktail-party-decoder';
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
+import { GamePlaceholder } from "../game-placeholder";
 
 const GAME_ID: GameId = 'ga_auditory_lab';
 const policy = difficultyPolicies[GAME_ID];
@@ -216,11 +217,10 @@ export function AuditoryProcessingRouter() {
 
     useEffect(() => {
         if (isComponentLoaded) {
-            const initialState = getAdaptiveState(GAME_ID, currentMode);
+            const initialState = getAdaptiveState(GAME_ID);
             setAdaptiveState(initialState);
         }
     }, [isComponentLoaded, currentMode, getAdaptiveState]);
-
 
     const startSessionFlow = () => {
         if (!adaptiveState) return;
@@ -237,6 +237,11 @@ export function AuditoryProcessingRouter() {
     const handleGameComplete = () => {
         setGameState('finished');
     }
+    
+    if (currentMode === 'spatial') {
+        return <GamePlaceholder title="Audio-Locator" description="A 3D spatial version of the Auditory Lab is under construction. This game will use 3D audio simulation to test your ability to pinpoint the location of sounds in space, a critical skill for spatial awareness." />;
+    }
+
 
     const renderContent = () => {
         if (!adaptiveState) return <Loader2 className="w-12 h-12 animate-spin text-primary" />;

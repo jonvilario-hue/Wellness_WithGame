@@ -14,6 +14,7 @@ import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engin
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
 import { morphologyWordPairs } from "@/data/verbal-content";
+import { GamePlaceholder } from "../game-placeholder";
 
 const GAME_ID: GameId = 'gf_pattern_matrix';
 const policy = difficultyPolicies[GAME_ID];
@@ -68,7 +69,7 @@ const generatePuzzleForLevel = (level: number, focus: TrainingFocus) => {
     const size = mechanic_config.gridSize === "3x3" ? 3 : 2;
     
     const focusConfig = content_config[focus];
-    if (!focusConfig) return generatePuzzleForLevel(level, 'neutral');
+    if (!focusConfig || !focusConfig.params) return generatePuzzleForLevel(level, 'neutral');
 
     const { sub_variant, params } = focusConfig;
 
@@ -101,7 +102,7 @@ const generatePuzzleForLevel = (level: number, focus: TrainingFocus) => {
     const missingIndex = Math.floor(Math.random() * (size * size));
     
     if (sub_variant === 'morphological_analogy') {
-        const rule = params.rule as keyof typeof morphologyWordPairs;
+        const rule = params.rule_type as keyof typeof morphologyWordPairs;
         const pair = morphologyWordPairs[rule][0];
         const secondPair = morphologyWordPairs[rule][1];
 
@@ -182,7 +183,7 @@ export function PatternMatrix() {
 
     useEffect(() => {
         if (isComponentLoaded) {
-            const initialState = getAdaptiveState(GAME_ID, currentMode);
+            const initialState = getAdaptiveState(GAME_ID);
             setAdaptiveState(initialState);
             setGameState('start');
         }
@@ -237,6 +238,10 @@ export function PatternMatrix() {
             }
         }, 2000);
     };
+
+    if (currentMode === 'spatial') {
+        return <GamePlaceholder title="Assembly Logic" description="A 3D spatial version of Pattern Matrix is under construction. This game challenges you to deduce the rules of a 3D assembly sequence from a grid of examples, testing your ability to reason about spatial transformations." />;
+    }
 
     const renderContent = () => {
          switch (gameState) {

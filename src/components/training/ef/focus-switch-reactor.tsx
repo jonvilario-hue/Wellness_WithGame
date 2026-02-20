@@ -14,6 +14,7 @@ import { Loader2 } from 'lucide-react';
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId } from "@/types";
+import { GamePlaceholder } from "../game-placeholder";
 
 const GAME_ID: GameId = 'ef_focus_switch';
 const policy = difficultyPolicies[GAME_ID];
@@ -73,7 +74,7 @@ export function FocusSwitchReactor() {
   
   useEffect(() => {
     if (isComponentLoaded) {
-      const initialState = getAdaptiveState(GAME_ID, currentMode);
+      const initialState = getAdaptiveState(GAME_ID);
       setAdaptiveState(initialState);
       setGameState('start');
     }
@@ -91,7 +92,7 @@ export function FocusSwitchReactor() {
     const loadedLevel = onRamp ? Math.max(state.levelFloor, state.currentLevel - 2) : state.currentLevel;
     const levelDef = policy.levelMap[loadedLevel] || policy.levelMap[20];
     const contentConfig = levelDef.content_config[currentMode];
-    if (!contentConfig) return;
+    if (!contentConfig || !contentConfig.params) return;
 
     const contentParams = contentConfig.params;
 
@@ -305,6 +306,10 @@ export function FocusSwitchReactor() {
   }
   
   const buttonGridCols = (currentMode === 'neutral' || currentMode === 'music') ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-2';
+
+  if (currentMode === 'spatial') {
+    return <GamePlaceholder title="Perspective Shift" description="A 3D spatial version of the Focus Switch Reactor is under construction. In this mode, you will be shown a simple scene with 3D objects and must rapidly answer questions about their relative positions. The twist is that the required perspective ('Your View' vs. 'Map View') will change randomly, testing your mental flexibility and spatial orientation." />;
+  }
 
   const renderContent = () => {
       switch (gameState) {

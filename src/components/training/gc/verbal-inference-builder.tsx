@@ -14,6 +14,7 @@ import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engin
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
 import { clozeSentences, morphologyWordPairs } from "@/data/verbal-content";
+import { GamePlaceholder } from "../game-placeholder";
 
 const GAME_ID: GameId = 'gc_verbal_inference';
 const policy = difficultyPolicies[GAME_ID];
@@ -73,7 +74,7 @@ export function VerbalInferenceBuilder() {
   
   useEffect(() => {
     if (isComponentLoaded) {
-      const initialState = getAdaptiveState(GAME_ID, currentMode);
+      const initialState = getAdaptiveState(GAME_ID);
       setAdaptiveState(initialState);
       setGameState('start');
     }
@@ -136,6 +137,11 @@ export function VerbalInferenceBuilder() {
     if (option === selectedAnswer) return "bg-destructive hover:bg-destructive/90 text-destructive-foreground";
     return "secondary";
   }
+
+  if (currentMode === 'spatial') {
+    return <GamePlaceholder title="Spatial Lexicon" description="A 3D spatial version of Verbal Inference is under construction. This mode will test your knowledge of spatial language, such as prepositions, directional terms, and architectural vocabulary, through text-based analogy and definition problems." />;
+  }
+
 
   const renderContent = () => {
     if (gameState === 'loading' || !isComponentLoaded) {

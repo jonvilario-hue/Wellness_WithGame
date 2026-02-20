@@ -14,6 +14,7 @@ import type { TrainingFocus } from "@/types";
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
 import { generalCategories, mathCategories, musicCategories, verbalCategories } from "@/data/verbal-content";
+import { GamePlaceholder } from "../game-placeholder";
 
 // --- Domain-specific content ---
 const generalWordList = ["apple", "car", "house", "river", "mountain", "book", "chair", "music", "light", "ocean", "star", "forest", "fire", "cloud", "dream", "journey", "key", "mirror", "shadow", "silence", "time", "voice", "water", "wind", "world"];
@@ -45,6 +46,10 @@ export function SemanticFluencyStorm() {
         setLastScore(score);
         setGameState('finished');
     };
+
+    if (currentTrainingFocus === 'spatial') {
+        return <GamePlaceholder title="Route Retrieval" description="A 3D spatial version of the Retrieval Trainer is under construction. In this mode, you will be shown a map of a city or building, and then must answer questions about routes and relative locations from memory, testing your ability to store and retrieve complex spatial information." />;
+    }
 
     const renderContent = () => {
         if (gameState === 'idle') {
@@ -119,10 +124,10 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (score: numbe
     const handleTimeout = useCallback(() => {
         toast({ title: "Chain Broken!", description: `You built a chain of ${chain.length}.`, variant: "destructive" });
         
-        const currentState = getAdaptiveState('glr_fluency_storm', focus);
+        const currentState = getAdaptiveState('glr_fluency_storm');
         const newLevel = Math.max(currentState.levelFloor, Math.min(currentState.levelCeiling, 4 + Math.min(6, Math.floor(chain.length / 2))));
 
-        updateAdaptiveState('glr_fluency_storm', {
+        updateAdaptiveState({
             ...currentState,
             currentLevel: newLevel,
             lastFocus: focus,
@@ -145,7 +150,7 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (score: numbe
         timerRef.current = setInterval(() => {
             setTimeLeft(prev => {
                 if (prev <= 1) {
-                    clearInterval(timerRef.current);
+                    clearInterval(timerRef.current as NodeJS.Timeout);
                     handleTimeout();
                     return 0;
                 }
@@ -245,9 +250,9 @@ function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (score: number
             if (phase === 'review') setPhase('learn');
             else if (phase === 'learn') setPhase('distract');
             else if (phase === 'recall') {
-                const currentState = getAdaptiveState('glr_fluency_storm', focus);
+                const currentState = getAdaptiveState('glr_fluency_storm');
                 const newLevel = Math.max(currentState.levelFloor, Math.min(currentState.levelCeiling, 4 + score));
-                updateAdaptiveState('glr_fluency_storm', { ...currentState, currentLevel: newLevel, lastFocus: focus, sessionCount: currentState.sessionCount + 1, lastSessionAt: Date.now() });
+                updateAdaptiveState({ ...currentState, currentLevel: newLevel, lastFocus: focus, sessionCount: currentState.sessionCount + 1, lastSessionAt: Date.now() });
                 onComplete(score);
                 setPhase('finished');
             }
@@ -354,9 +359,9 @@ function CategorySwitchingMode({ onComplete, focus }: { onComplete: (score: numb
                 if (prev <= 1) {
                     clearInterval(categoryTimerRef.current as NodeJS.Timeout);
                     clearInterval(totalTimer);
-                    const currentState = getAdaptiveState('glr_fluency_storm', focus);
+                    const currentState = getAdaptiveState('glr_fluency_storm');
                     const newLevel = Math.max(currentState.levelFloor, Math.min(currentState.levelCeiling, 4 + Math.min(6, Math.floor(score / 5))));
-                    updateAdaptiveState('glr_fluency_storm', { ...currentState, currentLevel: newLevel, lastFocus: focus, sessionCount: currentState.sessionCount + 1, lastSessionAt: Date.now() });
+                    updateAdaptiveState({ ...currentState, currentLevel: newLevel, lastFocus: focus, sessionCount: currentState.sessionCount + 1, lastSessionAt: Date.now() });
                     onComplete(score);
                     return 0;
                 }

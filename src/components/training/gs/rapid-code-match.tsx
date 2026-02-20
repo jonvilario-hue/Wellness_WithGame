@@ -13,6 +13,7 @@ import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engin
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
 import { realWords, pseudowords } from "@/data/verbal-content";
+import { GamePlaceholder } from "../game-placeholder";
 
 const GAME_ID: GameId = 'gs_rapid_code';
 const policy = difficultyPolicies[GAME_ID];
@@ -184,7 +185,7 @@ export function RapidCodeMatch() {
 
   useEffect(() => {
     if (isComponentLoaded) {
-      const initialState = getAdaptiveState(GAME_ID, currentMode);
+      const initialState = getAdaptiveState(GAME_ID);
       setAdaptiveState(initialState);
       setGameState('start');
     }
@@ -238,7 +239,11 @@ export function RapidCodeMatch() {
             startNewTrial(newState);
         }
     }, 500);
-  }, [gameState, problem, adaptiveState, timeLeft]);
+  }, [gameState, problem, adaptiveState, timeLeft, startNewTrial, updateAdaptiveState]);
+
+  if (currentMode === 'spatial') {
+    return <GamePlaceholder title="Rapid Rotation" description="A 3D spatial version of Rapid Code Match is under construction. This game will challenge you to rapidly determine if a 3D object is a valid rotation of a target, or an impossible mirror image, testing your mental rotation speed." />;
+  }
 
   const renderContent = () => {
     if (gameState === 'loading' || !isComponentLoaded) {

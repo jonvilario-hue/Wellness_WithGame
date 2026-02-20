@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +15,7 @@ import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types"
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
 import { phoneticallySimilarSets, grammarScrambleSentences } from "@/data/verbal-content";
+import { GamePlaceholder } from "../game-placeholder";
 
 const GAME_ID: GameId = 'gwm_dynamic_sequence';
 const policy = difficultyPolicies[GAME_ID];
@@ -77,7 +79,7 @@ export function DynamicSequenceTransformer() {
 
   useEffect(() => {
     if (isComponentLoaded) {
-      const initialState = getAdaptiveState(GAME_ID, currentMode);
+      const initialState = getAdaptiveState(GAME_ID);
       setAdaptiveState(initialState);
       setGameState('start');
     }
@@ -185,6 +187,11 @@ export function DynamicSequenceTransformer() {
     }, 2500);
 
   }, [gameState, userAnswer, correctAnswer, adaptiveState, sessionTrials, updateAdaptiveState, startNewTrial, task.id]);
+  
+  if (currentMode === 'spatial') {
+    return <GamePlaceholder title="Spatial Span" description="A 3D spatial version of Dynamic Sequence is under construction. This game challenges you to remember and repeat a sequence of locations in 3D space, a task known as the Corsi Block Tapping Test, adapted for a 3D environment." />;
+  }
+
 
   const renderContent = () => {
     if (!isComponentLoaded || gameState === 'loading') {
