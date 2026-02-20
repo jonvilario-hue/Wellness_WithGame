@@ -13,6 +13,7 @@ type PerformanceMetric = {
   sessions: number;
   trend: number; // calculated on the fly
   history: number[]; // last 5 scores
+  thresholdHistory: number[]; // For auditory or other threshold-based tasks
 };
 
 type DomainPerformance = {
@@ -32,6 +33,7 @@ const initialMetric = (): PerformanceMetric => ({
   sessions: 0,
   trend: 0,
   history: [],
+  thresholdHistory: [],
 });
 
 const initialDomainPerformance = (): DomainPerformance => ({
@@ -63,6 +65,10 @@ export const usePerformanceStore = create<PerformanceState>()(
           const domainData = { ...newPerformance[domain] };
           const modeData = { ...domainData[mode] };
           
+          // For Ga, score is the threshold. We'll store it in a separate history.
+          const isThresholdGame = domain === 'Ga';
+          const newThresholdHistory = isThresholdGame ? [...modeData.thresholdHistory, result.score].slice(-10) : modeData.thresholdHistory;
+
           const newHistory = [...modeData.history, result.score].slice(-5);
           const oldAverageScore = modeData.score;
           const newAverageScore = newHistory.reduce((a, b) => a + b, 0) / newHistory.length;
@@ -73,6 +79,7 @@ export const usePerformanceStore = create<PerformanceState>()(
             totalTime: modeData.totalTime + result.time,
             history: newHistory,
             trend: oldAverageScore > 0 ? Math.round(((newAverageScore - oldAverageScore) / oldAverageScore) * 100) : 0,
+            thresholdHistory: newThresholdHistory,
           };
 
           newPerformance[domain] = {
