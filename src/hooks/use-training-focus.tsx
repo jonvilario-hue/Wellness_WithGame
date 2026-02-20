@@ -2,8 +2,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, createContext, useContext, useMemo } from 'react';
-
-export type TrainingFocus = 'neutral' | 'math' | 'music';
+import type { TrainingFocus } from '@/types';
 
 const TRAINING_FOCUS_KEY = 'trainingFocus';
 

@@ -28,7 +28,9 @@ export function FullStrengthProfile() {
     setIsClient(true);
   }, []);
 
-  if (!isClient || !isFocusLoaded || !gameStates) {
+  const isComponentLoaded = isClient && isFocusLoaded && gameStates;
+
+  if (!isComponentLoaded) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Skeleton className="h-80 w-full" />
@@ -40,8 +42,9 @@ export function FullStrengthProfile() {
   }
 
   const chartData = chcDomains.map(domain => {
-    const gameState = gameStates[domain.id];
-    const score = gameState ? Math.round((gameState.currentLevel / 20) * 100) : 0;
+    const focusToUse = domain.supportsMath && globalFocus === 'math' ? 'math' : domain.supportsMusic && globalFocus === 'music' ? 'music' : 'neutral';
+    const gameState = gameStates[domain.id]?.[focusToUse];
+    const score = gameState ? Math.round((gameState.currentLevel / gameState.levelCeiling) * 100) : 0;
     const displayScore = score > 0 ? score : Math.round(Math.random() * 20 + 20); // Use real score or fallback for display
 
     return {

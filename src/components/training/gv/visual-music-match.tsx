@@ -3,19 +3,22 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { Music2 } from 'lucide-react';
+import { Music2, Loader2 } from 'lucide-react';
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
+import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
+import { difficultyPolicies } from "@/data/difficulty-policies";
+import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
+
+const GAME_ID: GameId = 'gv_visual_lab';
+const policy = difficultyPolicies[GAME_ID];
 
 const measures = [
-    // Simple rhythms
     { id: 'q_q_h', path: 'M70 100 L70 50 M60 50 L80 50 M140 100 L140 50 M130 50 L150 50 M220 100 L220 50', desc: 'Two quarter notes, one half note' },
     { id: 'h_q_q', path: 'M70 100 L70 50 M150 100 L150 50 M140 50 L160 50 M220 100 L220 50 M210 50 L230 50', desc: 'One half note, two quarter notes' },
-    // Introducing eighth notes
     { id: 'e_e_q_q', path: 'M70 100 L70 40 M110 100 L110 40 M70 40 L110 40 M160 100 L160 50 M150 50 L170 50 M230 100 L230 50 M220 50 L240 50', desc: 'Two eighth notes, two quarter notes' },
-    // Different pitches
     { id: 'q_up_q_down', path: 'M70 90 L70 40 M60 40 L80 40 M140 60 L140 10 M130 10 L150 10 M220 110 L220 60 M210 60 L230 60', desc: 'Pitches: low, high, middle' },
 ];
 
@@ -31,17 +34,11 @@ const generatePuzzle = (): Puzzle => {
     const target = shuffled[0];
     const decoys = shuffled.slice(1, 4);
     const options = [target, ...decoys].sort(() => Math.random() - 0.5);
-
-    return {
-        target,
-        options,
-        answer: target,
-    };
+    return { target, options, answer: target };
 };
 
 const MusicNotation = ({ path, className }: { path: string; className?: string }) => (
     <div className={cn("relative w-full h-full", className)}>
-        {/* Staff lines */}
         {[40, 60, 80, 100, 120].map(y => (
              <div key={y} className="absolute bg-muted-foreground h-[1px] w-full" style={{ top: `${y}px` }} />
         ))}
@@ -52,59 +49,98 @@ const MusicNotation = ({ path, className }: { path: string; className?: string }
 );
 
 
-export function VisualMusicMatch() {
-    const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
-    const [feedback, setFeedback] = useState('');
-    const [selectedId, setSelectedId] = useState<string | null>(null);
-    const [startTime, setStartTime] = useState(0);
-    const { logGameResult } = usePerformanceStore();
-    const [score, setScore] = useState(0);
+export function VisualMusicMatch({ focus }: { focus: TrainingFocus }) {
+    const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
 
-    const startNewPuzzle = useCallback(() => {
-        setPuzzle(generatePuzzle());
-        setFeedback('');
-        setSelectedId(null);
-        setStartTime(Date.now());
-    }, []);
+    const [adaptiveState, setAdaptiveState] = useState<AdaptiveState | null>(null);
+    const [gameState, setGameState] = useState<'loading' | 'start' | 'playing' | 'feedback' | 'finished'>('loading');
+    const [sessionTrials, setSessionTrials] = useState<TrialResult[]>([]);
+    
+    const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
+    const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [feedback, setFeedback] = useState('');
+    
+    const trialStartTime = useRef(0);
+    const currentTrialIndex = useRef(0);
 
     useEffect(() => {
-        startNewPuzzle();
-    }, [startNewPuzzle]);
+        const initialState = getAdaptiveState(GAME_ID, focus);
+        setAdaptiveState(initialState);
+        setGameState('start');
+    }, [focus, getAdaptiveState]);
+    
+    const startNewTrial = useCallback((state: AdaptiveState) => {
+        setPuzzle(generatePuzzle());
+        setSelectedId(null);
+        setFeedback('');
+        setGameState('playing');
+        trialStartTime.current = Date.now();
+    }, []);
+
+    const startNewSession = useCallback(() => {
+        if (!adaptiveState) return;
+        const sessionState = startSession(adaptiveState);
+        setAdaptiveState(sessionState);
+        setSessionTrials([]);
+        currentTrialIndex.current = 0;
+        startNewTrial(sessionState);
+    }, [adaptiveState, startNewTrial]);
 
     const handleSelect = (option: Measure) => {
-        if (feedback) return;
-
-        const isCorrect = option.id === puzzle?.answer.id;
+        if (gameState !== 'playing' || !puzzle || !adaptiveState) return;
+        setGameState('feedback');
         setSelectedId(option.id);
-        const time = (Date.now() - startTime) / 1000;
+        const reactionTimeMs = Date.now() - trialStartTime.current;
+        const isCorrect = option.id === puzzle.answer.id;
         
-        if (isCorrect) {
-            setScore(prev => prev + 1);
-            setFeedback(getSuccessFeedback('Gv'));
-            logGameResult('Gv', 'music', { score: 100, time });
-        } else {
-            setFeedback(getFailureFeedback('Gv'));
-            logGameResult('Gv', 'music', { score: 0, time });
-        }
+        const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs };
+        setSessionTrials(prev => [...prev, trialResult]);
+        
+        const newState = adjustDifficulty(trialResult, adaptiveState, policy);
+        setAdaptiveState(newState);
 
-        setTimeout(() => startNewPuzzle(), 2000);
+        setFeedback(isCorrect ? getSuccessFeedback('Gv') : getFailureFeedback('Gv'));
+        
+        setTimeout(() => {
+            currentTrialIndex.current++;
+            if (currentTrialIndex.current >= policy.sessionLength) {
+                setGameState('finished');
+                const finalState = endSession(newState, [...sessionTrials, trialResult]);
+                updateAdaptiveState(GAME_ID, focus, finalState);
+            } else {
+                startNewTrial(newState);
+            }
+        }, 2000);
     };
     
-    if (!puzzle) {
-        return <div className="text-center">Loading Music Puzzle...</div>
-    }
+    const renderContent = () => {
+        if (gameState === 'loading') return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
+        if (gameState === 'start') {
+             return (
+                <div className="flex flex-col items-center gap-4">
+                  <div className="font-mono text-lg">Level: {adaptiveState?.currentLevel}</div>
+                  <Button onClick={startNewSession} size="lg">Start Session</Button>
+                </div>
+            );
+        }
+        if (gameState === 'finished') {
+            const finalAccuracy = sessionTrials.filter(t => t.correct).length / sessionTrials.length;
+            return (
+                <div className="text-center space-y-4">
+                    <CardTitle>Session Complete!</CardTitle>
+                    <p>Accuracy: {isNaN(finalAccuracy) ? 'N/A' : (finalAccuracy * 100).toFixed(0)}%</p>
+                    <Button onClick={() => setGameState('start')} size="lg">Play Again</Button>
+                </div>
+            );
+        }
+        if (!puzzle) return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
 
-    return (
-        <Card className="w-full max-w-2xl">
-            <CardHeader className="text-center">
-                <CardTitle className="flex items-center justify-center gap-2">
-                    <Music2 />
-                    (Gv) Visual Music Match
-                </CardTitle>
-                <CardDescription>Find the musical measure below that exactly matches the target.</CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center gap-6">
-                <div className="w-full flex justify-end font-mono">Score: {score}</div>
+        return (
+            <div className="flex flex-col items-center gap-6 w-full">
+                <div className="w-full flex justify-between font-mono text-sm">
+                    <span>Trial: {currentTrialIndex.current + 1} / {policy.sessionLength}</span>
+                    <span>Score: {sessionTrials.filter(t => t.correct).length}</span>
+                </div>
                 <div>
                     <h3 className="text-center font-semibold mb-2">Target</h3>
                     <div className="p-4 bg-muted rounded-lg w-72 h-40">
@@ -121,18 +157,33 @@ export function VisualMusicMatch() {
                         <Button
                             key={index}
                             onClick={() => handleSelect(option)}
-                            disabled={!!feedback}
+                            disabled={gameState === 'feedback'}
                             variant="outline"
                             className={cn(
                                 "h-40 p-4 transition-all duration-300",
-                                feedback && option.id === puzzle.answer.id && 'bg-green-500/20 border-green-500',
-                                feedback && selectedId === option.id && option.id !== puzzle.answer.id && 'bg-destructive/20 border-destructive'
+                                gameState === 'feedback' && option.id === puzzle.answer.id && 'bg-green-500/20 border-green-500',
+                                gameState === 'feedback' && selectedId === option.id && option.id !== puzzle.answer.id && 'bg-destructive/20 border-destructive'
                             )}
                         >
                             <MusicNotation path={option.path} />
                         </Button>
                     ))}
                 </div>
+            </div>
+        );
+    }
+    
+    return (
+        <Card className="w-full max-w-2xl">
+            <CardHeader className="text-center">
+                <CardTitle className="flex items-center justify-center gap-2">
+                    <Music2 />
+                    (Gv) Visual Music Match
+                </CardTitle>
+                <CardDescription>Find the musical measure below that exactly matches the target.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col items-center gap-6 min-h-[500px] justify-center">
+                {renderContent()}
             </CardContent>
         </Card>
     )

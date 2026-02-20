@@ -12,6 +12,7 @@ import { chcDomains, type CHCDomain } from '@/types';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { useTheme } from '@/hooks/use-theme';
 import { GrowthDecoration } from '../ui/growth-decoration';
+import { usePerformanceStore } from '@/hooks/use-performance-store';
 
 const INSIGHT_KEY = 'adaptiveDifficultyInsightDismissed';
 
@@ -19,10 +20,11 @@ export function AdaptiveDifficulty() {
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<AdaptDifficultyOutput | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [selectedFactor, setSelectedFactor] = useState<CHCDomain>('Gf');
+  const [selectedDomain, setSelectedDomain] = useState<CHCDomain>('Gf');
   const [isInsightVisible, setIsInsightVisible] = useState(false);
   const [skillLevel, setSkillLevel] = useState(50);
   const { organicGrowth } = useTheme();
+  const { gameStates } = usePerformanceStore();
 
   useEffect(() => {
     const dismissed = localStorage.getItem(INSIGHT_KEY);
@@ -32,16 +34,19 @@ export function AdaptiveDifficulty() {
   }, []);
 
   useEffect(() => {
-    // In a real app, you might fetch this data. Here we simulate it.
-    // This pseudo-random generation ensures a consistent score for each domain.
-    const keySeed = selectedFactor.charCodeAt(0) + selectedFactor.charCodeAt(1);
-    const pseudoRandom = (seed: number) => {
-        let x = Math.sin(seed) * 10000;
-        return x - Math.floor(x);
-    };
-    const generatedScore = Math.round(50 + ((keySeed * 13) % 40) + pseudoRandom(keySeed) * 5);
-    setSkillLevel(generatedScore);
-  }, [selectedFactor]);
+    const domainInfo = chcDomains.find(d => d.key === selectedDomain);
+    if (!domainInfo || !gameStates[domainInfo.id]) {
+      setSkillLevel(50); // Default if no data
+      return;
+    }
+    const gameState = gameStates[domainInfo.id]?.['neutral']; // Use neutral focus as reference
+    if (gameState) {
+      const calculatedSkill = Math.round((gameState.currentLevel / gameState.levelCeiling) * 100);
+      setSkillLevel(calculatedSkill);
+    } else {
+      setSkillLevel(50);
+    }
+  }, [selectedDomain, gameStates]);
   
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -49,7 +54,7 @@ export function AdaptiveDifficulty() {
     setResult(null); 
     setError(null);
     startTransition(async () => {
-      const input: AdaptDifficultyInput = { chcDomain: selectedFactor, userSkillLevel: skillLevel };
+      const input: AdaptDifficultyInput = { chcDomain: selectedDomain, userSkillLevel: skillLevel };
       const res = await getAdaptiveDifficultyAction(input);
       if (res) {
         setResult(res);
@@ -80,7 +85,7 @@ export function AdaptiveDifficulty() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="chc-domain-select" className="text-sm font-medium text-muted-foreground">Cognitive Factor</label>
-            <Select onValueChange={(value: CHCDomain) => setSelectedFactor(value)} defaultValue={selectedFactor}>
+            <Select onValueChange={(value: CHCDomain) => setSelectedDomain(value)} defaultValue={selectedDomain}>
               <SelectTrigger id="chc-domain-select">
                 <SelectValue placeholder="Select a factor" />
               </SelectTrigger>

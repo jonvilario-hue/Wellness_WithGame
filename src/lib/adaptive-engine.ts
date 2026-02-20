@@ -1,5 +1,5 @@
 
-import type { AdaptiveState, DifficultyPolicy, GameId, Tier, TrialResult } from "@/types";
+import type { AdaptiveState, DifficultyPolicy, GameId, Tier, TrialResult, TrainingFocus } from "@/types";
 
 export const TIER_CONFIG: Record<Tier, { name: string, range: [number, number] }> = {
     0: { name: "Foundation", range: [1, 5] },
@@ -8,10 +8,11 @@ export const TIER_CONFIG: Record<Tier, { name: string, range: [number, number] }
     3: { name: "Elite", range: [12, 20] },
 };
 
-export const getDefaultState = (gameId: GameId, tier: Tier): AdaptiveState => {
+export const getDefaultState = (gameId: GameId, focus: TrainingFocus, tier: Tier): AdaptiveState => {
     const config = TIER_CONFIG[tier];
     return {
         gameId,
+        focus,
         tier,
         levelFloor: config.range[0],
         levelCeiling: config.range[1],

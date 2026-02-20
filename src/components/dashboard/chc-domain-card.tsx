@@ -13,11 +13,11 @@ import {
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { domainIcons, SigmaIcon } from '@/components/icons';
-import type { CHCDomain } from '@/types';
+import type { CHCDomain, TrainingFocus } from '@/types';
 import { useState, useEffect, memo } from 'react';
 import { ArrowDown, ArrowUp, Info, Minus, Brain, Music } from 'lucide-react';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
-import { useTrainingFocus, type TrainingFocus } from '@/hooks/use-training-focus';
+import { useTrainingFocus } from '@/hooks/use-training-focus';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '../ui/skeleton';
 import { usePerformanceStore } from '@/hooks/use-performance-store';
@@ -55,9 +55,7 @@ const ChcDomainCardComponent = ({ domain }: ChcDomainCardProps) => {
     return { Icon: Minus, color: 'text-primary', text: 'Holding steady' };
   };
 
-  const isLoaded = isGlobalFocusLoaded && isClient && gameStates;
-  
-  const focusInfo = {
+  const focusInfo: Record<TrainingFocus, { Icon: any; label: string; color: string; supported: boolean; }> = {
     neutral: { Icon: Brain, label: 'Core Thinking', color: 'text-muted-foreground', supported: true },
     math: { Icon: SigmaIcon, label: 'Math Reasoning', color: 'text-energize', supported: domain.supportsMath },
     music: { Icon: Music, label: 'Music Cognition', color: 'text-blue-500', supported: domain.supportsMusic },
@@ -67,8 +65,10 @@ const ChcDomainCardComponent = ({ domain }: ChcDomainCardProps) => {
   const modeToDisplay = activeMode.supported ? globalFocus : 'neutral';
   const { Icon: ModeIcon, label: modeLabel, color: modeColor } = focusInfo[modeToDisplay];
   
-  const gameState = isLoaded ? gameStates[domain.id] : null;
-  const score = gameState ? Math.round((gameState.currentLevel / 20) * 100) : 0;
+  const isLoaded = isGlobalFocusLoaded && isClient && gameStates && gameStates[domain.id];
+  
+  const gameState = isLoaded ? gameStates[domain.id]?.[modeToDisplay] : null;
+  const score = gameState ? Math.round((gameState.currentLevel / gameState.levelCeiling) * 100) : 0;
   
   const calculateTrend = () => {
     if (!gameState || !gameState.levelHistory || gameState.levelHistory.length === 0) return 0;

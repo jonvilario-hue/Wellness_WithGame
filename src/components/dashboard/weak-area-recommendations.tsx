@@ -15,6 +15,7 @@ import { Skeleton } from '../ui/skeleton';
 import { useTheme } from '@/hooks/use-theme';
 import { GrowthDecoration } from '../ui/growth-decoration';
 import { usePerformanceStore } from '@/hooks/use-performance-store';
+import { useTrainingFocus } from '@/hooks/use-training-focus';
 
 const INSIGHT_KEY = 'weakAreaInsightDismissed';
 
@@ -25,17 +26,19 @@ export function WeakAreaRecommendations() {
   const [isInsightVisible, setIsInsightVisible] = useState(false);
   const { organicGrowth } = useTheme();
   const { gameStates } = usePerformanceStore();
+  const { focus: globalFocus } = useTrainingFocus();
 
   useEffect(() => {
-    if (!gameStates) return;
+    if (!gameStates || !globalFocus) return;
 
     startTransition(async () => {
       try {
         const flatPerformanceData = chcDomains.map(domainInfo => {
-          const gameState = gameStates[domainInfo.id];
+            const focusToUse = domainInfo.supportsMath && globalFocus === 'math' ? 'math' : domainInfo.supportsMusic && globalFocus === 'music' ? 'music' : 'neutral';
+            const gameState = gameStates[domainInfo.id]?.[focusToUse];
           return {
             domain: domainInfo.key,
-            score: gameState?.currentLevel ?? 0,
+            score: gameState ? Math.round((gameState.currentLevel / gameState.levelCeiling) * 100) : 0,
             sessions: gameState?.sessionCount ?? 0,
           };
         });
@@ -52,7 +55,7 @@ export function WeakAreaRecommendations() {
     if (dismissed !== 'true') {
       setIsInsightVisible(true);
     }
-  }, [gameStates]);
+  }, [gameStates, globalFocus]);
 
   const handleDismissInsight = () => {
     setIsInsightVisible(false);

@@ -11,13 +11,20 @@ import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
 import { cn } from "@/lib/utils";
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
-import type { AdaptiveState, TrialResult, GameId } from "@/types";
+import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
+import { useTrainingFocus } from "@/hooks/use-training-focus";
+import { useTrainingOverride } from "@/hooks/use-training-override";
 
 const GAME_ID: GameId = 'gwm_dynamic_sequence';
 const policy = difficultyPolicies[GAME_ID];
 
-const generateSequence = (length: number) => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+const generateSequence = (length: number, focus: TrainingFocus) => {
+  let chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  if (focus === 'math') {
+    chars = '0123456789+-*/=';
+  } else if (focus === 'music') {
+    chars = 'CDEFGAB♩♪♫♭♯♮';
+  }
   let result = '';
   for (let i = 0; i < length; i++) {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
@@ -36,8 +43,10 @@ const tasks = [
 
 export function DynamicSequenceTransformer() {
   const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
+  const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
+  const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
+
   const [adaptiveState, setAdaptiveState] = useState<AdaptiveState | null>(null);
-  
   const [gameState, setGameState] = useState<'loading' | 'start' | 'memorizing' | 'answering' | 'feedback' | 'finished'>('loading');
   const [sessionTrials, setSessionTrials] = useState<TrialResult[]>([]);
   
@@ -49,26 +58,21 @@ export function DynamicSequenceTransformer() {
   const trialStartTime = useRef(0);
   const currentTrialIndex = useRef(0);
 
+  const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
+  const currentMode = isComponentLoaded ? (override || globalFocus) : 'neutral';
+
   useEffect(() => {
-    const initialState = getAdaptiveState(GAME_ID);
-    setAdaptiveState(initialState);
-    setGameState('start');
-  }, [getAdaptiveState]);
+    if (isComponentLoaded) {
+      const initialState = getAdaptiveState(GAME_ID, currentMode);
+      setAdaptiveState(initialState);
+      setGameState('start');
+    }
+  }, [isComponentLoaded, currentMode, getAdaptiveState]);
 
-  const startNewSession = useCallback(() => {
-    if (!adaptiveState) return;
-    const sessionState = startSession(adaptiveState);
-    setAdaptiveState(sessionState);
-    setSessionTrials([]);
-    currentTrialIndex.current = 0;
-    setGameState('memorizing');
-    startNewTrial(sessionState);
-  }, [adaptiveState]);
-
-  const startNewTrial = (state: AdaptiveState) => {
+  const startNewTrial = useCallback((state: AdaptiveState) => {
     const level = state.currentLevel;
     const levelParams = policy.levelMap[level] || policy.levelMap[Object.keys(policy.levelMap).pop() as any];
-    const newSequence = generateSequence(levelParams.sequenceLength);
+    const newSequence = generateSequence(levelParams.sequenceLength, currentMode);
     const newTask = tasks[Math.floor(Math.random() * tasks.length)];
     
     setSequence(newSequence);
@@ -81,14 +85,23 @@ export function DynamicSequenceTransformer() {
       setGameState('answering');
       trialStartTime.current = Date.now();
     }, levelParams.displayTimeMs || 1500);
-  };
+  }, [currentMode]);
+
+  const startNewSession = useCallback(() => {
+    if (!adaptiveState) return;
+    const sessionState = startSession(adaptiveState);
+    setAdaptiveState(sessionState);
+    setSessionTrials([]);
+    currentTrialIndex.current = 0;
+    startNewTrial(sessionState);
+  }, [adaptiveState, startNewTrial]);
   
   const correctAnswer = useMemo(() => {
     if (!sequence || !task) return '';
     switch(task.id) {
         case 'reverse': return sequence.split('').reverse().join('');
-        case 'alpha_only': return sequence.replace(/[^A-Z]/g, '');
-        case 'numeric_only': return sequence.replace(/[^0-9]/g, '');
+        case 'alpha_only': return sequence.replace(/[^A-Z♩♪♫♭♯♮]/g, '');
+        case 'numeric_only': return sequence.replace(/[^0-9+\-*/=]/g, '');
         case 'remove_first': return sequence.substring(1);
         case 'alpha_shift':
             return sequence.replace(/[^A-Z]/g, '').split('').map(char => 
@@ -122,18 +135,19 @@ export function DynamicSequenceTransformer() {
         if(currentTrialIndex.current >= policy.sessionLength) {
             setGameState('finished');
             const finalState = endSession(newState, [...sessionTrials, trialResult]);
-            updateAdaptiveState(GAME_ID, finalState);
+            updateAdaptiveState(GAME_ID, currentMode, finalState);
         } else {
             startNewTrial(newState);
         }
     }, 2500);
 
-  }, [gameState, userAnswer, correctAnswer, adaptiveState, sessionTrials, updateAdaptiveState]);
+  }, [gameState, userAnswer, correctAnswer, adaptiveState, sessionTrials, updateAdaptiveState, startNewTrial, currentMode]);
 
   const renderContent = () => {
+    if (!isComponentLoaded || gameState === 'loading') {
+       return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
+    }
     switch (gameState) {
-      case 'loading':
-        return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
       case 'start':
         return (
           <div className="flex flex-col items-center gap-4">
@@ -183,7 +197,7 @@ export function DynamicSequenceTransformer() {
         return (
             <div className="flex flex-col items-center gap-4">
                 <CardTitle>Session Complete!</CardTitle>
-                <p>Accuracy: {(finalAccuracy * 100).toFixed(0)}%</p>
+                <p>Accuracy: {isNaN(finalAccuracy) ? 'N/A' : (finalAccuracy * 100).toFixed(0) + '%'}</p>
                 <Button onClick={() => setGameState('start')} size="lg">Play Again</Button>
             </div>
         )

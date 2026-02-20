@@ -23,11 +23,11 @@ export function VisualProcessingRouter() {
   
   switch (effectiveFocus) {
     case 'math':
-      return <BalancePuzzle />;
+      return <BalancePuzzle focus={effectiveFocus} />;
     case 'music':
-      return <VisualMusicMatch />;
+      return <VisualMusicMatch focus={effectiveFocus} />;
     case 'neutral':
     default:
-      return <MentalRotationLab />;
+      return <MentalRotationLab focus={effectiveFocus} />;
   }
 }

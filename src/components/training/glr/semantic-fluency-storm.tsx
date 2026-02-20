@@ -1,21 +1,20 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { useToast } from "@/hooks/use-toast";
 import { useGlrStore, type SpacedPair } from "@/hooks/use-glr-store";
-import { Archive, BrainCircuit, Shuffle, Loader2 } from "lucide-react";
+import { Archive, Loader2 } from "lucide-react";
+import type { TrainingFocus } from "@/types";
 
-// --- Game Data & Constants ---
 const wordList = ["apple", "car", "house", "river", "mountain", "book", "chair", "music", "light", "ocean", "star", "forest", "fire", "cloud", "dream", "journey", "key", "mirror", "shadow", "silence", "time", "voice", "water", "wind", "world"];
 const antonyms: Record<string, string> = { "hot": "cold", "fast": "slow", "happy": "sad", "big": "small", "up": "down", "light": "dark", "day": "night", "rich": "poor", "old": "new", "true": "false" };
 
-// --- Main Component ---
 export function SemanticFluencyStorm() {
     const [gameState, setGameState] = useState<'idle' | 'running' | 'finished'>('idle');
     const [currentMode, setCurrentMode] = useState<'associative' | 'spaced' | 'category' | null>(null);
@@ -93,8 +92,27 @@ function AssociativeChainMode({ onComplete }: { onComplete: (score: number) => v
     const [timeLeft, setTimeLeft] = useState(6);
     const [streak, setStreak] = useState(0);
     const { toast } = useToast();
-    const { logGameResult } = usePerformanceStore();
+    const { updateAdaptiveState } = usePerformanceStore();
     const timerRef = useRef<NodeJS.Timeout>();
+    const currentMode: TrainingFocus = 'neutral';
+
+    const handleTimeout = useCallback(() => {
+        toast({ title: "Chain Broken!", description: `You built a chain of ${chain.length}.`, variant: "destructive" });
+        
+        updateAdaptiveState('glr_fluency_storm', currentMode, {
+            gameId: 'glr_fluency_storm', focus: 'neutral', tier: 1, levelFloor: 4, levelCeiling: 10,
+            currentLevel: 4 + Math.min(6, Math.floor(chain.length / 2)), uncertainty: 0.5,
+            consecutiveCorrect: 0, consecutiveWrong: 0, recentTrials: [], smoothedAccuracy: 0.8,
+            smoothedRT: (6 - timeLeft) * 1000, sessionCount: 1, lastSessionAt: Date.now(), levelHistory: []
+        });
+        
+        if (chain.length > 0) onComplete(chain.length);
+        else { 
+            setCurrentWord(wordList[Math.floor(Math.random() * wordList.length)]);
+            setCurrentRule(relationshipRules[Math.floor(Math.random() * relationshipRules.length)]);
+            setChain([]);
+        }
+    }, [chain.length, timeLeft, toast, updateAdaptiveState, onComplete]);
 
     const resetTimer = useCallback(() => {
         if (timerRef.current) clearInterval(timerRef.current);
@@ -109,43 +127,19 @@ function AssociativeChainMode({ onComplete }: { onComplete: (score: number) => v
                 return prev - 1;
             });
         }, 1000);
-    }, []);
-
-    const handleTimeout = () => {
-        toast({
-            title: "Chain Broken!",
-            description: `You built a chain of ${chain.length}. Let's start a new one.`,
-            variant: "destructive",
-        });
-        logGameResult('Glr', 'neutral', { score: chain.length, time: 6 * chain.length });
-        if (chain.length > 0) onComplete(chain.length);
-        else { // Reset if the very first one times out
-            setCurrentWord(wordList[Math.floor(Math.random() * wordList.length)]);
-            setCurrentRule(relationshipRules[Math.floor(Math.random() * relationshipRules.length)]);
-            setChain([]);
-            resetTimer();
-        }
-    };
+    }, [handleTimeout]);
     
     useEffect(() => {
         resetTimer();
-        return () => {
-            if (timerRef.current) clearInterval(timerRef.current);
-        }
+        return () => { if (timerRef.current) clearInterval(timerRef.current); }
     }, [resetTimer]);
-
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         const submittedWord = userInput.trim().toLowerCase();
         if (!submittedWord) return;
 
-        // Simplified validation for prototype
-        let isValid = false;
-        if (currentRule === "RHYME" && submittedWord.slice(-2) === currentWord.slice(-2) && submittedWord !== currentWord) isValid = true;
-        else if (currentRule === "ANTONYM" && (antonyms[currentWord] === submittedWord || antonyms[submittedWord] === currentWord)) isValid = true;
-        else if (currentRule === "FIRST LETTER MATCH" && submittedWord[0] === currentWord[0]) isValid = true;
-        else if (currentRule === "ASSOCIATE") isValid = true; // Forgiving validation
+        let isValid = (currentRule === "ASSOCIATE") || (currentRule === "RHYME" && submittedWord.slice(-2) === currentWord.slice(-2) && submittedWord !== currentWord) || (currentRule === "ANTONYM" && (antonyms[currentWord] === submittedWord || antonyms[submittedWord] === currentWord)) || (currentRule === "FIRST LETTER MATCH" && submittedWord[0] === currentWord[0]);
 
         if (isValid) {
             setCurrentWord(submittedWord);
@@ -153,9 +147,7 @@ function AssociativeChainMode({ onComplete }: { onComplete: (score: number) => v
             setCurrentRule(relationshipRules[Math.floor(Math.random() * relationshipRules.length)]);
             setUserInput('');
             resetTimer();
-            if (timeLeft > 4) setStreak(s => s + 1);
-            else setStreak(0);
-
+            if (timeLeft > 4) setStreak(s => s + 1); else setStreak(0);
             if (streak > 3) toast({ title: `x${streak} Streak!`, className: "bg-primary text-primary-foreground" });
         } else {
              toast({ title: "Invalid Link", description: "That doesn't seem to fit the rule.", variant: "destructive" });
@@ -168,20 +160,12 @@ function AssociativeChainMode({ onComplete }: { onComplete: (score: number) => v
                 <div className="h-full bg-primary" style={{ width: `${(timeLeft / 6) * 100}%`, transition: 'width 1s linear' }}></div>
             </div>
             <p className="font-mono text-right w-full">Chain Length: {chain.length}</p>
-            
             <div className="text-center p-4">
                 <p className="text-lg text-muted-foreground font-semibold">{currentRule}</p>
                 <p className="text-5xl font-bold text-primary my-2">{currentWord.toUpperCase()}</p>
             </div>
-
             <form onSubmit={handleSubmit} className="w-full flex gap-2">
-                <Input
-                    value={userInput}
-                    onChange={(e) => setUserInput(e.target.value)}
-                    placeholder="Type related word..."
-                    autoFocus
-                    className="text-center text-lg h-12"
-                />
+                <Input value={userInput} onChange={(e) => setUserInput(e.target.value)} placeholder="Type related word..." autoFocus className="text-center text-lg h-12"/>
                 <Button type="submit" className="h-12">Link</Button>
             </form>
             <p className="text-xs text-muted-foreground h-4">{chain.slice(-5).join(' → ')}</p>
@@ -192,7 +176,7 @@ function AssociativeChainMode({ onComplete }: { onComplete: (score: number) => v
 // --- MODE 2: SPACED RETRIEVAL PAIRS ---
 function SpacedRetrievalMode({ onComplete }: { onComplete: (score: number) => void }) {
     const { addSpacedPairs, getDueReviewPairs, updatePairOnResult } = useGlrStore();
-    const { logGameResult } = usePerformanceStore();
+    const { updateAdaptiveState } = usePerformanceStore();
     const [phase, setPhase] = useState<'review' | 'learn' | 'distract' | 'recall' | 'finished'>('review');
     const [duePairs, setDuePairs] = useState<SpacedPair[]>([]);
     const [newPairs, setNewPairs] = useState<{word1: string, word2: string}[]>([]);
@@ -201,14 +185,12 @@ function SpacedRetrievalMode({ onComplete }: { onComplete: (score: number) => vo
     const [feedback, setFeedback] = useState<Record<string, 'correct' | 'incorrect'>>({});
     const [score, setScore] = useState(0);
 
-    // Phase 1: Load due pairs for review
     useEffect(() => {
         const pairsToReview = getDueReviewPairs();
         if (pairsToReview.length > 0) {
             setDuePairs(pairsToReview);
             setPhase('review');
         } else {
-            // If no reviews, generate new pairs to learn
             const generated = Array.from({ length: 6 }).map(() => {
                 const word1 = wordList[Math.floor(Math.random() * wordList.length)];
                 let word2 = wordList[Math.floor(Math.random() * wordList.length)];
@@ -227,11 +209,10 @@ function SpacedRetrievalMode({ onComplete }: { onComplete: (score: number) => vo
         if (currentIndex < currentList.length - 1) {
             setCurrentIndex(i => i + 1);
         } else {
-            // Transition to next phase
             if (phase === 'review') setPhase('learn');
             else if (phase === 'learn') setPhase('distract');
             else if (phase === 'recall') {
-                logGameResult('Glr', 'neutral', { score: score * 10, time: 60 });
+                updateAdaptiveState('glr_fluency_storm', 'neutral', { gameId: 'glr_fluency_storm', focus: 'neutral', tier: 1, levelFloor: 4, levelCeiling: 10, currentLevel: 4 + score, uncertainty: 0.5, consecutiveCorrect: 0, consecutiveWrong: 0, recentTrials: [], smoothedAccuracy: score / currentList.length, smoothedRT: 5000, sessionCount: 1, lastSessionAt: Date.now(), levelHistory: [] });
                 onComplete(score);
                 setPhase('finished');
             }
@@ -262,7 +243,6 @@ function SpacedRetrievalMode({ onComplete }: { onComplete: (score: number) => vo
     return (
         <div className="w-full flex flex-col items-center gap-4">
             <p className="font-semibold text-primary uppercase">{phase} Phase</p>
-            
             {phase === 'learn' && pairToShow && (
                  <div className="text-center p-8 bg-muted rounded-lg animate-in fade-in">
                     <p className="text-muted-foreground">Memorize this pair:</p>
@@ -271,12 +251,10 @@ function SpacedRetrievalMode({ onComplete }: { onComplete: (score: number) => vo
                     <Button onClick={handleNext} className="mt-4">Next</Button>
                 </div>
             )}
-            
             {(phase === 'review' || phase === 'recall') && pairToShow && (
                 <div className="w-full text-center space-y-4">
                     <p className="text-muted-foreground">What word was paired with:</p>
                     <p className="text-5xl font-bold">{pairToShow.word1}</p>
-                    
                     {feedback[pairToShow.word1] ? (
                         <div className={cn("text-2xl font-bold", feedback[pairToShow.word1] === 'correct' ? "text-green-500" : "text-destructive")}>
                             {feedback[pairToShow.word1] === 'correct' ? "Correct!" : `The answer was: ${pairToShow.word2}`}
@@ -289,7 +267,6 @@ function SpacedRetrievalMode({ onComplete }: { onComplete: (score: number) => vo
                     )}
                 </div>
             )}
-            
             {phase === 'finished' && <p>Recall session complete!</p>}
         </div>
     );
@@ -306,22 +283,15 @@ const Distractor = ({ onComplete }: { onComplete: () => void }) => {
         }
     }, [count, onComplete]);
 
-    return (
-        <div className="text-center">
-            <p className="text-muted-foreground">Mental Distraction</p>
-            <p className="text-6xl font-mono font-bold">{count}</p>
-            <p>Count down to zero...</p>
-        </div>
-    );
+    return <div className="text-center"><p className="text-muted-foreground">Mental Distraction</p><p className="text-6xl font-mono font-bold">{count}</p><p>Count down to zero...</p></div>;
 };
-
 
 // --- MODE 3: CATEGORY SWITCHING SPRINT ---
 const categories = ["Animals", "Tools", "Countries", "Foods", "Musical Instruments", "Body Parts", "Professions", "Clothing"];
 
 function CategorySwitchingMode({ onComplete }: { onComplete: (score: number) => void }) {
     const { logSubmittedWord, isWordSubmitted } = useGlrStore();
-    const { logGameResult } = usePerformanceStore();
+    const { updateAdaptiveState } = usePerformanceStore();
     const [categoryIndex, setCategoryIndex] = useState(0);
     const [timeLeft, setTimeLeft] = useState(10);
     const [totalTimeLeft, setTotalTimeLeft] = useState(60);
@@ -344,7 +314,7 @@ function CategorySwitchingMode({ onComplete }: { onComplete: (score: number) => 
                 if (prev <= 1) {
                     clearInterval(categoryTimerRef.current);
                     clearInterval(totalTimer);
-                    logGameResult('Glr', 'neutral', { score, time: 60 });
+                    updateAdaptiveState('glr_fluency_storm', 'neutral', { gameId: 'glr_fluency_storm', focus: 'neutral', tier: 1, levelFloor: 4, levelCeiling: 10, currentLevel: 4 + Math.min(6, Math.floor(score / 5)), uncertainty: 0.5, consecutiveCorrect: 0, consecutiveWrong: 0, recentTrials: [], smoothedAccuracy: 0.8, smoothedRT: 2000, sessionCount: 1, lastSessionAt: Date.now(), levelHistory: [] });
                     onComplete(score);
                     return 0;
                 }
@@ -357,7 +327,7 @@ function CategorySwitchingMode({ onComplete }: { onComplete: (score: number) => 
             if (categoryTimerRef.current) clearInterval(categoryTimerRef.current);
             clearInterval(totalTimer);
         }
-    }, [switchCategory, onComplete, logGameResult, score]);
+    }, [switchCategory, onComplete, updateAdaptiveState, score]);
 
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -391,7 +361,7 @@ function CategorySwitchingMode({ onComplete }: { onComplete: (score: number) => 
                 <Input value={userInput} onChange={e => setUserInput(e.target.value)} autoFocus placeholder="Type item in category..."/>
                 <Button type="submit">Submit</Button>
             </form>
-            <p className="text-xs text-muted-foreground h-4">Pro-tip: Try to think of sub-categories (e.g., 'farm animals', 'jungle animals').</p>
+            <p className="text-xs text-muted-foreground h-4">Pro-tip: Try to think of sub-categories (e.g., 'farm animals').</p>
         </div>
     );
 }

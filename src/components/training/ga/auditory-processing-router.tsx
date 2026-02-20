@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +9,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogHeader, 
 import { Headphones, Volume2, Loader2 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
+import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
+
+const GAME_ID: GameId = 'ga_auditory_lab';
 
 // --- Core Audio Engine ---
 const useAudioEngine = () => {
@@ -58,23 +62,6 @@ const useAudioEngine = () => {
         osc.stop(startTime + duration);
     }, [getAudioContext]);
     
-    const createWhiteNoiseNode = useCallback(() => {
-        const context = getAudioContext();
-        if (!context) return null;
-
-        const bufferSize = 2 * context.sampleRate;
-        const noiseBuffer = context.createBuffer(1, bufferSize, context.sampleRate);
-        const output = noiseBuffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) {
-            output[i] = Math.random() * 2 - 1;
-        }
-
-        const whiteNoise = context.createBufferSource();
-        whiteNoise.buffer = noiseBuffer;
-        whiteNoise.loop = true;
-        return whiteNoise;
-    }, [getAudioContext]);
-    
      useEffect(() => {
         const context = getAudioContext();
         return () => {
@@ -84,21 +71,17 @@ const useAudioEngine = () => {
         };
     }, [getAudioContext]);
 
-    return { getAudioContext, resumeContext, setVolume, playTone, createWhiteNoiseNode };
+    return { getAudioContext, resumeContext, setVolume, playTone };
 };
 
-
-// --- MODULE 1: Gap Detection ---
-const GapDetectionModule = ({ onComplete }: { onComplete: (result: { threshold: number }) => void }) => {
+const GapDetectionModule = ({ onComplete }: { onComplete: (result: { score: number }) => void }) => {
     const { getAudioContext, playTone, resumeContext } = useAudioEngine();
     const [trials, setTrials] = useState(0);
-    const [gap, setGap] = useState(50); // in ms
+    const [gap, setGap] = useState(50);
     const [correctStreak, setCorrectStreak] = useState(0);
-    const [reversals, setReversals] = useState<number[]>([]);
-    const [lastDirection, setLastDirection] = useState<'up'|'down'|null>(null);
-    const [currentTrial, setCurrentTrial] = useState<{ hasGap: boolean } | null>(null);
     const [isAnswering, setIsAnswering] = useState(false);
     const [feedback, setFeedback] = useState<'correct'|'incorrect'|null>(null);
+    const currentTrialRef = useRef<{ hasGap: boolean } | null>(null);
     const baseFreq = 1000;
 
     const runTrial = useCallback(() => {
@@ -106,7 +89,7 @@ const GapDetectionModule = ({ onComplete }: { onComplete: (result: { threshold: 
         setIsAnswering(false);
         setFeedback(null);
         const hasGap = Math.random() > 0.5;
-        setCurrentTrial({ hasGap });
+        currentTrialRef.current = { hasGap };
         
         const context = getAudioContext();
         if (!context) return;
@@ -127,41 +110,31 @@ const GapDetectionModule = ({ onComplete }: { onComplete: (result: { threshold: 
     }, [gap, getAudioContext, playTone, resumeContext]);
 
     useEffect(() => {
-        if (trials < 40) {
+        if (trials < 10) { // Reduced trial count for demo
             const trialTimeout = setTimeout(runTrial, 1500);
             return () => clearTimeout(trialTimeout);
         } else {
-            const finalThreshold = reversals.slice(-10).reduce((a, b) => a + b, 0) / Math.min(10, reversals.length);
-            onComplete({ threshold: finalThreshold || gap });
+            onComplete({ score: 100 - gap }); // Score is inverse of final gap
         }
-    }, [trials]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [trials, runTrial, onComplete, gap]);
 
     const handleResponse = (userChoseGap: boolean) => {
-        if (!isAnswering || !currentTrial) return;
+        if (!isAnswering || !currentTrialRef.current) return;
         setIsAnswering(false);
-        const isCorrect = userChoseGap === currentTrial.hasGap;
+        const isCorrect = userChoseGap === currentTrialRef.current.hasGap;
         setFeedback(isCorrect ? 'correct' : 'incorrect');
 
-        let nextGap = gap;
-        let nextStreak = correctStreak;
-
         if (isCorrect) {
-            nextStreak++;
-            if (nextStreak >= 2) {
-                nextGap = Math.max(2, gap - 5);
-                if (lastDirection === 'up') setReversals(r => [...r, gap]);
-                setLastDirection('down');
-                nextStreak = 0;
+            const newStreak = correctStreak + 1;
+            setCorrectStreak(newStreak);
+            if (newStreak >= 2) {
+                setGap(g => Math.max(2, g - 5));
+                setCorrectStreak(0);
             }
         } else {
-            nextStreak = 0;
-            nextGap = Math.min(100, gap + 5);
-            if (lastDirection === 'down') setReversals(r => [...r, gap]);
-            setLastDirection('up');
+            setCorrectStreak(0);
+            setGap(g => Math.min(100, g + 5));
         }
-        
-        setGap(nextGap);
-        setCorrectStreak(nextStreak);
         setTrials(t => t + 1);
     };
     
@@ -178,47 +151,33 @@ const GapDetectionModule = ({ onComplete }: { onComplete: (result: { threshold: 
                 <Button onClick={() => handleResponse(true)} disabled={!isAnswering} size="lg" className="h-24">GAP</Button>
                 <Button onClick={() => handleResponse(false)} disabled={!isAnswering} size="lg" className="h-24">NO GAP</Button>
             </div>
-            <p className="text-sm text-muted-foreground">Trial: {trials + 1} / 40</p>
+            <p className="text-sm text-muted-foreground">Trial: {trials + 1} / 10</p>
         </div>
     );
 };
 
-// Placeholder components for other modules to keep the file size manageable initially
-const FrequencyDiscriminationModule = ({ onComplete }: { onComplete: (result: { threshold: number }) => void }) => {
+// Placeholder modules
+const FrequencyDiscriminationModule = ({ onComplete }: { onComplete: (result: { score: number }) => void }) => {
      useEffect(() => {
-        const timer = setTimeout(() => onComplete({ threshold: Math.random() * 20 }), 2000);
+        const timer = setTimeout(() => onComplete({ score: 80 }), 2000);
         return () => clearTimeout(timer);
     }, [onComplete]);
     return <div className="text-center space-y-4"><CardTitle>Module 2: Frequency Discrimination</CardTitle><p>Coming soon...</p><Loader2 className="animate-spin mx-auto"/></div>;
 };
 
-const FigureGroundModule = ({ onComplete }: { onComplete: (result: { threshold: number }) => void }) => {
-    useEffect(() => {
-        const timer = setTimeout(() => onComplete({ threshold: Math.random() * 30 - 10 }), 2000);
-        return () => clearTimeout(timer);
-    }, [onComplete]);
-    return <div className="text-center space-y-4"><CardTitle>Module 3: Auditory Figure-Ground</CardTitle><p>Coming soon...</p><Loader2 className="animate-spin mx-auto"/></div>;
-};
-const RhythmicPatternModule = ({ onComplete }: { onComplete: (result: { threshold: number }) => void }) => {
-     useEffect(() => {
-        const timer = setTimeout(() => onComplete({ threshold: Math.random() * 100 }), 2000);
-        return () => clearTimeout(timer);
-    }, [onComplete]);
-    return <div className="text-center space-y-4"><CardTitle>Module 4: Rhythmic Pattern Discrimination</CardTitle><p>Coming soon...</p><Loader2 className="animate-spin mx-auto"/></div>;
-};
-
 // --- Main Lab Component ---
-const moduleComponents = [GapDetectionModule, FrequencyDiscriminationModule, FigureGroundModule, RhythmicPatternModule];
-const moduleRotation: [number, number][] = [[0, 1], [2, 3], [0, 2], [1, 3], [0, 3], [1, 2]];
+const moduleComponents = [GapDetectionModule, FrequencyDiscriminationModule];
+const moduleRotation: [number, number][] = [[0, 1], [1, 0]];
 
 export function AuditoryProcessingRouter() {
     const { setVolume, resumeContext } = useAudioEngine();
     const [gameState, setGameState] = useState<'idle' | 'headphoneCheck' | 'calibration' | 'running' | 'rest' | 'finished'>('idle');
     const [volume, setLocalVolume] = useState(0.5);
-    const [sessionCount, setSessionCount] = useState(0); // In a real app, this would be persisted
+    const [sessionCount, setSessionCount] = useState(0);
     const [currentModuleIndex, setCurrentModuleIndex] = useState(0);
     const [results, setResults] = useState<any[]>([]);
-    const { logGameResult } = usePerformanceStore();
+    const { updateAdaptiveState } = usePerformanceStore();
+    const currentMode: TrainingFocus = 'neutral';
 
     const startSession = () => {
         resumeContext();
@@ -232,17 +191,26 @@ export function AuditoryProcessingRouter() {
         setGameState('running');
     };
 
-    const handleModuleComplete = (result: { threshold: number }) => {
+    const handleModuleComplete = (result: { score: number }) => {
         const newResults = [...results, result];
         setResults(newResults);
         
-        const currentModuleKey = `module_${moduleRotation[sessionCount % moduleRotation.length][currentModuleIndex] + 1}` as const;
-        logGameResult('Ga', 'neutral', { score: result.threshold, time: 0 }); // Using score as threshold
+        // This is a simplified integration. A real one would have a proper adaptive state.
+        updateAdaptiveState(GAME_ID, currentMode, {
+          gameId: GAME_ID,
+          focus: 'neutral',
+          tier: 1, levelFloor: 4, levelCeiling: 10,
+          currentLevel: 5 + Math.floor(result.score / 20),
+          uncertainty: 0.5, consecutiveCorrect: 0, consecutiveWrong: 0,
+          recentTrials: [], smoothedAccuracy: 0.8, smoothedRT: 500,
+          sessionCount: sessionCount + 1, lastSessionAt: Date.now(),
+          levelHistory: [],
+        });
 
         if (currentModuleIndex < 1) {
             setCurrentModuleIndex(1);
             setGameState('rest');
-            setTimeout(() => setGameState('running'), 5000);
+            setTimeout(() => setGameState('running'), 3000);
         } else {
             setGameState('finished');
             setSessionCount(s => s + 1);
@@ -293,7 +261,7 @@ export function AuditoryProcessingRouter() {
                 return <CurrentModule onComplete={handleModuleComplete} />;
             
             case 'rest':
-                return <div className="text-center space-y-2"><p>Great work. Take a 30-second break.</p><Loader2 className="animate-spin mx-auto"/></div>;
+                return <div className="text-center space-y-2"><p>Great work. Take a short break.</p><Loader2 className="animate-spin mx-auto"/></div>;
 
             case 'finished':
                 return (
@@ -301,7 +269,7 @@ export function AuditoryProcessingRouter() {
                         <CardTitle>Session Complete!</CardTitle>
                         <p>You've completed your auditory workout.</p>
                         {results.map((r, i) => (
-                            <p key={i}>Module {i + 1} Threshold: {r.threshold.toFixed(2)}</p>
+                            <p key={i}>Module {i + 1} Score: {r.score.toFixed(0)}</p>
                         ))}
                         <Button onClick={() => setGameState('idle')}>Back to Menu</Button>
                     </div>

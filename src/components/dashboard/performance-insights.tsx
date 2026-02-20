@@ -12,6 +12,7 @@ import { Skeleton } from '../ui/skeleton';
 import { useTheme } from '@/hooks/use-theme';
 import { GrowthDecoration } from '../ui/growth-decoration';
 import { usePerformanceStore } from '@/hooks/use-performance-store';
+import { useTrainingFocus } from '@/hooks/use-training-focus';
 import { chcDomains } from '@/types';
 
 const recommendationIcons = {
@@ -28,17 +29,18 @@ export function PerformanceInsights() {
   const [isInsightVisible, setIsInsightVisible] = useState(false);
   const { organicGrowth } = useTheme();
   const { gameStates } = usePerformanceStore();
-
+  const { focus: globalFocus } = useTrainingFocus();
 
   useEffect(() => {
-    if (!gameStates) return;
+    if (!gameStates || !globalFocus) return;
     
     startTransition(async () => {
       const flatPerformanceData = chcDomains.map(domainInfo => {
-        const gameState = gameStates[domainInfo.id];
+        const focusToUse = domainInfo.supportsMath && globalFocus === 'math' ? 'math' : domainInfo.supportsMusic && globalFocus === 'music' ? 'music' : 'neutral';
+        const gameState = gameStates[domainInfo.id]?.[focusToUse];
         return {
           domain: domainInfo.key,
-          score: gameState?.currentLevel ?? 0,
+          score: gameState ? Math.round((gameState.currentLevel / gameState.levelCeiling) * 100) : 0,
           trend: 0, // Trend is not used by the flow, pass 0
         };
       });
@@ -50,7 +52,7 @@ export function PerformanceInsights() {
     if (dismissed !== 'true') {
       setIsInsightVisible(true);
     }
-  }, [gameStates]);
+  }, [gameStates, globalFocus]);
 
   const handleDismissInsight = () => {
     setIsInsightVisible(false);

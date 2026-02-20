@@ -4,29 +4,33 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
-import type { GameId, Tier, AdaptiveState, TrialResult } from '@/types';
+import type { GameId, Tier, AdaptiveState, TrialResult, TrainingFocus } from '@/types';
 import { getDefaultState, TIER_CONFIG } from '@/lib/adaptive-engine';
 import { chcDomains } from '@/types';
 
 type PerformanceStateData = {
   globalTier: Tier;
-  gameStates: Record<GameId, AdaptiveState>;
+  gameStates: Record<GameId, Partial<Record<TrainingFocus, AdaptiveState>>>;
 };
 
 type PerformanceActions = {
   setGlobalTier: (tier: Tier) => void;
   setGameTier: (gameId: GameId, tier: Tier) => void;
-  getAdaptiveState: (gameId: GameId) => AdaptiveState;
-  updateAdaptiveState: (gameId: GameId, newState: AdaptiveState) => void;
-  resetGameToTierDefault: (gameId: GameId) => void;
+  getAdaptiveState: (gameId: GameId, focus: TrainingFocus) => AdaptiveState;
+  updateAdaptiveState: (gameId: GameId, focus: TrainingFocus, newState: AdaptiveState) => void;
+  resetGameToTierDefault: (gameId: GameId, focus: TrainingFocus) => void;
 };
 
-const initialGameStates = (): Record<GameId, AdaptiveState> => {
-  const state: Partial<Record<GameId, AdaptiveState>> = {};
+const initialGameStates = (): Record<GameId, Partial<Record<TrainingFocus, AdaptiveState>>> => {
+  const state: Partial<Record<GameId, Partial<Record<TrainingFocus, AdaptiveState>>>> = {};
+  const focuses: TrainingFocus[] = ['neutral', 'math', 'music'];
   for (const domain of chcDomains) {
-    state[domain.id] = getDefaultState(domain.id, 1); // Default to Tier 1
+    state[domain.id] = {};
+    for (const focus of focuses) {
+        state[domain.id]![focus] = getDefaultState(domain.id, focus, 1); // Default to Tier 1
+    }
   }
-  return state as Record<GameId, AdaptiveState>;
+  return state as Record<GameId, Partial<Record<TrainingFocus, AdaptiveState>>>;
 };
 
 export const usePerformanceStore = create<PerformanceStateData & PerformanceActions>()(
@@ -36,13 +40,17 @@ export const usePerformanceStore = create<PerformanceStateData & PerformanceActi
       gameStates: initialGameStates(),
       
       setGlobalTier: (tier) => {
+        const oldTier = get().globalTier;
         set((state) => {
           state.globalTier = tier;
-          // When global tier changes, reset any game that was using the global tier
+          // When global tier changes, reset any game that was using the old global tier
           for (const gameId in state.gameStates) {
-             const gameState = state.gameStates[gameId as GameId];
-             if (gameState.tier === get().globalTier) { // Check against old global tier
-                state.gameStates[gameId as GameId] = getDefaultState(gameId as GameId, tier);
+             const gameFocuses = state.gameStates[gameId as GameId];
+             for (const focus in gameFocuses) {
+                 const gameState = gameFocuses[focus as TrainingFocus];
+                 if (gameState && gameState.tier === oldTier) { // Check against old global tier
+                    state.gameStates[gameId as GameId]![focus as TrainingFocus] = getDefaultState(gameId as GameId, focus as TrainingFocus, tier);
+                 }
              }
           }
         });
@@ -50,39 +58,46 @@ export const usePerformanceStore = create<PerformanceStateData & PerformanceActi
 
       setGameTier: (gameId, tier) => {
         set((state) => {
-            state.gameStates[gameId] = getDefaultState(gameId, tier);
+            if (!state.gameStates[gameId]) state.gameStates[gameId] = {};
+            const focuses: TrainingFocus[] = ['neutral', 'math', 'music'];
+            for (const focus of focuses) {
+                 state.gameStates[gameId]![focus] = getDefaultState(gameId, focus, tier);
+            }
         });
       },
 
-      getAdaptiveState: (gameId) => {
+      getAdaptiveState: (gameId, focus) => {
         const state = get();
-        const gameState = state.gameStates[gameId];
+        const gameState = state.gameStates[gameId]?.[focus];
         // If a game state somehow doesn't exist, create it.
         if (!gameState) {
-          const newGameState = getDefaultState(gameId, state.globalTier);
+          const newGameState = getDefaultState(gameId, focus, state.globalTier);
           set(s => {
-              s.gameStates[gameId] = newGameState;
+              if (!s.gameStates[gameId]) s.gameStates[gameId] = {};
+              s.gameStates[gameId]![focus] = newGameState;
           });
           return newGameState;
         }
         return gameState;
       },
 
-      updateAdaptiveState: (gameId, newState) => {
+      updateAdaptiveState: (gameId, focus, newState) => {
         set(state => {
-            state.gameStates[gameId] = newState;
+            if (!state.gameStates[gameId]) state.gameStates[gameId] = {};
+            state.gameStates[gameId]![focus] = newState;
         });
       },
       
-      resetGameToTierDefault: (gameId) => {
+      resetGameToTierDefault: (gameId, focus) => {
          set(state => {
-            const gameTier = state.gameStates[gameId]?.tier ?? state.globalTier;
-            state.gameStates[gameId] = getDefaultState(gameId, gameTier);
+            if (!state.gameStates[gameId]) state.gameStates[gameId] = {};
+            const gameTier = state.gameStates[gameId]?.[focus]?.tier ?? state.globalTier;
+            state.gameStates[gameId]![focus] = getDefaultState(gameId, focus, gameTier);
          });
       }
     })),
     {
-      name: 'cognitive-performance-storage-v2-adaptive',
+      name: 'cognitive-performance-storage-v3-focus-aware',
       storage: createJSONStorage(() => localStorage),
     }
   )
