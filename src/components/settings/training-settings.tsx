@@ -4,9 +4,9 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { usePerformanceStore } from '@/hooks/use-performance-store';
 import { TIER_CONFIG } from '@/lib/adaptive-engine';
-import type { Tier } from '@/types';
+import type { Tier, TierSelection } from '@/types';
 import { cn } from '@/lib/utils';
-import { Check, Sliders, Filter, BarChart, Settings, Music, TestTube, Clapperboard } from 'lucide-react';
+import { Check, Sliders, Filter, BarChart, Settings, Music, TestTube, Clapperboard, Bot } from 'lucide-react';
 import {
   Accordion,
   AccordionContent,
@@ -30,6 +30,20 @@ const tierExamples: Record<Tier, string> = {
 export function TrainingSettings() {
     const { globalTier, setGlobalTier, gameStates, setGameTier } = usePerformanceStore();
 
+    const allTiers: { key: TierSelection, name: string, icon: React.ElementType, description: string }[] = [
+        { key: 4, name: "Automatic", icon: Bot, description: "Dynamically adjusts intensity based on your average performance."},
+        ...Object.keys(TIER_CONFIG).map(tierKeyStr => {
+            const tierKey = parseInt(tierKeyStr, 10) as Tier;
+            return {
+                key: tierKey,
+                name: TIER_CONFIG[tierKey].name,
+                icon: Check, // Placeholder, can be customized
+                description: tierExamples[tierKey],
+            }
+        })
+    ];
+
+
     return (
         <Card>
             <CardHeader>
@@ -41,19 +55,18 @@ export function TrainingSettings() {
             <CardContent className="space-y-8">
                  <div>
                   <Label className="text-base font-semibold flex items-center gap-2"><BarChart className="w-5 h-5"/> Global Intensity</Label>
-                  <p className="text-sm text-muted-foreground mb-4">Select your baseline intensity. This sets the difficulty floor and ceiling for all games.</p>
+                  <p className="text-sm text-muted-foreground mb-4">Select your baseline intensity. We recommend 'Automatic' for most users.</p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {(Object.keys(TIER_CONFIG) as unknown as Tier[]).map(tierKeyStr => {
-                        const tierKey = parseInt(tierKeyStr, 10) as Tier;
-                        const tier = TIER_CONFIG[tierKey];
-                        const isActive = globalTier === tierKey;
+                    {allTiers.map(tierInfo => {
+                        const isActive = globalTier === tierInfo.key;
                         return (
                             <div 
-                                key={tier.name}
-                                onClick={() => setGlobalTier(tierKey)}
+                                key={tierInfo.key}
+                                onClick={() => setGlobalTier(tierInfo.key)}
                                 className={cn(
                                     "rounded-lg border-2 p-4 cursor-pointer transition-all relative flex flex-col",
-                                    isActive ? "border-primary shadow-md" : "border-muted hover:border-muted-foreground/50"
+                                    isActive ? "border-primary shadow-md" : "border-muted hover:border-muted-foreground/50",
+                                    tierInfo.key === 4 && "bg-primary/5"
                                 )}
                             >
                                 {isActive && (
@@ -61,9 +74,11 @@ export function TrainingSettings() {
                                         <Check className="h-4 w-4" />
                                     </div>
                                 )}
-                                <h3 className="font-bold text-lg">{tier.name}</h3>
-                                <p className="text-sm text-muted-foreground flex-grow">{tierExamples[tierKey]}</p>
-                                <p className="text-xs font-mono text-right mt-2">Levels {tier.range[0]}-{tier.range[1]}</p>
+                                <h3 className="font-bold text-lg flex items-center gap-2"><tierInfo.icon className="w-5 h-5"/>{tierInfo.name}</h3>
+                                <p className="text-sm text-muted-foreground flex-grow">{tierInfo.description}</p>
+                                {tierInfo.key !== 4 && (
+                                  <p className="text-xs font-mono text-right mt-2">Levels {TIER_CONFIG[tierInfo.key as Tier].range[0]}-{TIER_CONFIG[tierInfo.key as Tier].range[1]}</p>
+                                )}
                             </div>
                         )
                     })}
@@ -102,7 +117,7 @@ export function TrainingSettings() {
                     <AccordionTrigger className="text-base font-semibold"><Settings className="w-5 h-5 mr-2"/> Per-Game Intensity Overrides</AccordionTrigger>
                     <AccordionContent className="space-y-4 pt-2">
                         <p className="text-sm text-muted-foreground">
-                            Set a different intensity for specific games if the global setting isn't right.
+                            Set a different intensity for specific games if the global setting isn't right. Overrides 'Automatic' mode for that game.
                         </p>
                         <div className="space-y-3">
                         {chcDomains.map(domain => {

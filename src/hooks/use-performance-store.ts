@@ -4,17 +4,17 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
-import type { GameId, Tier, AdaptiveState, TrialResult, TrainingFocus } from '@/types';
+import type { GameId, Tier, AdaptiveState, TrainingFocus, TierSelection } from '@/types';
 import { getDefaultState, TIER_CONFIG } from '@/lib/adaptive-engine';
 import { chcDomains } from '@/types';
 
 type PerformanceStateData = {
-  globalTier: Tier;
+  globalTier: TierSelection;
   gameStates: Record<GameId, AdaptiveState>;
 };
 
 type PerformanceActions = {
-  setGlobalTier: (tier: Tier) => void;
+  setGlobalTier: (tier: TierSelection) => void;
   setGameTier: (gameId: GameId, tier: Tier) => void;
   getAdaptiveState: (gameId: GameId, focus: TrainingFocus) => AdaptiveState;
   updateAdaptiveState: (gameId: GameId, newState: AdaptiveState) => void;
@@ -32,20 +32,11 @@ const initialGameStates = (): Record<GameId, AdaptiveState> => {
 export const usePerformanceStore = create<PerformanceStateData & PerformanceActions>()(
   persist(
     immer((set, get) => ({
-      globalTier: 1, // Default to "Developing"
+      globalTier: 4, // Default to "Automatic"
       gameStates: initialGameStates(),
       
       setGlobalTier: (tier) => {
-        const oldTier = get().globalTier;
-        set((state) => {
-          state.globalTier = tier;
-          for (const gameId in state.gameStates) {
-             const gameState = state.gameStates[gameId as GameId];
-             if (gameState && gameState.tier === oldTier) {
-                state.gameStates[gameId as GameId] = getDefaultState(gameId as GameId, tier);
-             }
-          }
-        });
+        set({ globalTier: tier });
       },
 
       setGameTier: (gameId, tier) => {
@@ -58,13 +49,26 @@ export const usePerformanceStore = create<PerformanceStateData & PerformanceActi
         const state = get();
         let gameState = state.gameStates[gameId];
         
-        if (!gameState) {
-          const newGameState = getDefaultState(gameId, state.globalTier);
-          set(s => { s.gameStates[gameId] = newGameState; });
-          gameState = newGameState;
+        // Determine the effective tier for this session
+        let effectiveTier: Tier;
+        if (state.globalTier === 4) { // Auto mode
+            const allGameStates = Object.values(state.gameStates);
+            const avgLevel = allGameStates.length > 0 ? allGameStates.reduce((sum, s) => sum + s.currentLevel, 0) / allGameStates.length : TIER_CONFIG[1].range[0];
+            
+            if (avgLevel <= TIER_CONFIG[0].range[1]) effectiveTier = 0;
+            else if (avgLevel <= TIER_CONFIG[1].range[1]) effectiveTier = 1;
+            else if (avgLevel <= TIER_CONFIG[2].range[1]) effectiveTier = 2;
+            else effectiveTier = 3;
+        } else {
+            effectiveTier = state.globalTier;
         }
 
-        // --- LAYER SWITCH HANDLING (Rule 3) ---
+        if (!gameState || gameState.tier !== effectiveTier) {
+          gameState = getDefaultState(gameId, effectiveTier);
+          set(s => { s.gameStates[gameId] = gameState!; });
+        }
+        
+        // --- LAYER SWITCH HANDLING ---
         if (gameState.lastFocus !== focus) {
             set(s => {
                 const stateToUpdate = s.gameStates[gameId]!;
@@ -91,7 +95,9 @@ export const usePerformanceStore = create<PerformanceStateData & PerformanceActi
       resetGameToTierDefault: (gameId) => {
          set(state => {
             const gameTier = state.gameStates[gameId]?.tier ?? state.globalTier;
-            state.gameStates[gameId] = getDefaultState(gameId, gameTier);
+            // Handle auto case
+            const finalTier = gameTier === 4 ? 1 : gameTier;
+            state.gameStates[gameId] = getDefaultState(gameId, finalTier);
          });
       }
     })),
@@ -104,8 +110,8 @@ export const usePerformanceStore = create<PerformanceStateData & PerformanceActi
           const newGameStates: Record<GameId, AdaptiveState> = {};
           for (const gameId in persistedState.gameStates) {
             const oldGameLayers = persistedState.gameStates[gameId];
-            if (oldGameLayers.neutral) { // Check if it's the old structure
-              const layers = ['neutral', 'math', 'music'].map(f => oldGameLayers[f]).filter(Boolean);
+            if (oldGameLayers && typeof oldGameLayers === 'object' && oldGameLayers.neutral) { // Check if it's the old, nested structure
+              const layers = ['neutral', 'math', 'music', 'verbal'].map(f => oldGameLayers[f]).filter(Boolean);
               
               // Take the highest level achieved across all layers
               const unifiedLevel = Math.max(...layers.map(l => l.currentLevel || 1));
@@ -124,11 +130,12 @@ export const usePerformanceStore = create<PerformanceStateData & PerformanceActi
           }
           persistedState.gameStates = newGameStates;
         }
+        if(!persistedState.globalTier) {
+            persistedState.globalTier = 4; // Default new users to Automatic
+        }
         return persistedState as PerformanceStateData & PerformanceActions;
       },
       version: 5,
     }
   )
 );
-
-    

@@ -6,6 +6,7 @@ import { Button } from './ui/button';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { GlobalFocusSwitcher } from './global-focus-switcher';
   
 export function Header() {
   const pathname = usePathname();
@@ -37,7 +38,7 @@ export function Header() {
         </nav>
         
         <div className="flex-1 flex justify-end items-center gap-1">
-          {/* Placeholder for future user profile icon */}
+          <GlobalFocusSwitcher />
         </div>
       </div>
     </header>
