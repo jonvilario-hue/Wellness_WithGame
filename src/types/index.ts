@@ -14,8 +14,8 @@ export const chcDomains: {
   { key: 'Gc', name: '(Gc) Crystallized Intelligence', description: 'Use learned knowledge', gameTitle: 'Verbal Inference Builder', tasks: ['verbal_inference'], supportsMath: true, supportsMusic: true },
   { key: 'Gwm', name: '(Gwm) Working Memory', description: 'Use and hold information', gameTitle: 'Dynamic Sequence', tasks: ['sequence_transform'], supportsMath: true, supportsMusic: true },
   { key: 'Gs', name: '(Gs) Processing Speed', description: 'Work fast and accurately', gameTitle: 'Rapid Code Match', tasks: ['code_match'], supportsMath: true, supportsMusic: true },
-  { key: 'Gv', name: '(Gv) Visual Processing', description: 'Visualize and rotate objects', gameTitle: 'Visual Processing Lab', tasks: ['mental_rotation', 'balance_puzzle'], supportsMath: true, supportsMusic: true },
-  { key: 'Ga', name: '(Ga) Auditory Processing', description: 'Analyze and distinguish sounds', gameTitle: 'Auditory Processing Lab', tasks: ['gap_detection', 'frequency_discrimination', 'figure_ground', 'rhythm_discrimination'], supportsMath: true, supportsMusic: true },
-  { key: 'Glr', name: '(Glr) Long-Term Retrieval', description: 'Store and recall ideas', gameTitle: 'Semantic Fluency Storm', tasks: ['semantic_fluency'], supportsMath: true, supportsMusic: true },
+  { key: 'Gv', name: 'Visual Processing', description: 'Visualize and rotate objects', gameTitle: 'Visual Processing Lab', tasks: ['mental_rotation', 'balance_puzzle'], supportsMath: true, supportsMusic: true },
+  { key: 'Ga', name: '(Ga) Auditory Processing', description: 'Analyze and distinguish sounds', gameTitle: 'Auditory Processing Lab', tasks: ['gap_detection', 'frequency_discrimination', 'figure_ground', 'rhythm_discrimination'], supportsMath: false, supportsMusic: false },
+  { key: 'Glr', name: '(Glr) Long-Term Retrieval', description: 'Builds rapid word association and memory recall pathways', gameTitle: 'Glr Retrieval Trainer', tasks: ['associative_chain', 'spaced_retrieval', 'category_sprint'], supportsMath: false, supportsMusic: false },
   { key: 'EF', name: '(EF) Executive Function', description: 'Focus, switch, control tasks', gameTitle: 'Focus Switch Reactor', tasks: ['focus_switch'], supportsMath: true, supportsMusic: true },
 ];
