@@ -21,11 +21,11 @@ const policy = difficultyPolicies[GAME_ID];
 
 
 // --- Neutral Mode Config ---
-const colorOptions = [
-    { name: 'DESTRUCTIVE', class: 'text-destructive' },
-    { name: 'PRIMARY', class: 'text-primary' },
-    { name: 'ACCENT', class: 'text-accent' },
-    { name: 'CHART-3', class: 'text-chart-3' },
+const colorMap = [
+    { name: 'DESTRUCTIVE', textClass: 'text-destructive', bgClass: 'bg-destructive hover:bg-destructive/90', textFgClass: 'text-destructive-foreground' },
+    { name: 'PRIMARY', textClass: 'text-primary', bgClass: 'bg-primary hover:bg-primary/90', textFgClass: 'text-primary-foreground' },
+    { name: 'ACCENT', textClass: 'text-accent', bgClass: 'bg-accent hover:bg-accent/90', textFgClass: 'text-accent-foreground' },
+    { name: 'CHART-3', textClass: 'text-chart-3', bgClass: 'bg-chart-3 hover:opacity-90', textFgClass: 'text-white' },
 ];
 type NeutralRule = 'color' | 'word' | 'no_go';
 
@@ -94,9 +94,9 @@ export function FocusSwitchReactor() {
   }, [rule]);
 
   const generateNeutralStimulus = useCallback(() => {
-    const randomWord = colorOptions[Math.floor(Math.random() * colorOptions.length)];
-    const randomColor = colorOptions[Math.floor(Math.random() * colorOptions.length)];
-    setStimulus({ word: randomWord.name, color: randomColor.class });
+    const randomWord = colorMap[Math.floor(Math.random() * colorMap.length)];
+    const randomColor = colorMap[Math.floor(Math.random() * colorMap.length)];
+    setStimulus({ word: randomWord.name, color: randomColor.textClass });
   }, []);
   
   const generateMathStimulus = useCallback(() => {
@@ -144,7 +144,7 @@ export function FocusSwitchReactor() {
     currentTrialIndex.current = 0;
     setScore(0);
     startNewTrial(sessionState);
-  }, [adaptiveState]);
+  }, [adaptiveState, startNewTrial]);
 
   const startNewTrial = (state: AdaptiveState) => {
     generateStimulus();
@@ -185,7 +185,7 @@ export function FocusSwitchReactor() {
             startNewTrial(newState);
         }
     }, 2000);
-  }, [gameState, adaptiveState, sessionTrials, updateAdaptiveState, generateRule, generateStimulus]);
+  }, [gameState, adaptiveState, sessionTrials, updateAdaptiveState, generateRule, generateStimulus, startNewTrial]);
   
   const handleAnswer = useCallback((answer: string) => {
     if (gameState !== 'running') return;
@@ -201,7 +201,7 @@ export function FocusSwitchReactor() {
         if (rule === 'word') {
             correctAnswer = stimulus.word;
         } else { // rule is 'color'
-            const correctOption = colorOptions.find(opt => opt.class === stimulus.color);
+            const correctOption = colorMap.find(opt => opt.textClass === stimulus.color);
             correctAnswer = correctOption?.name;
         }
         isCorrect = (answer === correctAnswer);
@@ -256,7 +256,7 @@ export function FocusSwitchReactor() {
         return qualities;
       }
       // Neutral mode
-      return colorOptions.map(c => c.name);
+      return colorMap.map(c => c.name);
   }
   
   const answerOptions = useMemo(getAnswerOptions, [rule, currentMode]);
@@ -309,11 +309,35 @@ export function FocusSwitchReactor() {
                 )}
               </div>
               <div className={cn("grid gap-4 w-full", buttonGridCols)}>
-                {answerOptions.map(option => (
-                    <Button key={option} onClick={() => handleAnswer(option)} disabled={gameState === 'feedback'} variant="secondary" size="lg">
-                      {option}
-                    </Button>
-                ))}
+                {answerOptions.map(option => {
+                  if (currentMode === 'neutral') {
+                      const colorInfo = colorMap.find(c => c.name === option);
+                      if (colorInfo) {
+                          return (
+                              <Button 
+                                  key={option} 
+                                  onClick={() => handleAnswer(option)} 
+                                  disabled={gameState === 'feedback'} 
+                                  size="lg"
+                                  className={cn(
+                                      "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+                                      "h-11 rounded-md px-8", // size="lg"
+                                      colorInfo.bgClass, 
+                                      colorInfo.textFgClass
+                                  )}
+                              >
+                                {option}
+                              </Button>
+                          )
+                      }
+                  }
+                  // Fallback for math/music modes
+                  return (
+                      <Button key={option} onClick={() => handleAnswer(option)} disabled={gameState === 'feedback'} variant="secondary" size="lg">
+                        {option}
+                      </Button>
+                  )
+                })}
               </div>
             </div>
           );
@@ -332,3 +356,5 @@ export function FocusSwitchReactor() {
     </Card>
   );
 }
+
+    
