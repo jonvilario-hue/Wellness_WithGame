@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -51,9 +52,21 @@ const ChcDomainCardComponent = ({ domain }: ChcDomainCardProps) => {
   const Icon = domainIcons[domain.key];
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
   
-  // OPTIMIZATION: Select only the specific game state needed by this card.
-  // This prevents re-renders when other game states change.
-  const gameState = usePerformanceStore(state => state.gameStates[domain.id] || null);
+  // OPTIMIZATION: Select only the getter function.
+  const getAdaptiveState = usePerformanceStore(state => state.getAdaptiveState);
+  
+  // The component's internal state now holds the adaptive state.
+  const [gameState, setGameState] = useState(() => getAdaptiveState(domain.id, globalFocus));
+
+  useEffect(() => {
+    // When the global focus changes, we need to get the correct state for that mode.
+    if (isGlobalFocusLoaded) {
+      setGameState(getAdaptiveState(domain.id, globalFocus));
+    }
+    // This effect depends on the globalFocus and the getter function.
+    // The getter function is stable, so it re-runs only when focus changes.
+  }, [globalFocus, isGlobalFocusLoaded, getAdaptiveState, domain.id]);
+
 
   const [isClient, setIsClient] = useState(false);
   useEffect(() => {
@@ -74,7 +87,6 @@ const ChcDomainCardComponent = ({ domain }: ChcDomainCardProps) => {
   
   const isLoaded = isGlobalFocusLoaded && isClient;
   
-  // OPTIMIZATION: Memoize score and trend calculations to avoid re-computing on every render.
   const score = useMemo(() => {
     if (!isLoaded || !gameState) return 0;
     return Math.round((gameState.currentLevel / gameState.levelCeiling) * 100);

@@ -68,7 +68,7 @@ export const useFocusBuilder = () => {
     if (!state) return;
     const newState: FocusBuilderState = {
       ...state,
-      cycleStartDate: new Date().toISOString(),
+      cycleStartDate: new Date().toISOString(), // Reset cycle when focus is manually changed
       manualOverrideDomain: domainKey,
     };
     setState(newState);

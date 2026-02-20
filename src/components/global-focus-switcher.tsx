@@ -12,18 +12,15 @@ import {
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useTrainingFocus, type TrainingFocus } from '@/hooks/use-training-focus';
-import { useTrainingOverride } from '@/hooks/use-training-override';
-import { Brain, Music, MessageSquare, View, Sigma, Smile, Share2 } from 'lucide-react';
+import { Brain, Music, MessageSquare, View, Sigma, Smile, Share2, Wand } from 'lucide-react';
 import { SigmaIcon } from './icons';
 
 export function GlobalFocusSwitcher() {
   const { focus, setFocus, isLoaded } = useTrainingFocus();
-  const { setOverride } = useTrainingOverride();
 
   const handleFocusChange = (value: string) => {
     const newFocus = value as TrainingFocus;
     setFocus(newFocus);
-    setOverride(null); 
   };
   
   const focusInfo: Record<TrainingFocus, { Icon: React.ElementType; label: string }> = {
@@ -68,7 +65,7 @@ export function GlobalFocusSwitcher() {
           <DropdownMenuRadioItem value="music" className="gap-2">
             <Music className="w-4 h-4"/> Music Cognition
           </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="verbal" className="gap-2">
+           <DropdownMenuRadioItem value="verbal" className="gap-2">
             <MessageSquare className="w-4 h-4"/> Verbal Reasoning
           </DropdownMenuRadioItem>
           <DropdownMenuRadioItem value="spatial" className="gap-2">

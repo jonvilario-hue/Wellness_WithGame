@@ -11,7 +11,6 @@ import { cn } from "@/lib/utils";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
-import { CocktailPartyDecoder } from './cocktail-party-decoder';
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
 import { GameStub } from "../game-stub";
@@ -120,10 +119,10 @@ const useAudioEngine = () => {
     return { getAudioContext, resumeContext, setVolume, playTone, playNoise, stopNoise };
 };
 
-const PhonemeInNoiseModule = ({ onComplete, level }: { onComplete: (result: { score: number, hits: number, falseAlarms: number }) => void, level: number }) => {
+const PhonemeInNoiseModule = ({ onComplete, level, focus }: { onComplete: (result: { score: number, hits: number, falseAlarms: number }) => void, level: number, focus: TrainingFocus }) => {
     const { resumeContext, playNoise, stopNoise } = useAudioEngine();
     const { content_config } = policy.levelMap[level] || policy.levelMap[1];
-    const params = content_config['verbal']?.params || { phonemes: ['ba', 'pa'], noiseLevel: 0 };
+    const params = content_config[focus]?.params || content_config['neutral']!.params;
 
     const [trials, setTrials] = useState(0);
     const [score, setScore] = useState(0);
@@ -145,12 +144,12 @@ const PhonemeInNoiseModule = ({ onComplete, level }: { onComplete: (result: { sc
         utterance.rate = 1.2;
         speechSynthesis.speak(utterance);
         
-        playNoise(params.noiseLevel);
+        playNoise(params.noise_level);
 
         setTimeout(() => {
             setIsAnswering(true);
             const trialTimeout = setTimeout(() => { // Auto-respond 'no' if user doesn't answer
-                if(isAnswering) handleResponse(false);
+                if(isAnswering) handleResponse(false, isTargetTrial);
             }, 2000);
             return () => clearTimeout(trialTimeout);
         }, 800);
@@ -167,11 +166,10 @@ const PhonemeInNoiseModule = ({ onComplete, level }: { onComplete: (result: { sc
         }
     }, [trials, runTrial, onComplete, score, stopNoise, hits, falseAlarms]);
 
-    const handleResponse = (userChoseTarget: boolean) => {
+    const handleResponse = (userChoseTarget: boolean, isTargetActuallyPresent: boolean) => {
         if (!isAnswering) return;
         setIsAnswering(false);
         
-        const isTargetActuallyPresent = speechSynthesis.speaking ? (speechSynthesis.getUtterances()[0]?.text === currentTarget.current) : false; // A hack
         const isCorrect = userChoseTarget === isTargetActuallyPresent;
         
         setFeedback(isCorrect ? 'correct' : 'incorrect');
@@ -192,8 +190,8 @@ const PhonemeInNoiseModule = ({ onComplete, level }: { onComplete: (result: { sc
                 {feedback === 'incorrect' && <p className="text-destructive font-bold text-2xl flex items-center gap-2"><X /> Incorrect</p>}
             </div>
             <div className="grid grid-cols-2 gap-4">
-                <Button onClick={() => handleResponse(false)} disabled={!isAnswering} size="lg" className="h-24 text-2xl">NO</Button>
-                <Button onClick={() => handleResponse(true)} disabled={!isAnswering} size="lg" className="h-24 text-2xl">YES</Button>
+                <Button onClick={() => handleResponse(false, speech.speaking)} disabled={!isAnswering} size="lg" className="h-24 text-2xl">NO</Button>
+                <Button onClick={() => handleResponse(true, speech.speaking)} disabled={!isAnswering} size="lg" className="h-24 text-2xl">YES</Button>
             </div>
             <p className="text-sm text-muted-foreground">Trial: {trials + 1} / 15 | Score: {score}</p>
         </div>
@@ -217,7 +215,7 @@ export function AuditoryProcessingRouter() {
 
     useEffect(() => {
         if (isComponentLoaded) {
-            const initialState = getAdaptiveState(GAME_ID);
+            const initialState = getAdaptiveState(GAME_ID, currentMode);
             setAdaptiveState(initialState);
         }
     }, [isComponentLoaded, currentMode, getAdaptiveState]);
@@ -251,6 +249,17 @@ export function AuditoryProcessingRouter() {
 
     if (currentMode === 'logic') {
         return <AuditoryDebugger />;
+    }
+
+    if (currentMode === 'eq') {
+        return <GameStub
+            name="Vocal Prosody Lab"
+            description="An audio clip of a neutral phrase ('The car is in the garage') spoken with a specific emotional tone (e.g., angry, happy, fearful). Discriminate the underlying emotional prosody of the voice and select the correct emotion label, ignoring the semantic content of the words."
+            chcFactor="Auditory Processing (Ga) / Social Cognition"
+            techStack={['RAVDESS Audio Dataset']}
+            complexity="Medium"
+            fallbackPlan="If audio clips cannot be loaded, use text descriptions of the tone (e.g., 'Spoken in a happy voice') which degrades the task to a Gc reading task, but maintains the EQ theme."
+        />;
     }
 
 
@@ -290,10 +299,7 @@ export function AuditoryProcessingRouter() {
                 );
 
             case 'running':
-                // The invalid AuditoryCalculationTask is removed.
-                // All modes (Math, Music, Verbal, Neutral) will now use the valid PhonemeInNoiseModule
-                // which is a true Ga task. This ensures psychometric integrity.
-                return <PhonemeInNoiseModule onComplete={handleGameComplete} level={adaptiveState.currentLevel} />;
+                return <PhonemeInNoiseModule onComplete={handleGameComplete} level={adaptiveState.currentLevel} focus={currentMode}/>;
 
             case 'finished':
                 return (

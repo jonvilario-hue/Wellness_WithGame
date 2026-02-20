@@ -15,6 +15,7 @@ import { useTrainingOverride } from "@/hooks/use-training-override";
 import { generalCategories, mathCategories, musicCategories, verbalCategories } from "@/data/verbal-content";
 import { GameStub } from "../game-stub";
 import { AlgorithmFluency } from "../logic/algorithm-fluency";
+import { SpacedRetrievalMode } from "./spaced-retrieval-mode";
 
 // --- Domain-specific content ---
 const generalWordList = ["apple", "car", "house", "river", "mountain", "book", "chair", "music", "light", "ocean", "star", "forest", "fire", "cloud", "dream", "journey", "key", "mirror", "shadow", "silence", "time", "voice", "water", "wind", "world"];
@@ -61,6 +62,12 @@ export function SemanticFluencyStorm() {
     if (currentTrainingFocus === 'logic') {
         return <AlgorithmFluency />;
     }
+
+    if (currentTrainingFocus === 'eq') {
+        // This is the "Empathy Recall" game. It maps well to the category fluency mechanic.
+        return <CategorySwitchingMode onComplete={handleGameComplete} focus={currentTrainingFocus} />;
+    }
+
 
     const renderContent = () => {
         if (gameState === 'idle') {
@@ -135,10 +142,12 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (score: numbe
     const handleTimeout = useCallback(() => {
         toast({ title: "Chain Broken!", description: `You built a chain of ${chain.length}.`, variant: "destructive" });
         
-        const currentState = getAdaptiveState('glr_fluency_storm');
+        const currentState = getAdaptiveState('glr_fluency_storm', focus);
         const newLevel = Math.max(currentState.levelFloor, Math.min(currentState.levelCeiling, 4 + Math.min(6, Math.floor(chain.length / 2))));
 
         updateAdaptiveState(
+            'glr_fluency_storm',
+            focus,
             {
                 ...currentState,
                 currentLevel: newLevel,
@@ -216,127 +225,6 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (score: numbe
     );
 }
 
-// --- MODE 2: SPACED RETRIEVAL PAIRS ---
-function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (score: number) => void, focus: TrainingFocus }) {
-    const { addSpacedPairs, getDueReviewPairs, updatePairOnResult } = useGlrStore();
-    const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
-    
-    const wordList1 = useMemo(() => {
-        if (focus === 'math') return mathWordList;
-        if (focus === 'music') return musicWordList;
-        if (focus === 'verbal') return verbalWordList;
-        return generalWordList;
-    }, [focus]);
-    
-    const [phase, setPhase] = useState<'review' | 'learn' | 'distract' | 'recall' | 'finished'>('review');
-    const [duePairs, setDuePairs] = useState<SpacedPair[]>([]);
-    const [newPairs, setNewPairs] = useState<{word1: string, word2: string}[]>([]);
-    const [currentIndex, setCurrentIndex] = useState(0);
-    const [userInput, setUserInput] = useState('');
-    const [feedback, setFeedback] = useState<Record<string, 'correct' | 'incorrect'>>({});
-    const [score, setScore] = useState(0);
-
-    useEffect(() => {
-        const pairsToReview = getDueReviewPairs();
-        if (pairsToReview.length > 0) {
-            setDuePairs(pairsToReview);
-            setPhase('recall'); // Start with recall if there are due pairs
-        } else {
-            const generated = Array.from({ length: 6 }).map(() => {
-                const word1 = wordList1[Math.floor(Math.random() * wordList1.length)];
-                let word2 = generalWordList[Math.floor(Math.random() * generalWordList.length)];
-                while(word1 === word2) word2 = generalWordList[Math.floor(Math.random() * generalWordList.length)];
-                return { word1, word2 };
-            });
-            setNewPairs(generated);
-            addSpacedPairs(generated);
-            setPhase('learn');
-        }
-        setCurrentIndex(0);
-    }, [addSpacedPairs, getDueReviewPairs, wordList1]);
-
-    const handleNext = () => {
-        const currentList = phase === 'recall' ? (duePairs.length > 0 ? duePairs : newPairs) : newPairs;
-        if (currentIndex < currentList.length - 1) {
-            setCurrentIndex(i => i + 1);
-        } else {
-            if (phase === 'learn') setPhase('distract');
-            else if (phase === 'recall') {
-                const currentState = getAdaptiveState('glr_fluency_storm');
-                const newLevel = Math.max(currentState.levelFloor, Math.min(currentState.levelCeiling, 4 + score));
-                updateAdaptiveState({ ...currentState, currentLevel: newLevel, lastFocus: focus, sessionCount: currentState.sessionCount + 1, lastSessionAt: Date.now() });
-                onComplete(score);
-                setPhase('finished');
-            }
-            setCurrentIndex(0);
-        }
-    };
-    
-    const handleRecallSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        const pair = (duePairs.length > 0 ? duePairs : newPairs)[currentIndex];
-        const isCorrect = userInput.trim().toLowerCase() === pair.word2.toLowerCase();
-        
-        updatePairOnResult(pair.id || `${pair.word1}-${pair.word2}`, isCorrect);
-        
-        setFeedback(prev => ({...prev, [pair.word1]: isCorrect ? 'correct' : 'incorrect'}));
-        if(isCorrect) setScore(s => s + 1);
-        
-        setUserInput('');
-        setTimeout(handleNext, 2000);
-    };
-
-    if (phase === 'distract') {
-        return <Distractor onComplete={() => { setCurrentIndex(0); setPhase('recall'); }} />;
-    }
-    
-    const pairToShow = (phase === 'recall' ? (duePairs.length > 0 ? duePairs : newPairs) : newPairs)[currentIndex];
-
-    return (
-        <div className="w-full flex flex-col items-center gap-4">
-            <p className="font-semibold text-primary uppercase">{phase} Phase</p>
-            {phase === 'learn' && pairToShow && (
-                 <div className="text-center p-8 bg-muted rounded-lg animate-in fade-in">
-                    <p className="text-muted-foreground">Memorize this pair:</p>
-                    <p className="text-4xl font-bold">{pairToShow.word1} - {pairToShow.word2}</p>
-                    <p className="text-sm font-mono mt-4">Pair {currentIndex + 1} of {newPairs.length}</p>
-                    <Button onClick={handleNext} className="mt-4">Next</Button>
-                </div>
-            )}
-            {(phase === 'recall') && pairToShow && (
-                <div className="w-full text-center space-y-4">
-                    <p className="text-muted-foreground">What word was paired with:</p>
-                    <p className="text-5xl font-bold">{pairToShow.word1}</p>
-                    {feedback[pairToShow.word1] ? (
-                        <div className={cn("text-2xl font-bold", feedback[pairToShow.word1] === 'correct' ? "text-green-500" : "text-destructive")}>
-                            {feedback[pairToShow.word1] === 'correct' ? "Correct!" : `The answer was: ${pairToShow.word2}`}
-                        </div>
-                    ) : (
-                        <form onSubmit={handleRecallSubmit} className="flex gap-2 justify-center">
-                            <Input value={userInput} onChange={e => setUserInput(e.target.value)} autoFocus placeholder="Type the word" className="text-center"/>
-                            <Button type="submit">Submit</Button>
-                        </form>
-                    )}
-                </div>
-            )}
-            {phase === 'finished' && <p>Recall session complete!</p>}
-        </div>
-    );
-}
-
-const Distractor = ({ onComplete }: { onComplete: () => void }) => {
-    const [count, setCount] = useState(15);
-    useEffect(() => {
-        if (count > 0) {
-            const timer = setTimeout(() => setCount(c => c - 1), 1000);
-            return () => clearTimeout(timer);
-        } else {
-            onComplete();
-        }
-    }, [count, onComplete]);
-
-    return <div className="text-center"><p className="text-muted-foreground">Mental Distraction</p><p className="text-6xl font-mono font-bold">{count}</p><p>Count down to zero...</p></div>;
-};
 
 // --- MODE 3: CATEGORY SWITCHING SPRINT ---
 function CategorySwitchingMode({ onComplete, focus }: { onComplete: (score: number) => void, focus: TrainingFocus }) {
@@ -354,6 +242,7 @@ function CategorySwitchingMode({ onComplete, focus }: { onComplete: (score: numb
         if (focus === 'math') return mathCategories;
         if (focus === 'music') return musicCategories;
         if (focus === 'verbal') return verbalCategories;
+        if (focus === 'eq') return ['Positive Emotions', 'Negative Emotions', 'Social Roles', 'Causes of Joy'];
         return generalCategories;
     }, [focus]);
 
@@ -371,9 +260,9 @@ function CategorySwitchingMode({ onComplete, focus }: { onComplete: (score: numb
                 if (prev <= 1) {
                     clearInterval(categoryTimerRef.current as NodeJS.Timeout);
                     clearInterval(totalTimer);
-                    const currentState = getAdaptiveState('glr_fluency_storm');
+                    const currentState = getAdaptiveState('glr_fluency_storm', focus);
                     const newLevel = Math.max(currentState.levelFloor, Math.min(currentState.levelCeiling, 4 + Math.min(6, Math.floor(score / 5))));
-                    updateAdaptiveState({ ...currentState, currentLevel: newLevel, lastFocus: focus, sessionCount: currentState.sessionCount + 1, lastSessionAt: Date.now() });
+                    updateAdaptiveState('glr_fluency_storm', focus, { ...currentState, currentLevel: newLevel, lastFocus: focus, sessionCount: currentState.sessionCount + 1, lastSessionAt: Date.now() });
                     onComplete(score);
                     return 0;
                 }

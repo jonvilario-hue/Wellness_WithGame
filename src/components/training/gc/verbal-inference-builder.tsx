@@ -34,8 +34,8 @@ type Puzzle = {
 const generatePuzzleForLevel = (level: number, focus: TrainingFocus): Puzzle => {
     const levelDef = policy.levelMap[level] || policy.levelMap[Object.keys(policy.levelMap).pop() as any];
     const contentConfig = levelDef.content_config[focus];
-    if (!contentConfig) { // Fallback to neutral if focus not implemented
-      return generatePuzzleForLevel(level, 'neutral');
+    if (!contentConfig || !contentConfig.params) { // Fallback to verbal if focus not implemented for Gc
+      return generatePuzzleForLevel(level, 'verbal');
     }
     const { sub_variant, params } = contentConfig;
     
@@ -55,16 +55,23 @@ const generatePuzzleForLevel = (level: number, focus: TrainingFocus): Puzzle => 
     if (sub_variant === 'cloze_deletion') {
         const filteredSentences = clozeSentences.filter(p => p.difficulty === params.word_rarity);
         puzzleTemplate = filteredSentences[Math.floor(Math.random() * filteredSentences.length)] || clozeSentences[0];
-    } else { // Default to math word problems or other fallbacks
-        puzzleTemplate = {
-            question: "A train travels at 60 mph for 2 hours. How far did it go?",
-            options: ["100 miles", "150 miles"],
-            answer: "120 miles",
-            explanation: "Distance = Speed x Time. 60 * 2 = 120."
-        }
+         return {
+            type: sub_variant,
+            question: puzzleTemplate.question,
+            options: [...puzzleTemplate.options, puzzleTemplate.answer].sort(() => Math.random() - 0.5),
+            answer: puzzleTemplate.answer,
+            explanation: puzzleTemplate.explanation,
+        };
     }
-
-    return {
+    
+    // Fallback for verbal mode
+    puzzleTemplate = {
+        question: "Which word is an antonym for 'happy'?",
+        options: ["Joyful", "Ecstatic", "Sad"],
+        answer: "Sad",
+        explanation: "An antonym has the opposite meaning."
+    };
+     return {
         type: sub_variant,
         question: puzzleTemplate.question,
         options: [...puzzleTemplate.options, puzzleTemplate.answer].sort(() => Math.random() - 0.5),
@@ -95,7 +102,7 @@ export function VerbalInferenceBuilder() {
   
   useEffect(() => {
     if (isComponentLoaded) {
-      const initialState = getAdaptiveState(GAME_ID);
+      const initialState = getAdaptiveState(GAME_ID, currentMode);
       setAdaptiveState(initialState);
       setGameState('start');
     }
@@ -145,7 +152,7 @@ export function VerbalInferenceBuilder() {
         if (currentTrialIndex.current >= policy.sessionLength) {
             setGameState('finished');
             const finalState = endSession(newState, [...sessionTrials, trialResult]);
-            updateAdaptiveState(finalState);
+            updateAdaptiveState(GAME_ID, currentMode, finalState);
         } else {
             startNewTrial(newState);
         }
@@ -162,6 +169,32 @@ export function VerbalInferenceBuilder() {
   // --- ROUTER LOGIC ---
   if (!isComponentLoaded) {
       return <Card className="w-full max-w-2xl min-h-[400px] flex items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-primary" /></Card>;
+  }
+  
+  if (currentMode === 'neutral') {
+    return (
+        <Card className="w-full max-w-2xl text-center">
+             <CardHeader>
+                <CardTitle className="flex items-center justify-center gap-2">
+                    <BookOpenText />
+                    (Gc) Crystallized Intelligence
+                </CardTitle>
+                <CardDescription>
+                   This game tests your stored knowledge. Because 'Crystallized Intelligence' is about what you already know, there is no 'neutral' version of this game. Please select another training mode like Verbal, Math, or Logic.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <GameStub 
+                    name="Knowledge Base"
+                    chcFactor="Crystallized Intelligence (Gc)"
+                    description="This game requires applying learned knowledge. A 'neutral' or 'abstract' version is not applicable for this cognitive factor."
+                    techStack={[]}
+                    complexity="Low"
+                    fallbackPlan="N/A"
+                />
+            </CardContent>
+        </Card>
+    )
   }
 
   if (currentMode === 'spatial') {

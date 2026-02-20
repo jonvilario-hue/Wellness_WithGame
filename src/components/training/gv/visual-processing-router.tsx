@@ -6,10 +6,10 @@ import { MentalRotationLab } from './mental-rotation-lab';
 import { BalancePuzzle } from './balance-puzzle';
 import { Skeleton } from '@/components/ui/skeleton';
 import { VisualMusicMatch } from './visual-music-match';
-import { OrthographicConstruction } from './orthographic-construction';
 import { TypographicSearch } from './typographic-search';
 import { GameStub } from '../game-stub';
 import { FlowchartTracer } from '../logic/flowchart-tracer';
+import { EmotionalCrowdSearch } from './emotional-crowd-search';
 
 export function VisualProcessingRouter() {
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
@@ -30,8 +30,6 @@ export function VisualProcessingRouter() {
     case 'music':
       return <VisualMusicMatch focus={effectiveFocus} />;
     case 'verbal':
-        // The Orthographic Construction task was replaced by Typographic Search 
-        // to better align with the Gv domain (visual scanning).
         return <TypographicSearch focus={effectiveFocus} />;
     case 'spatial':
         return <GameStub 
@@ -44,6 +42,8 @@ export function VisualProcessingRouter() {
         />;
     case 'logic':
         return <FlowchartTracer />;
+    case 'eq':
+        return <EmotionalCrowdSearch />;
     case 'neutral':
     default:
       return <MentalRotationLab focus={effectiveFocus} />;

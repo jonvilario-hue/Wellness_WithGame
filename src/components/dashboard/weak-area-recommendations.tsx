@@ -25,16 +25,17 @@ export function WeakAreaRecommendations() {
   const [error, setError] = useState<string | null>(null);
   const [isInsightVisible, setIsInsightVisible] = useState(false);
   const { organicGrowth } = useTheme();
-  const { gameStates } = usePerformanceStore();
-  const { focus: globalFocus } = useTrainingFocus();
+  const { getAdaptiveState } = usePerformanceStore();
+  const { focus: globalFocus, isLoaded } = useTrainingFocus();
 
   useEffect(() => {
-    if (!gameStates || !globalFocus) return;
+    if (!isLoaded) return;
 
     startTransition(async () => {
       try {
         const flatPerformanceData = chcDomains.map(domainInfo => {
-            const gameState = gameStates[domainInfo.id];
+            // We'll check the 'neutral' focus performance to get a baseline weak area
+            const gameState = getAdaptiveState(domainInfo.id, 'neutral');
           return {
             domain: domainInfo.key,
             score: gameState ? Math.round((gameState.currentLevel / gameState.levelCeiling) * 100) : 0,
@@ -54,7 +55,7 @@ export function WeakAreaRecommendations() {
     if (dismissed !== 'true') {
       setIsInsightVisible(true);
     }
-  }, [gameStates, globalFocus]);
+  }, [getAdaptiveState, isLoaded]);
 
   const handleDismissInsight = () => {
     setIsInsightVisible(false);

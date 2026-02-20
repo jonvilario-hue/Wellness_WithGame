@@ -102,14 +102,19 @@ const generatePuzzleForLevel = (level: number, focus: TrainingFocus) => {
     const missingIndex = Math.floor(Math.random() * (size * size));
     
     if (sub_variant === 'morphological_analogy') {
-        const rule = params.rule_type as keyof typeof morphologyWordPairs;
-        const pair = morphologyWordPairs[rule][0];
-        const secondPair = morphologyWordPairs[rule][1];
+        const pseudowords = { base: ['flib', 'glorp', 'wux'], derived: ['flibbing', 'glorping', 'wuxing'] };
+        const rule = Math.random() > 0.5 ? 'ing' : 'ed';
+        
+        const base1 = pseudowords.base[0];
+        const derived1 = rule === 'ing' ? pseudowords.derived[0] : 'flibbed';
+        const base2 = pseudowords.base[1];
+        const derived2 = rule === 'ing' ? pseudowords.derived[1] : 'glorped';
+        
+        grid[0] = { type: 'verbal', value: base1 };
+        grid[1] = { type: 'verbal', value: derived1 };
+        grid[2] = { type: 'verbal', value: base2 };
+        grid[3] = { type: 'verbal', value: derived2 };
 
-        grid[0] = { type: 'verbal', value: pair.base };
-        grid[1] = { type: 'verbal', value: pair.derived };
-        grid[2] = { type: 'verbal', value: secondPair.base };
-        grid[3] = { type: 'verbal', value: secondPair.derived };
     }
     else if (focus === 'math') {
         const start = Math.floor(Math.random()*5) + 1;
@@ -183,7 +188,7 @@ export function PatternMatrix() {
 
     useEffect(() => {
         if (isComponentLoaded) {
-            const initialState = getAdaptiveState(GAME_ID);
+            const initialState = getAdaptiveState(GAME_ID, currentMode);
             setAdaptiveState(initialState);
             setGameState('start');
         }
@@ -232,7 +237,7 @@ export function PatternMatrix() {
             if (currentTrialIndex.current >= policy.sessionLength) {
                 setGameState('finished');
                 const finalState = endSession(newState, [...sessionTrials, trialResult]);
-                updateAdaptiveState(finalState);
+                updateAdaptiveState(GAME_ID, currentMode, finalState);
             } else {
                 startNewTrial(newState);
             }
@@ -252,6 +257,17 @@ export function PatternMatrix() {
 
     if (currentMode === 'logic') {
         return <RuleInductionEngine />;
+    }
+
+    if (currentMode === 'eq') {
+         return <GameStub 
+            name="Social Rule Induction" 
+            description="A 2x2 grid showing social interactions. Example: [Happy Face + Gift -> Thank You] ; [Sad Face + Spilled Drink -> Apology]. User must infer the 'emotional grammar' rule."
+            chcFactor="Fluid Reasoning (Gf) / Social Cognition"
+            techStack={['SVG Icons']}
+            complexity="Medium"
+            fallbackPlan="N/A"
+        />;
     }
 
     const renderContent = () => {
@@ -276,7 +292,7 @@ export function PatternMatrix() {
                 );
             case 'playing':
             case 'feedback':
-                if (!puzzle) return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
+                if (!puzzle) return <Loader2 className="animate-spin"/>;
                 const gridClass = puzzle.size === 3 ? "grid-cols-3" : (puzzle.size === 2 ? "grid-cols-2" : "grid-cols-1");
 
                 if (puzzle.type === 'probability') {

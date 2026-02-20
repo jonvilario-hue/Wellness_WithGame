@@ -4,7 +4,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { usePerformanceStore } from '@/hooks/use-performance-store';
 import { TIER_CONFIG } from '@/lib/adaptive-engine';
-import type { Tier, TierSelection } from '@/types';
+import type { Tier, TierSelection, TrainingFocus } from '@/types';
 import { cn } from '@/lib/utils';
 import { Check, Sliders, Filter, BarChart, Settings, Music, TestTube, Clapperboard, Bot } from 'lucide-react';
 import {
@@ -19,6 +19,7 @@ import { Label } from '../ui/label';
 import { Slider } from '../ui/slider';
 import { Switch } from '../ui/switch';
 import { Separator } from '../ui/separator';
+import { useTrainingFocus } from '@/hooks/use-training-focus';
 
 const tierExamples: Record<Tier, string> = {
     0: "Focuses on core mechanics with no distractors.",
@@ -28,7 +29,8 @@ const tierExamples: Record<Tier, string> = {
 }
 
 export function TrainingSettings() {
-    const { globalTier, setGlobalTier, gameStates, setGameTier } = usePerformanceStore();
+    const { globalTier, setGlobalTier, getAdaptiveState, setGameTier } = usePerformanceStore();
+    const { focus } = useTrainingFocus();
 
     const allTiers: { key: TierSelection, name: string, icon: React.ElementType, description: string }[] = [
         { key: 4, name: "Automatic", icon: Bot, description: "Dynamically adjusts intensity based on your average performance."},
@@ -117,17 +119,17 @@ export function TrainingSettings() {
                     <AccordionTrigger className="text-base font-semibold"><Settings className="w-5 h-5 mr-2"/> Per-Game Intensity Overrides</AccordionTrigger>
                     <AccordionContent className="space-y-4 pt-2">
                         <p className="text-sm text-muted-foreground">
-                            Set a different intensity for specific games if the global setting isn't right. Overrides 'Automatic' mode for that game.
+                            Set a different intensity for specific games if the global setting isn't right. Overrides 'Automatic' mode for that game. This applies to the currently active Focus Mode.
                         </p>
                         <div className="space-y-3">
                         {chcDomains.map(domain => {
-                            const gameTier = gameStates[domain.id]?.tier ?? globalTier;
+                            const gameTier = getAdaptiveState(domain.id, focus)?.tier ?? globalTier;
                             return (
                                 <div key={domain.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
                                     <Label htmlFor={`select-${domain.id}`} className="font-medium">{domain.name}</Label>
                                     <Select 
                                         value={gameTier.toString()} 
-                                        onValueChange={(value) => setGameTier(domain.id, parseInt(value, 10) as Tier)}
+                                        onValueChange={(value) => setGameTier(domain.id, focus, parseInt(value, 10) as Tier)}
                                     >
                                         <SelectTrigger id={`select-${domain.id}`} className="w-[180px]">
                                             <SelectValue placeholder="Select intensity" />

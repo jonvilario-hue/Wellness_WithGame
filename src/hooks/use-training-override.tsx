@@ -1,8 +1,8 @@
-
 'use client';
 
-import React, { createContext, useContext, useState, useMemo } from 'react';
-import type { TrainingFocus } from './use-training-focus';
+import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
+import type { TrainingFocus } from '@/hooks/use-training-focus';
+import { usePathname } from 'next/navigation';
 
 type TrainingOverrideContextType = {
   override: TrainingFocus | null;
@@ -13,7 +13,17 @@ type TrainingOverrideContextType = {
 const TrainingOverrideContext = createContext<TrainingOverrideContextType | undefined>(undefined);
 
 export function TrainingOverrideProvider({ children }: { children: React.ReactNode }) {
+  // This state is ephemeral and should not be persisted.
+  // It only applies to the current game session view.
   const [override, setOverride] = useState<TrainingFocus | null>(null);
+  const pathname = usePathname();
+
+  // If the user navigates away from a training page, clear the override.
+  useEffect(() => {
+    if (!pathname.startsWith('/training/')) {
+        setOverride(null);
+    }
+  }, [pathname]);
 
   const value = useMemo(() => ({
     override,

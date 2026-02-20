@@ -112,9 +112,11 @@ export function RapidCodeMatch() {
 
       if (currentMode === 'verbal') {
           setProblem(generateLexicalProblem());
+      } else if (currentMode === 'math') {
+          // Per audit, math mode must remain a pure Gs task.
+          // Using simple symbol substitution is the valid approach.
+          setProblem(generateSymbolProblem(loadedLevel));
       } else {
-        // Math mode is simplified to only use symbol substitution to preserve the Gs factor.
-        // Magnitude comparison is removed to prevent cognitive drift to calculation (Gq).
         setProblem(generateSymbolProblem(loadedLevel));
       }
       
@@ -134,7 +136,7 @@ export function RapidCodeMatch() {
 
   useEffect(() => {
     if (isComponentLoaded) {
-      const initialState = getAdaptiveState(GAME_ID);
+      const initialState = getAdaptiveState(GAME_ID, currentMode);
       setAdaptiveState(initialState);
       setGameState('start');
     }
@@ -147,10 +149,10 @@ export function RapidCodeMatch() {
     } else if (timeLeft <= 0 && gameState === 'running' && adaptiveState) {
         setGameState('finished');
         const finalState = endSession(adaptiveState, sessionTrials);
-        updateAdaptiveState(finalState);
+        updateAdaptiveState(GAME_ID, currentMode, finalState);
     }
     return () => clearTimeout(timer);
-  }, [gameState, timeLeft, adaptiveState, sessionTrials, updateAdaptiveState]);
+  }, [gameState, timeLeft, adaptiveState, sessionTrials, updateAdaptiveState, currentMode]);
 
   const handleAnswer = useCallback((answer: number | string | boolean) => {
     if (gameState !== 'running' || !adaptiveState || !problem) return;
@@ -187,10 +189,10 @@ export function RapidCodeMatch() {
         } else {
             setGameState('finished');
             const finalState = endSession(newState, sessionTrials);
-            updateAdaptiveState(finalState);
+            updateAdaptiveState(GAME_ID, currentMode, finalState);
         }
     }, 500);
-  }, [gameState, problem, adaptiveState, timeLeft, startNewTrial, updateAdaptiveState]);
+  }, [gameState, problem, adaptiveState, timeLeft, startNewTrial, updateAdaptiveState, currentMode]);
 
   if (currentMode === 'spatial') {
     return <GameStub 
@@ -205,6 +207,17 @@ export function RapidCodeMatch() {
 
   if (currentMode === 'logic') {
     return <GateSpeed />;
+  }
+
+  if (currentMode === 'eq') {
+      return <GameStub 
+        name="Flash Recognition"
+        description="A fixation cross, followed by a masked facial expression (e.g., surprise) flashed for 150-500ms. Rapidly classify the flashed universal emotion from a multiple-choice response array before the next trial begins."
+        chcFactor="Processing Speed (Gs) / Micro-Expression Recognition"
+        techStack={['Framer Motion', 'Face Asset Library']}
+        complexity="Medium"
+        fallbackPlan="If face assets fail, use abstract emotional icons (e.g., stylized happy/sad faces). This preserves the speeded classification mechanic but loses the micro-expression subtlety."
+        />
   }
 
   const renderContent = () => {

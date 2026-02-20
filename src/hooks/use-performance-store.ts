@@ -1,4 +1,3 @@
-
 'use client';
 
 import { create } from 'zustand';
@@ -8,26 +7,30 @@ import type { GameId, Tier, AdaptiveState, TrainingFocus, TierSelection } from '
 import { getDefaultState, TIER_CONFIG } from '@/lib/adaptive-engine';
 import { chcDomains } from '@/types';
 
+// The key is now a composite: `${GameId}/${TrainingFocus}`
+type GameStateKey = `${GameId}/${TrainingFocus}`;
+
 type PerformanceStateData = {
   globalTier: TierSelection;
-  gameStates: Record<GameId, AdaptiveState>;
+  gameStates: Record<GameStateKey, AdaptiveState>;
 };
 
 type PerformanceActions = {
   setGlobalTier: (tier: TierSelection) => void;
-  setGameTier: (gameId: GameId, tier: Tier) => void;
-  handleFocusChange: (newFocus: TrainingFocus) => void;
-  getAdaptiveState: (gameId: GameId) => AdaptiveState;
-  updateAdaptiveState: (gameId: GameId, newState: AdaptiveState) => void;
-  resetGameToTierDefault: (gameId: GameId) => void;
+  setGameTier: (gameId: GameId, focus: TrainingFocus, tier: Tier) => void;
+  getAdaptiveState: (gameId: GameId, focus: TrainingFocus) => AdaptiveState;
+  updateAdaptiveState: (gameId: GameId, focus: TrainingFocus, newState: AdaptiveState) => void;
+  resetGameToTierDefault: (gameId: GameId, focus: TrainingFocus) => void;
 };
 
-const initialGameStates = (): Record<GameId, AdaptiveState> => {
-  const state: Partial<Record<GameId, AdaptiveState>> = {};
+const initialGameStates = (): Record<GameStateKey, AdaptiveState> => {
+  const state: Partial<Record<GameStateKey, AdaptiveState>> = {};
   for (const domain of chcDomains) {
-    state[domain.id] = getDefaultState(domain.id, 1); // Default all games to Tier 1
+    // Only initialize the neutral state
+    const key: GameStateKey = `${domain.id}/neutral`;
+    state[key] = getDefaultState(domain.id, 1); // Default all games to Tier 1
   }
-  return state as Record<GameId, AdaptiveState>;
+  return state as Record<GameStateKey, AdaptiveState>;
 };
 
 export const usePerformanceStore = create<PerformanceStateData & PerformanceActions>()(
@@ -40,52 +43,71 @@ export const usePerformanceStore = create<PerformanceStateData & PerformanceActi
         set({ globalTier: tier });
       },
 
-      setGameTier: (gameId, tier) => {
+      setGameTier: (gameId, focus, tier) => {
         set((state) => {
-            state.gameStates[gameId] = getDefaultState(gameId, tier);
+            const key: GameStateKey = `${gameId}/${focus}`;
+            state.gameStates[key] = getDefaultState(gameId, tier);
         });
       },
 
-      handleFocusChange: (newFocus: TrainingFocus) => {
+      getAdaptiveState: (gameId, focus) => {
+        const key: GameStateKey = `${gameId}/${focus}`;
+        const neutralKey: GameStateKey = `${gameId}/neutral`;
+        const existingState = get().gameStates[key];
+
+        if (existingState) {
+          return existingState;
+        }
+
+        // Cold-Start: If a mode doesn't have a state, create one.
+        const neutralState = get().gameStates[neutralKey] || getDefaultState(gameId, 1);
+        
+        // Create a fresh default state for the new mode's tier.
+        const newModeDefaultState = getDefaultState(gameId, neutralState.tier as Tier);
+
+        // "Taxed Transfer": Seed the new mode's level from the core mode,
+        // but apply a penalty to account for context-switching costs.
+        const seededLevel = Math.max(
+          newModeDefaultState.levelFloor, // Don't go below the floor
+          neutralState.currentLevel - 3   // Apply a 3-level "tax"
+        );
+        
+        const newState: AdaptiveState = {
+            ...newModeDefaultState,
+            currentLevel: seededLevel,
+            lastFocus: focus,
+            // High uncertainty means the algorithm will adapt much faster for the first few trials.
+            uncertainty: 0.8, 
+        };
+        
+        // Immediately persist this new state so it exists for the next call.
         set(state => {
-            for (const gameId in state.gameStates) {
-                const gameState = state.gameStates[gameId as GameId];
-                if (gameState && gameState.lastFocus !== newFocus) {
-                    gameState.uncertainty = Math.min(1.0, gameState.uncertainty + 0.3);
-                    gameState.consecutiveCorrect = 0;
-                    gameState.consecutiveWrong = 0;
-                    gameState.smoothedAccuracy = 0.75;
-                    gameState.smoothedRT = null;
-                    gameState.lastFocus = newFocus;
-                }
-            }
+            state.gameStates[key] = newState;
         });
+
+        return newState;
       },
 
-      getAdaptiveState: (gameId) => {
-        // This function is now a pure selector.
-        // It relies on `handleFocusChange` to have been called to update the state.
-        return get().gameStates[gameId]!;
-      },
-
-      updateAdaptiveState: (gameId, newState) => {
+      updateAdaptiveState: (gameId, focus, newState) => {
         set(state => {
-            state.gameStates[gameId] = newState;
+            const key: GameStateKey = `${gameId}/${focus}`;
+            state.gameStates[key] = newState;
         });
       },
       
-      resetGameToTierDefault: (gameId) => {
+      resetGameToTierDefault: (gameId, focus) => {
          set(state => {
-            const gameTier = state.gameStates[gameId]?.tier ?? state.globalTier;
+            const key: GameStateKey = `${gameId}/${focus}`;
+            const gameTier = state.gameStates[key]?.tier ?? state.globalTier;
             const finalTier = gameTier === 4 ? 1 : gameTier;
-            state.gameStates[gameId] = getDefaultState(gameId, finalTier);
+            state.gameStates[key] = getDefaultState(gameId, finalTier);
          });
       }
     })),
     {
-      name: 'cognitive-performance-storage-v6-unified',
+      name: 'cognitive-performance-storage-v8-taxed', // Version bump for new structure
       storage: createJSONStorage(() => localStorage),
-      version: 6,
+      version: 8,
     }
   )
 );

@@ -43,7 +43,8 @@ export function AdaptiveDifficulty() {
       setSkillLevel(50); // Default if no data
       return;
     }
-    const gameState = getAdaptiveState(domainInfo.id);
+    // Use the new selector, passing both gameId and the current focus
+    const gameState = getAdaptiveState(domainInfo.id, focus);
     if (gameState) {
       const calculatedSkill = Math.round((gameState.currentLevel / gameState.levelCeiling) * 100);
       setSkillLevel(calculatedSkill);

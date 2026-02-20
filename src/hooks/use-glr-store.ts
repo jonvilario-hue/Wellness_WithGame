@@ -1,4 +1,3 @@
-
 'use client';
 
 import { create } from 'zustand';
@@ -33,7 +32,7 @@ const gameModes: ('associative' | 'spaced' | 'category')[] = ['category', 'assoc
 type GlrState = {
     spacedPairs: Record<string, SpacedPair>;
     submittedWords: Record<string, string[]>; // category -> words[]
-    lastModeIndex: number;
+    lastModeIndex: Record<TrainingFocus, number>;
 };
 
 type GlrActions = {
@@ -53,16 +52,27 @@ export const useGlrStore = create<GlrState & GlrActions>()(
         immer((set, get) => ({
             spacedPairs: {},
             submittedWords: {},
-            lastModeIndex: 2, // Start with 2 so first mode is 0 (category)
+            lastModeIndex: {
+                neutral: 2,
+                math: 2,
+                music: 2,
+                verbal: 2,
+                spatial: 2,
+                eq: 2,
+                logic: 2,
+            },
 
             getNextMode: (focus) => {
-                // Math and Music modes have more specific, mechanically distinct games
-                if (focus === 'math') return 'associative';
-                if (focus === 'music') return 'spaced';
+                // Per audit, certain modes should have fixed games for psychometric integrity.
+                if (focus === 'math') return 'spaced'; // Math facts are best trained with spaced repetition.
+                if (focus === 'music') return 'spaced'; // Music theory terms also fit spaced repetition.
+                if (focus === 'logic') return 'associative'; // Logic is about associating concepts.
+                if (focus === 'eq') return 'category'; // EQ maps well to category fluency.
 
-                // For Neutral/Verbal, rotate through all games
-                const nextIndex = (get().lastModeIndex + 1) % gameModes.length;
-                set({ lastModeIndex: nextIndex });
+                // For Neutral/Verbal/Spatial, rotate through all games
+                const lastIndex = get().lastModeIndex[focus];
+                const nextIndex = (lastIndex + 1) % gameModes.length;
+                set(state => { state.lastModeIndex[focus] = nextIndex });
                 return gameModes[nextIndex];
             },
 
@@ -130,7 +140,7 @@ export const useGlrStore = create<GlrState & GlrActions>()(
 
         })),
         {
-            name: 'glr-training-storage-v2',
+            name: 'glr-training-storage-v3-router',
             storage: createJSONStorage(() => localStorage),
         }
     )

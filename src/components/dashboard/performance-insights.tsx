@@ -28,15 +28,15 @@ export function PerformanceInsights() {
   const [isPending, startTransition] = useTransition();
   const [isInsightVisible, setIsInsightVisible] = useState(false);
   const { organicGrowth } = useTheme();
-  const { gameStates } = usePerformanceStore();
-  const { focus: globalFocus } = useTrainingFocus();
+  const { getAdaptiveState } = usePerformanceStore();
+  const { focus: globalFocus, isLoaded } = useTrainingFocus();
 
   useEffect(() => {
-    if (!gameStates || !globalFocus) return;
+    if (!isLoaded) return;
     
     startTransition(async () => {
       const flatPerformanceData = chcDomains.map(domainInfo => {
-        const gameState = gameStates[domainInfo.id];
+        const gameState = getAdaptiveState(domainInfo.id, globalFocus);
         return {
           domain: domainInfo.key,
           score: gameState ? Math.round((gameState.currentLevel / gameState.levelCeiling) * 100) : 0,
@@ -51,7 +51,7 @@ export function PerformanceInsights() {
     if (dismissed !== 'true') {
       setIsInsightVisible(true);
     }
-  }, [gameStates, globalFocus]);
+  }, [getAdaptiveState, globalFocus, isLoaded]);
 
   const handleDismissInsight = () => {
     setIsInsightVisible(false);

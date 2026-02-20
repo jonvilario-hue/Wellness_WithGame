@@ -74,7 +74,7 @@ export function FocusSwitchReactor() {
   
   useEffect(() => {
     if (isComponentLoaded) {
-      const initialState = getAdaptiveState(GAME_ID);
+      const initialState = getAdaptiveState(GAME_ID, currentMode);
       setAdaptiveState(initialState);
       setGameState('start');
     }
@@ -203,12 +203,12 @@ export function FocusSwitchReactor() {
         if(currentTrialIndex.current >= policy.sessionLength) {
             setGameState('finished');
             const finalState = endSession(newState, [...sessionTrials, trialResult]);
-            updateAdaptiveState(finalState);
+            updateAdaptiveState(GAME_ID, currentMode, finalState);
         } else {
             startNewTrial(newState);
         }
     }, 2000);
-  }, [gameState, adaptiveState, sessionTrials, updateAdaptiveState, startNewTrial]);
+  }, [gameState, adaptiveState, sessionTrials, updateAdaptiveState, startNewTrial, currentMode]);
   
   const handleAnswer = useCallback((answer: any) => {
     if (gameState !== 'running') return;
@@ -331,6 +331,17 @@ export function FocusSwitchReactor() {
 
   if (currentMode === 'logic') {
     return <RuleSwitcher />;
+  }
+  
+  if (currentMode !== 'neutral' && currentMode !== 'math' && currentMode !== 'music' && currentMode !== 'verbal') {
+     return <GameStub 
+      name="Symbol Switch"
+      chcFactor="Executive Function (EF)"
+      description="A symbol is shown. The rule for classification switches between 'classify by color' and 'classify by shape'. The user must inhibit the old rule and apply the new one."
+      techStack={['SVG']}
+      complexity="Low"
+      fallbackPlan="N/A"
+    />;
   }
 
   const renderContent = () => {

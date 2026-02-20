@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback, createContext, useContext, useMemo } from 'react';
@@ -17,8 +18,7 @@ const TrainingFocusContext = createContext<TrainingFocusContextType | undefined>
 export function TrainingFocusProvider({ children }: { children: React.ReactNode }) {
   const [focus, setFocusState] = useState<TrainingFocus>('neutral');
   const [isLoaded, setIsLoaded] = useState(false);
-  const handleFocusChangeInPerformanceStore = usePerformanceStore((state) => state.handleFocusChange);
-
+  
   useEffect(() => {
     try {
       const savedFocus = window.localStorage.getItem(TRAINING_FOCUS_KEY) as TrainingFocus | null;
@@ -35,11 +35,13 @@ export function TrainingFocusProvider({ children }: { children: React.ReactNode 
     try {
       setFocusState(newFocus);
       window.localStorage.setItem(TRAINING_FOCUS_KEY, newFocus);
-      handleFocusChangeInPerformanceStore(newFocus);
+      // The handleFocusChange logic was removed from here.
+      // Components will now pull the correct state using the focus,
+      // and the cold-start logic in the store will handle new modes.
     } catch (error) {
       console.error("Failed to save training focus to localStorage", error);
     }
-  }, [handleFocusChangeInPerformanceStore]);
+  }, []);
 
   const value = useMemo(() => ({ focus, setFocus, isLoaded }), [focus, setFocus, isLoaded]);
 
