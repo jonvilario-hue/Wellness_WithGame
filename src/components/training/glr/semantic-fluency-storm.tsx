@@ -4,22 +4,39 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { useToast } from "@/hooks/use-toast";
 import { useGlrStore, type SpacedPair } from "@/hooks/use-glr-store";
 import { Archive, Loader2 } from "lucide-react";
 import type { TrainingFocus } from "@/types";
+import { useTrainingFocus } from "@/hooks/use-training-focus";
+import { useTrainingOverride } from "@/hooks/use-training-override";
 
-const wordList = ["apple", "car", "house", "river", "mountain", "book", "chair", "music", "light", "ocean", "star", "forest", "fire", "cloud", "dream", "journey", "key", "mirror", "shadow", "silence", "time", "voice", "water", "wind", "world"];
-const antonyms: Record<string, string> = { "hot": "cold", "fast": "slow", "happy": "sad", "big": "small", "up": "down", "light": "dark", "day": "night", "rich": "poor", "old": "new", "true": "false" };
+// --- Domain-specific content ---
+const generalWordList = ["apple", "car", "house", "river", "mountain", "book", "chair", "music", "light", "ocean", "star", "forest", "fire", "cloud", "dream", "journey", "key", "mirror", "shadow", "silence", "time", "voice", "water", "wind", "world"];
+const mathWordList = ["algebra", "calculus", "geometry", "integer", "prime", "fraction", "decimal", "vertex", "angle", "matrix", "vector", "theorem", "proof", "integral", "derivative"];
+const musicWordList = ["harmony", "melody", "rhythm", "tempo", "chord", "scale", "octave", "clef", "crescendo", "sonata", "fugue", "concerto", "aria", "pitch", "timbre"];
+
+const generalAntonyms: Record<string, string> = { "hot": "cold", "fast": "slow", "happy": "sad", "big": "small", "up": "down", "light": "dark", "day": "night", "rich": "poor", "old": "new", "true": "false" };
+
+const mathCategories = ["Geometric Shapes", "Units of Measurement", "Mathematical Operations", "Famous Mathematicians", "Branches of Mathematics", "Types of Numbers", "Statistical Terms", "Constants"];
+const musicCategories = ["Musical Instruments", "Music Genres", "Elements of Music", "Time Signatures", "Famous Composers", "Types of Scales", "Italian Terms", "Vocal Ranges"];
+const generalCategories = ["Animals", "Tools", "Countries", "Foods", "Body Parts", "Professions", "Clothing", "Colors"];
+
 
 export function SemanticFluencyStorm() {
     const [gameState, setGameState] = useState<'idle' | 'running' | 'finished'>('idle');
     const [currentMode, setCurrentMode] = useState<'associative' | 'spaced' | 'category' | null>(null);
     const [lastScore, setLastScore] = useState(0);
     const { getNextMode } = useGlrStore();
+
+    const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
+    const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
+
+    const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
+    const currentTrainingFocus = isComponentLoaded ? (override || globalFocus) : 'neutral';
 
     const handleStart = () => {
         const mode = getNextMode();
@@ -53,11 +70,11 @@ export function SemanticFluencyStorm() {
         if (gameState === 'running') {
             switch (currentMode) {
                 case 'associative':
-                    return <AssociativeChainMode onComplete={handleGameComplete} />;
+                    return <AssociativeChainMode onComplete={handleGameComplete} focus={currentTrainingFocus} />;
                 case 'spaced':
-                    return <SpacedRetrievalMode onComplete={handleGameComplete} />;
+                    return <SpacedRetrievalMode onComplete={handleGameComplete} focus={currentTrainingFocus} />;
                 case 'category':
-                    return <CategorySwitchingMode onComplete={handleGameComplete} />;
+                    return <CategorySwitchingMode onComplete={handleGameComplete} focus={currentTrainingFocus} />;
                 default:
                     return <Loader2 className="animate-spin" />;
             }
@@ -84,7 +101,13 @@ export function SemanticFluencyStorm() {
 const relationshipRules = ["ASSOCIATE", "RHYME", "ANTONYM", "FIRST LETTER MATCH"] as const;
 type RelationshipRule = typeof relationshipRules[number];
 
-function AssociativeChainMode({ onComplete }: { onComplete: (score: number) => void }) {
+function AssociativeChainMode({ onComplete, focus }: { onComplete: (score: number) => void, focus: TrainingFocus }) {
+    const wordList = useMemo(() => {
+        if (focus === 'math') return mathWordList;
+        if (focus === 'music') return musicWordList;
+        return generalWordList;
+    }, [focus]);
+
     const [chain, setChain] = useState<string[]>([]);
     const [currentWord, setCurrentWord] = useState(() => wordList[Math.floor(Math.random() * wordList.length)]);
     const [currentRule, setCurrentRule] = useState<RelationshipRule>(() => relationshipRules[Math.floor(Math.random() * relationshipRules.length)]);
@@ -92,18 +115,22 @@ function AssociativeChainMode({ onComplete }: { onComplete: (score: number) => v
     const [timeLeft, setTimeLeft] = useState(6);
     const [streak, setStreak] = useState(0);
     const { toast } = useToast();
-    const { updateAdaptiveState } = usePerformanceStore();
+    const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
     const timerRef = useRef<NodeJS.Timeout>();
-    const currentMode: TrainingFocus = 'neutral';
 
     const handleTimeout = useCallback(() => {
         toast({ title: "Chain Broken!", description: `You built a chain of ${chain.length}.`, variant: "destructive" });
         
-        updateAdaptiveState('glr_fluency_storm', currentMode, {
-            gameId: 'glr_fluency_storm', focus: 'neutral', tier: 1, levelFloor: 4, levelCeiling: 10,
-            currentLevel: 4 + Math.min(6, Math.floor(chain.length / 2)), uncertainty: 0.5,
-            consecutiveCorrect: 0, consecutiveWrong: 0, recentTrials: [], smoothedAccuracy: 0.8,
-            smoothedRT: (6 - timeLeft) * 1000, sessionCount: 1, lastSessionAt: Date.now(), levelHistory: []
+        const currentState = getAdaptiveState('glr_fluency_storm', focus);
+        const newLevel = Math.max(currentState.levelFloor, Math.min(currentState.levelCeiling, 4 + Math.min(6, Math.floor(chain.length / 2))));
+
+        updateAdaptiveState('glr_fluency_storm', {
+            ...currentState,
+            currentLevel: newLevel,
+            lastFocus: focus,
+            smoothedRT: (6 - timeLeft) * 1000,
+            lastSessionAt: Date.now(),
+            sessionCount: currentState.sessionCount + 1,
         });
         
         if (chain.length > 0) onComplete(chain.length);
@@ -112,7 +139,7 @@ function AssociativeChainMode({ onComplete }: { onComplete: (score: number) => v
             setCurrentRule(relationshipRules[Math.floor(Math.random() * relationshipRules.length)]);
             setChain([]);
         }
-    }, [chain.length, timeLeft, toast, updateAdaptiveState, onComplete]);
+    }, [chain.length, timeLeft, toast, updateAdaptiveState, onComplete, getAdaptiveState, focus, wordList]);
 
     const resetTimer = useCallback(() => {
         if (timerRef.current) clearInterval(timerRef.current);
@@ -139,7 +166,7 @@ function AssociativeChainMode({ onComplete }: { onComplete: (score: number) => v
         const submittedWord = userInput.trim().toLowerCase();
         if (!submittedWord) return;
 
-        let isValid = (currentRule === "ASSOCIATE") || (currentRule === "RHYME" && submittedWord.slice(-2) === currentWord.slice(-2) && submittedWord !== currentWord) || (currentRule === "ANTONYM" && (antonyms[currentWord] === submittedWord || antonyms[submittedWord] === currentWord)) || (currentRule === "FIRST LETTER MATCH" && submittedWord[0] === currentWord[0]);
+        let isValid = (currentRule === "ASSOCIATE") || (currentRule === "RHYME" && submittedWord.slice(-2) === currentWord.slice(-2) && submittedWord !== currentWord) || (currentRule === "ANTONYM" && (generalAntonyms[currentWord] === submittedWord || generalAntonyms[submittedWord] === currentWord)) || (currentRule === "FIRST LETTER MATCH" && submittedWord[0] === currentWord[0]);
 
         if (isValid) {
             setCurrentWord(submittedWord);
@@ -174,9 +201,16 @@ function AssociativeChainMode({ onComplete }: { onComplete: (score: number) => v
 }
 
 // --- MODE 2: SPACED RETRIEVAL PAIRS ---
-function SpacedRetrievalMode({ onComplete }: { onComplete: (score: number) => void }) {
+function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (score: number) => void, focus: TrainingFocus }) {
     const { addSpacedPairs, getDueReviewPairs, updatePairOnResult } = useGlrStore();
-    const { updateAdaptiveState } = usePerformanceStore();
+    const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
+    
+    const wordList1 = useMemo(() => {
+        if (focus === 'math') return mathWordList;
+        if (focus === 'music') return musicWordList;
+        return generalWordList;
+    }, [focus]);
+    
     const [phase, setPhase] = useState<'review' | 'learn' | 'distract' | 'recall' | 'finished'>('review');
     const [duePairs, setDuePairs] = useState<SpacedPair[]>([]);
     const [newPairs, setNewPairs] = useState<{word1: string, word2: string}[]>([]);
@@ -192,9 +226,9 @@ function SpacedRetrievalMode({ onComplete }: { onComplete: (score: number) => vo
             setPhase('review');
         } else {
             const generated = Array.from({ length: 6 }).map(() => {
-                const word1 = wordList[Math.floor(Math.random() * wordList.length)];
-                let word2 = wordList[Math.floor(Math.random() * wordList.length)];
-                while(word1 === word2) word2 = wordList[Math.floor(Math.random() * wordList.length)];
+                const word1 = wordList1[Math.floor(Math.random() * wordList1.length)];
+                let word2 = generalWordList[Math.floor(Math.random() * generalWordList.length)];
+                while(word1 === word2) word2 = generalWordList[Math.floor(Math.random() * generalWordList.length)];
                 return { word1, word2 };
             });
             setNewPairs(generated);
@@ -202,7 +236,7 @@ function SpacedRetrievalMode({ onComplete }: { onComplete: (score: number) => vo
             setPhase('learn');
         }
         setCurrentIndex(0);
-    }, []);
+    }, [addSpacedPairs, getDueReviewPairs, wordList1]);
 
     const handleNext = () => {
         const currentList = phase === 'review' ? duePairs : newPairs;
@@ -212,7 +246,9 @@ function SpacedRetrievalMode({ onComplete }: { onComplete: (score: number) => vo
             if (phase === 'review') setPhase('learn');
             else if (phase === 'learn') setPhase('distract');
             else if (phase === 'recall') {
-                updateAdaptiveState('glr_fluency_storm', 'neutral', { gameId: 'glr_fluency_storm', focus: 'neutral', tier: 1, levelFloor: 4, levelCeiling: 10, currentLevel: 4 + score, uncertainty: 0.5, consecutiveCorrect: 0, consecutiveWrong: 0, recentTrials: [], smoothedAccuracy: score / currentList.length, smoothedRT: 5000, sessionCount: 1, lastSessionAt: Date.now(), levelHistory: [] });
+                const currentState = getAdaptiveState('glr_fluency_storm', focus);
+                const newLevel = Math.max(currentState.levelFloor, Math.min(currentState.levelCeiling, 4 + score));
+                updateAdaptiveState('glr_fluency_storm', { ...currentState, currentLevel: newLevel, lastFocus: focus, sessionCount: currentState.sessionCount + 1, lastSessionAt: Date.now() });
                 onComplete(score);
                 setPhase('finished');
             }
@@ -287,11 +323,9 @@ const Distractor = ({ onComplete }: { onComplete: () => void }) => {
 };
 
 // --- MODE 3: CATEGORY SWITCHING SPRINT ---
-const categories = ["Animals", "Tools", "Countries", "Foods", "Musical Instruments", "Body Parts", "Professions", "Clothing"];
-
-function CategorySwitchingMode({ onComplete }: { onComplete: (score: number) => void }) {
+function CategorySwitchingMode({ onComplete, focus }: { onComplete: (score: number) => void, focus: TrainingFocus }) {
     const { logSubmittedWord, isWordSubmitted } = useGlrStore();
-    const { updateAdaptiveState } = usePerformanceStore();
+    const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
     const [categoryIndex, setCategoryIndex] = useState(0);
     const [timeLeft, setTimeLeft] = useState(10);
     const [totalTimeLeft, setTotalTimeLeft] = useState(60);
@@ -300,12 +334,18 @@ function CategorySwitchingMode({ onComplete }: { onComplete: (score: number) => 
     const { toast } = useToast();
     const categoryTimerRef = useRef<NodeJS.Timeout>();
 
+    const categories = useMemo(() => {
+        if (focus === 'math') return mathCategories;
+        if (focus === 'music') return musicCategories;
+        return generalCategories;
+    }, [focus]);
+
     const currentCategory = categories[categoryIndex];
 
     const switchCategory = useCallback(() => {
         setCategoryIndex(prev => (prev + 1) % categories.length);
         setTimeLeft(10);
-    }, []);
+    }, [categories.length]);
     
     useEffect(() => {
         categoryTimerRef.current = setInterval(switchCategory, 10000);
@@ -314,7 +354,9 @@ function CategorySwitchingMode({ onComplete }: { onComplete: (score: number) => 
                 if (prev <= 1) {
                     clearInterval(categoryTimerRef.current);
                     clearInterval(totalTimer);
-                    updateAdaptiveState('glr_fluency_storm', 'neutral', { gameId: 'glr_fluency_storm', focus: 'neutral', tier: 1, levelFloor: 4, levelCeiling: 10, currentLevel: 4 + Math.min(6, Math.floor(score / 5)), uncertainty: 0.5, consecutiveCorrect: 0, consecutiveWrong: 0, recentTrials: [], smoothedAccuracy: 0.8, smoothedRT: 2000, sessionCount: 1, lastSessionAt: Date.now(), levelHistory: [] });
+                    const currentState = getAdaptiveState('glr_fluency_storm', focus);
+                    const newLevel = Math.max(currentState.levelFloor, Math.min(currentState.levelCeiling, 4 + Math.min(6, Math.floor(score / 5))));
+                    updateAdaptiveState('glr_fluency_storm', { ...currentState, currentLevel: newLevel, lastFocus: focus, sessionCount: currentState.sessionCount + 1, lastSessionAt: Date.now() });
                     onComplete(score);
                     return 0;
                 }
@@ -327,7 +369,7 @@ function CategorySwitchingMode({ onComplete }: { onComplete: (score: number) => 
             if (categoryTimerRef.current) clearInterval(categoryTimerRef.current);
             clearInterval(totalTimer);
         }
-    }, [switchCategory, onComplete, updateAdaptiveState, score]);
+    }, [switchCategory, onComplete, updateAdaptiveState, score, getAdaptiveState, focus]);
 
 
     const handleSubmit = (e: React.FormEvent) => {
