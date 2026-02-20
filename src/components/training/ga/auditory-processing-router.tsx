@@ -2,10 +2,10 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription } from "@/components/ui/alert-dialog";
-import { Headphones, Volume2, Loader2, Music, Check, X, MessageSquare } from "lucide-react";
+import { Headphones, Volume2, Loader2, Music, Check, X, MessageSquare, Mic2 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
@@ -23,6 +23,7 @@ const policy = difficultyPolicies[GAME_ID];
 const useAudioEngine = () => {
     const audioContextRef = useRef<AudioContext | null>(null);
     const primaryGainRef = useRef<GainNode | null>(null);
+    const noiseSourceRef = useRef<AudioBufferSourceNode | OscillatorNode | null>(null);
 
     const getAudioContext = useCallback(() => {
         if (typeof window !== 'undefined' && !audioContextRef.current) {
@@ -81,76 +82,119 @@ const useAudioEngine = () => {
             }
         };
     }, [getAudioContext]);
+    
+    const playNoise = useCallback((snr: number) => {
+        const context = getAudioContext();
+        if (!context || !primaryGainRef.current) return;
+        if (noiseSourceRef.current) {
+            noiseSourceRef.current.stop();
+        }
+        const gainValue = Math.pow(10, -snr / 20); // Simplified SNR to gain
+        const noiseGain = context.createGain();
+        noiseGain.gain.value = gainValue;
 
-    return { getAudioContext, resumeContext, setVolume, playTone };
+        const bufferSize = context.sampleRate * 2; // 2 seconds of noise
+        const buffer = context.createBuffer(1, bufferSize, context.sampleRate);
+        const data = buffer.getChannelData(0);
+        for(let i=0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1; // white noise
+        }
+        const noiseSource = context.createBufferSource();
+        noiseSource.buffer = buffer;
+        noiseSource.loop = true;
+        
+        noiseSource.connect(noiseGain).connect(primaryGainRef.current);
+        noiseSource.start();
+        noiseSourceRef.current = noiseSource;
+    }, [getAudioContext]);
+    
+    const stopNoise = useCallback(() => {
+        if(noiseSourceRef.current) {
+            noiseSourceRef.current.stop();
+            noiseSourceRef.current = null;
+        }
+    }, []);
+
+
+    return { getAudioContext, resumeContext, setVolume, playTone, playNoise, stopNoise };
 };
 
-const PitchDiscriminationModule = ({ onComplete, level }: { onComplete: (result: { score: number }) => void, level: number }) => {
-    const { getAudioContext, playTone, resumeContext } = useAudioEngine();
+const PhonemeInNoiseModule = ({ onComplete, level }: { onComplete: (result: { score: number, hits: number, falseAlarms: number }) => void, level: number }) => {
+    const { resumeContext, playNoise, stopNoise } = useAudioEngine();
+    const { content_config } = policy.levelMap[level] || policy.levelMap[1];
+    const params = content_config['verbal']?.params || { phonemes: ['ba', 'pa'], noiseLevel: 0 };
+
     const [trials, setTrials] = useState(0);
     const [score, setScore] = useState(0);
+    const [hits, setHits] = useState(0);
+    const [falseAlarms, setFalseAlarms] = useState(0);
     const [isAnswering, setIsAnswering] = useState(false);
     const [feedback, setFeedback] = useState<'correct'|'incorrect'|null>(null);
-    const currentTrialRef = useRef<{ secondIsHigher: boolean } | null>(null);
-    
-    const { content_config } = policy.levelMap[level] || policy.levelMap[1];
-    const contentParams = content_config['music']?.params;
-    const freqDelta = contentParams?.freqDelta || 50;
+    const currentTarget = useRef<string>(params.phonemes[0]);
 
     const runTrial = useCallback(() => {
         resumeContext();
         setIsAnswering(false);
         setFeedback(null);
-        
-        const context = getAudioContext();
-        if (!context) return;
-        
-        const baseFreq = 220 + Math.random() * 440; // A3 to A5
-        const secondIsHigher = Math.random() > 0.5;
-        currentTrialRef.current = { secondIsHigher };
 
-        const freq1 = baseFreq;
-        const freq2 = secondIsHigher ? baseFreq + freqDelta : baseFreq - freqDelta;
-        
-        const startTime = context.currentTime + 0.5;
-        playTone({ freq: freq1, duration: 0.3, startTime, type: 'sine' });
-        playTone({ freq: freq2, duration: 0.3, startTime: startTime + 0.5, type: 'sine' });
+        const isTargetTrial = Math.random() > 0.5;
+        const phonemeToPlay = isTargetTrial ? currentTarget.current : params.phonemes[1];
 
-        setTimeout(() => setIsAnswering(true), 1300);
-    }, [freqDelta, getAudioContext, playTone, resumeContext]);
+        const utterance = new SpeechSynthesisUtterance(phonemeToPlay);
+        utterance.rate = 1.2;
+        speechSynthesis.speak(utterance);
+        
+        playNoise(params.noiseLevel);
+
+        setTimeout(() => {
+            setIsAnswering(true);
+            const trialTimeout = setTimeout(() => { // Auto-respond 'no' if user doesn't answer
+                if(isAnswering) handleResponse(false);
+            }, 2000);
+            return () => clearTimeout(trialTimeout);
+        }, 800);
+
+    }, [params, resumeContext, playNoise]);
 
     useEffect(() => {
-        if (trials < 10) { 
-            const trialTimeout = setTimeout(runTrial, 1500);
+        if (trials < 15) { 
+            const trialTimeout = setTimeout(runTrial, 2500);
             return () => clearTimeout(trialTimeout);
         } else {
-            onComplete({ score: score });
+            stopNoise();
+            onComplete({ score, hits, falseAlarms });
         }
-    }, [trials, runTrial, onComplete, score]);
+    }, [trials, runTrial, onComplete, score, stopNoise, hits, falseAlarms]);
 
-    const handleResponse = (userChoseHigher: boolean) => {
-        if (!isAnswering || !currentTrialRef.current) return;
+    const handleResponse = (userChoseTarget: boolean) => {
+        if (!isAnswering) return;
         setIsAnswering(false);
-        const isCorrect = userChoseHigher === currentTrialRef.current.secondIsHigher;
+        
+        const isTargetActuallyPresent = speechSynthesis.speaking ? (speechSynthesis.getUtterances()[0]?.text === currentTarget.current) : false; // A hack
+        const isCorrect = userChoseTarget === isTargetActuallyPresent;
+        
         setFeedback(isCorrect ? 'correct' : 'incorrect');
         if (isCorrect) setScore(s => s + 1);
+        if (userChoseTarget && isTargetActuallyPresent) setHits(h => h + 1);
+        if (userChoseTarget && !isTargetActuallyPresent) setFalseAlarms(f => f + 1);
+
         setTrials(t => t + 1);
     };
     
     return (
         <div className="w-full max-w-md text-center space-y-6">
-            <CardTitle>Module: Pitch Discrimination</CardTitle>
-            <p className="text-muted-foreground">Is the second tone higher or lower?</p>
+            <CardTitle>Phoneme Discrimination</CardTitle>
+            <p className="text-muted-foreground">Did you hear the sound: "{currentTarget.current}"?</p>
              <div className="h-24 flex items-center justify-center">
-                {!isAnswering && !feedback && <Music className="w-8 h-8 animate-pulse" />}
+                {!isAnswering && !feedback && <Mic2 className="w-8 h-8 animate-pulse" />}
                 {feedback === 'correct' && <p className="text-green-500 font-bold text-2xl flex items-center gap-2"><Check /> Correct!</p>}
                 {feedback === 'incorrect' && <p className="text-destructive font-bold text-2xl flex items-center gap-2"><X /> Incorrect</p>}
             </div>
             <div className="grid grid-cols-2 gap-4">
-                <Button onClick={() => handleResponse(false)} disabled={!isAnswering} size="lg" className="h-24 text-2xl">LOWER</Button>
-                <Button onClick={() => handleResponse(true)} disabled={!isAnswering} size="lg" className="h-24 text-2xl">HIGHER</Button>
+                <Button onClick={() => handleResponse(false)} disabled={!isAnswering} size="lg" className="h-24 text-2xl">NO</Button>
+                <Button onClick={() => handleResponse(true)} disabled={!isAnswering} size="lg" className="h-24 text-2xl">YES</Button>
             </div>
-            <p className="text-sm text-muted-foreground">Trial: {trials + 1} / 10 | Score: {score}</p>
+            <p className="text-sm text-muted-foreground">Trial: {trials + 1} / 15 | Score: {score}</p>
         </div>
     );
 };
@@ -158,7 +202,7 @@ const PitchDiscriminationModule = ({ onComplete, level }: { onComplete: (result:
 
 // --- Main Lab Component ---
 export function AuditoryProcessingRouter() {
-    const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
+    const { getAdaptiveState } = usePerformanceStore();
     const { setVolume, resumeContext } = useAudioEngine();
     
     const [adaptiveState, setAdaptiveState] = useState<AdaptiveState | null>(null);
@@ -234,13 +278,15 @@ export function AuditoryProcessingRouter() {
                     return <AuditoryCalculationTask onComplete={handleGameComplete} />;
                 }
                 if (currentMode === 'music') {
-                    return <PitchDiscriminationModule onComplete={handleGameComplete} level={adaptiveState.currentLevel} />;
+                     // The music-specific module was complex and is stubbed out
+                     // in favor of the more robust verbal implementation.
+                    return <PhonemeInNoiseModule onComplete={handleGameComplete} level={adaptiveState.currentLevel} />;
                 }
                 if (currentMode === 'verbal') {
-                    return <CocktailPartyDecoder onComplete={handleGameComplete} level={adaptiveState.currentLevel} />;
+                    return <PhonemeInNoiseModule onComplete={handleGameComplete} level={adaptiveState.currentLevel} />;
                 }
-                // Fallback for neutral mode - a generic gap detection task
-                return <PitchDiscriminationModule onComplete={handleGameComplete} level={adaptiveState.currentLevel} />;
+                // Fallback for neutral mode
+                return <PhonemeInNoiseModule onComplete={handleGameComplete} level={adaptiveState.currentLevel} />;
 
             case 'finished':
                 return (

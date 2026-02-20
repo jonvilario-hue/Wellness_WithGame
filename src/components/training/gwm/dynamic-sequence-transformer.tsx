@@ -13,7 +13,7 @@ import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
-import { nonsenseWords, grammarScrambleSentences } from "@/data/verbal-content";
+import { phoneticallySimilarSets, grammarScrambleSentences } from "@/data/verbal-content";
 
 const GAME_ID: GameId = 'gwm_dynamic_sequence';
 const policy = difficultyPolicies[GAME_ID];
@@ -25,7 +25,17 @@ const generateSequence = (length: number, charSet: string) => {
   if (charSet === 'numeric_ops') chars = '0123456789+-*/=';
   if (charSet === 'notes') chars = 'CDEFGAB';
   if (charSet === 'notes_symbols') chars = 'CDEFGAB♩♪♫♭♯♮';
-  if (charSet === 'phonological') return Array.from({ length }, () => nonsenseWords[Math.floor(Math.random() * nonsenseWords.length)]).join(' ');
+  
+  // This part is modified based on the audit. We now use real words for phonological tasks.
+  if (charSet === 'phonological_similar') {
+    const set = phoneticallySimilarSets[Math.floor(Math.random() * phoneticallySimilarSets.length)];
+    return set.slice(0, length).join(' ');
+  }
+  if (charSet === 'phonological_distinct') {
+     const distinctWords = ['CAT', 'DOG', 'SUN', 'SKY', 'RED', 'BLUE', 'ONE', 'TWO'];
+     return distinctWords.sort(() => 0.5 - Math.random()).slice(0, length).join(' ');
+  }
+
 
   let result = '';
   for (let i = 0; i < length; i++) {
@@ -93,7 +103,7 @@ export function DynamicSequenceTransformer() {
         newSequence = sentenceData.sentence.split(' ').sort(() => Math.random() - 0.5).join(' ');
         newTask = tasks.find(t => t.id === 'sentence_unscramble')!;
     } else {
-        newSequence = generateSequence(mechanic_config.sequenceLength, content_config.params.chars);
+        newSequence = generateSequence(mechanic_config.sequenceLength, content_config.params.charSet);
         const availableTasks = tasks.filter(t => t.id !== 'sentence_unscramble');
         newTask = availableTasks[Math.floor(Math.random() * availableTasks.length)];
     }
@@ -104,10 +114,13 @@ export function DynamicSequenceTransformer() {
     setFeedback('');
     setGameState('memorizing');
     
+    // Per audit decision: present verbal stimuli visually due to TTS unreliability
+    const displayTime = currentMode === 'verbal' ? mechanic_config.visualDisplayTimeMs || 800 : mechanic_config.displayTimeMs || 1500;
+
     setTimeout(() => {
       setGameState('answering');
       trialStartTime.current = Date.now();
-    }, mechanic_config.displayTimeMs || 1500);
+    }, displayTime);
   }, [currentMode]);
 
   const startNewSession = useCallback(() => {
@@ -133,7 +146,7 @@ export function DynamicSequenceTransformer() {
             ).join('');
         case 'every_other':
             return sequence.split('').filter((_, i) => i % 2 === 0).join('');
-        default: return '';
+        default: return sequence; // Default to simple recall for verbal tasks
     }
   }, [sequence, task]);
 

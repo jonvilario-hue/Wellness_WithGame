@@ -10,7 +10,11 @@ import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
-import { realWords } from '@/data/verbal-content';
+import { validationWordList } from '@/data/verbal-content';
+
+// AUDIT NOTE: This component is being replaced by `typographic-search.tsx` for the verbal focus
+// as its core mechanic was deemed to be a Gc/Glr task, not a Gv task.
+// This file is kept to avoid breaking imports but should be considered deprecated for verbal mode.
 
 const GAME_ID: GameId = 'gv_visual_lab';
 const policy = difficultyPolicies[GAME_ID];
@@ -26,6 +30,7 @@ const generatePuzzleForLevel = (level: number, focus: TrainingFocus): WordSearch
     const { mechanic_config, content_config } = policy.levelMap[level] || policy.levelMap[1];
     const params = content_config[focus]?.params || content_config['neutral']!.params;
     const gridSize = mechanic_config.gridSize;
+    const realWords = Array.from(validationWordList);
 
     const grid = Array(gridSize).fill(null).map(() => Array(gridSize).fill(''));
     const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -41,29 +46,39 @@ const generatePuzzleForLevel = (level: number, focus: TrainingFocus): WordSearch
     if(params.allowReverse) directions.push(...[[0, -1], [-1, 0], [-1, -1], [1, -1], [-1, 1]]);
     
     const dir = directions[Math.floor(Math.random() * directions.length)];
-    const startX = Math.floor(Math.random() * gridSize);
-    const startY = Math.floor(Math.random() * gridSize);
-
-    const endX = startX + (targetWord.length - 1) * dir[0];
-    const endY = startY + (targetWord.length - 1) * dir[1];
-
-    // Simple placement logic, could be improved to always fit
     let finalCoords: {x: number, y: number}[] = [];
-    if(endX >= 0 && endX < gridSize && endY >= 0 && endY < gridSize) {
-        for(let i=0; i<targetWord.length; i++) {
+    let placed = false;
+    let attempts = 0;
+
+    while (!placed && attempts < 50) {
+      const startX = Math.floor(Math.random() * gridSize);
+      const startY = Math.floor(Math.random() * gridSize);
+      const endX = startX + (targetWord.length - 1) * dir[0];
+      const endY = startY + (targetWord.length - 1) * dir[1];
+      
+      if (endX >= 0 && endX < gridSize && endY >= 0 && endY < gridSize) {
+        finalCoords = [];
+        for (let i = 0; i < targetWord.length; i++) {
             const x = startX + i * dir[0];
             const y = startY + i * dir[1];
             grid[y][x] = targetWord[i];
-            finalCoords.push({x, y});
+            finalCoords.push({ x, y });
         }
-    } else { // Fallback to horizontal if placement fails
-         const y = Math.floor(Math.random() * gridSize);
-         const x = Math.floor(Math.random() * (gridSize - targetWord.length));
-         for(let i=0; i<targetWord.length; i++) {
-            grid[y][x+i] = targetWord[i];
-            finalCoords.push({x: x+i, y: y});
-        }
+        placed = true;
+      }
+      attempts++;
     }
+
+    if (!placed) { // Fallback if random placement fails
+        const y = Math.floor(Math.random() * gridSize);
+        const x = Math.floor(Math.random() * (gridSize - targetWord.length + 1));
+        finalCoords = [];
+        for (let i = 0; i < targetWord.length; i++) {
+           grid[y][x + i] = targetWord[i];
+           finalCoords.push({ x: x + i, y: y });
+       }
+    }
+
 
     // Fill the rest of the grid with random letters
     for (let r = 0; r < gridSize; r++) {

@@ -1,70 +1,82 @@
+// This file acts as a mock database for all verbal content,
+// simulating what would be stored in a production Firestore collection.
 
-export const morphologyWordPairs = {
-  plural: [{base: 'cat', derived: 'cats'}, {base: 'dog', derived: 'dogs'}],
-  past_tense: [{base: 'walk', derived: 'walked'}, {base: 'jump', derived: 'jumped'}],
-  antonym: [{base: 'happy', derived: 'sad'}, {base: 'hot', derived: 'cold'}],
+// --- 1. Word Corpus & Metadata ---
+// A small, curated list for the prototype. A production app would have thousands.
+// The schema includes tags for future filtering (accessibility, bias).
+export interface WordCorpusEntry {
+  word: string;
+  lemma: string;
+  part_of_speech: 'noun' | 'verb' | 'adjective' | 'adverb';
+  phonemes_ipa?: string; // e.g., /əˈbɪlɪti/
+  syllables: number;
+  frequency_score: number; // Simplified: 1-10 (10 = very common)
+  tags: ('universal' | 'regional_us' | 'academic' | 'emotion' | 'tool')[];
+}
+
+export const wordCorpus: Record<string, WordCorpusEntry> = {
+  "cat": { word: "cat", lemma: "cat", part_of_speech: 'noun', syllables: 1, frequency_score: 9, tags: ['universal'] },
+  "dog": { word: "dog", lemma: "dog", part_of_speech: 'noun', syllables: 1, frequency_score: 9, tags: ['universal'] },
+  "run": { word: "run", lemma: "run", part_of_speech: 'verb', syllables: 1, frequency_score: 9.5, tags: ['universal'] },
+  "happy": { word: "happy", lemma: "happy", part_of_speech: 'adjective', syllables: 2, frequency_score: 9, tags: ['universal', 'emotion'] },
+  "sad": { word: "sad", lemma: "sad", part_of_speech: 'adjective', syllables: 1, frequency_score: 8.5, tags: ['universal', 'emotion'] },
+  "ability": { word: "ability", lemma: "ability", part_of_speech: 'noun', syllables: 4, frequency_score: 7, tags: ['universal'] },
+  "sedulous": { word: "sedulous", lemma: "sedulous", part_of_speech: 'adjective', syllables: 3, frequency_score: 2, tags: ['academic'] },
+  "ephemeral": { word: "ephemeral", lemma: "ephemeral", part_of_speech: 'adjective', syllables: 4, frequency_score: 3, tags: ['academic'] },
+  "hammer": { word: "hammer", lemma: "hammer", part_of_speech: 'noun', syllables: 2, frequency_score: 6, tags: ['universal', 'tool'] },
+  "saw": { word: "saw", lemma: "saw", part_of_speech: 'noun', syllables: 1, frequency_score: 7, tags: ['universal', 'tool'] },
 };
 
+// --- 2. Lexical Decision & Fluency Validation ---
+// A larger set for validating user input in Glr and generating pseudowords for Gs.
+// In production, this would be a much larger, compressed data structure.
+export const validationWordList: Set<string> = new Set([
+  ...Object.keys(wordCorpus),
+  "house", "river", "table", "green", "quick", "chair", "music", "read", "write",
+  "think", "dream", "play", "work", "love", "hate", "laugh", "cry", "walk", "jump"
+]);
+
+// --- 3. Pseudoword Generation Components (for Gs) ---
+export const consonantClustersStart = ['bl', 'br', 'cl', 'cr', 'dr', 'fl', 'fr', 'gl', 'gr', 'pl', 'pr', 'sc', 'sk', 'sl', 'sm', 'sn', 'sp', 'st', 'sw', 'tr', 'tw', 'wh', 'wr'];
+export const consonantClustersEnd = ['sk', 'sp', 'st', 'ct', 'ft', 'lk', 'lp', 'lt', 'mp', 'nd', 'nk', 'nt', 'pt', 'rd', 'rk', 'rt'];
+export const singleConsonants = "bcdfghjklmnpqrstvwxyz".split('');
+export const vowels = "aeiou".split('');
+
+// --- 4. Morphological & Orthographic Rules (for Gf) ---
+export const morphologicalRules = {
+  plural: (word: string) => word.endsWith('s') ? word : word + 's',
+  past_tense: (word: string) => word.endsWith('ed') ? word : word + 'ed',
+  antonym: (word: string) => ({ 'happy': 'sad', 'hot': 'cold', 'fast': 'slow', 'up': 'down' }[word] || word),
+};
+
+// --- 5. Phonetic & Syntactic Content ---
+// For Ga, Gwm phonological loop
 export const phoneticallySimilarSets = [
     ['CAP', 'CAT', 'CAN', 'CAB'],
     ['PIN', 'PEN', 'PAN', 'PUN'],
     ['BIT', 'BET', 'BAT', 'BUT'],
     ['SIT', 'SAT', 'SET', 'SOT'],
-];
-export const nonsenseWords = ['BIP', 'TEK', 'VUM', 'ZOL', 'DAX', 'FEP'];
-
-export const realWords = ["HOUSE", "RIVER", "TABLE", "GREEN", "QUICK", "HAPPY", "CHAIR", "MUSIC"];
-export const pseudowords = ["FLIRB", "GLONK", "VOSP", "TRUD", "SPLIM", "CRITH", "MERN", "SKEP"];
-
-export const homophonePairs = [
-    ['SALE', 'SAIL'], ['KNIGHT', 'NIGHT'], ['STEAL', 'STEEL'], ['WEAK', 'WEEK'], ['SON', 'SUN']
-];
-export const synonymPairs = [
-    ['HAPPY', 'JOYFUL'], ['BIG', 'LARGE'], ['FAST', 'QUICK'], ['SAD', 'UNHAPPY'], ['COLD', 'CHILLY']
+    ['LAKE', 'LATE', 'LACE', 'LAME'],
 ];
 
-export const wordParts = {
-    compound_words: [
-        { parts: ["SUN", "FLOWER"], answer: "SUNFLOWER", hint: "A tall, yellow plant" },
-        { parts: ["RAIN", "BOW"], answer: "RAINBOW", hint: "An arc of color in the sky" }
-    ],
-    affix_words: [
-        { parts: ["UN-", "FRIEND", "-LY"], answer: "UNFRIENDLY", hint: "Not amiable or pleasant" },
-        { parts: ["RE-", "VIEW"], answer: "REVIEW", hint: "To examine or assess again" }
-    ]
-};
+// For Gc, Gwm syntax tasks
+export const grammaticallyIncorrectSentences = [
+  { incorrect: "The cat sit on the mat.", correct: "The cat sits on the mat." },
+  { incorrect: "She run fastly.", correct: "She runs fast." },
+  { incorrect: "The dogs is barking.", correct: "The dogs are barking." },
+];
 
+// For Gc cloze task
 export const clozeSentences = [
-    { question: "The man was ___ because his dog died.", options: ["excited", "table"], answer: "grieving", explanation: "'Grieving' is an emotion associated with loss.", difficulty: 1 },
-    { question: "To write well, one must select the ___ word.", options: ["approximate", "heavy"], answer: "precise", explanation: "'Precise' means exact and accurate, which is desirable in good writing.", difficulty: 5 },
-    { question: "Despite the market crash, she remained ___ and did not panic.", options: ["flustered", "nonchalant"], answer: "nonchalant", explanation: "'Nonchalant' means calm and unconcerned, fitting the context of not panicking.", difficulty: 10 },
+    { question: "The man was ___ because his dog died.", options: ["ecstatic", "ambivalent"], answer: "grieving", explanation: "'Grieving' describes sorrow after a loss." },
+    { question: "To write well, one must select the ___ word.", options: ["approximate", "verbose"], answer: "precise", explanation: "'Precise' means exact and accurate, a key quality of good writing." },
+    { question: "Despite the market crash, she remained ___ and did not panic.", options: ["agitated", "flustered"], answer: "nonchalant", explanation: "'Nonchalant' means calm and unconcerned, fitting the context." },
 ];
 
-export const efWords = {
-    rhyme_cat: ['BAT', 'HAT', 'FLAT'],
-    rhyme_log: ['DOG', 'FROG', 'BOG'],
-    category_animal: ['DOG', 'CAT', 'BAT', 'FROG'],
-    category_object: ['HAT', 'LOG', 'FLAT', 'BOG'],
+// For EF semantic shift
+export const efCategories = {
+  isAnimate: ['cat', 'dog', 'bird'],
+  isObject: ['chair', 'table', 'hammer'],
+  rhymesWithCat: ['hat', 'bat', 'mat'],
+  rhymesWithDog: ['log', 'frog', 'bog'],
 };
-
-export const generalCategories = ["Animals", "Tools", "Countries", "Foods", "Body Parts", "Professions", "Clothing", "Colors"];
-export const mathCategories = ["Geometric Shapes", "Units of Measurement", "Mathematical Operations", "Famous Mathematicians", "Branches of Mathematics", "Types of Numbers", "Statistical Terms", "Constants"];
-export const musicCategories = ["Musical Instruments", "Music Genres", "Elements of Music", "Time Signatures", "Famous Composers", "Types of Scales", "Italian Terms", "Vocal Ranges"];
-export const verbalCategories = ["Literary Devices", "Parts of Speech", "Types of Poetry", "Figures of Speech", "Punctuation Marks"];
-
-export const minimalPairs = [
-    { word1: 'Pin', word2: 'Pen', correct: 'Pin', prompt: "Did you hear 'Pin' or 'Pen'?" },
-    { word1: 'Bat', word2: 'Pat', correct: 'Bat', prompt: "Did you hear 'Bat' or 'Pat'?" },
-    { word1: 'Ship', word2: 'Sheep', correct: 'Sheep', prompt: "Did you hear 'Ship' or 'Sheep'?" },
-];
-export const prosodySentences = [
-    { sentence: "Oh, that's just great.", options: ['Sarcastic', 'Sincere'], answer: 'Sarcastic' },
-    { sentence: "You finished the project? That's great!", options: ['Sarcastic', 'Sincere'], answer: 'Sincere' },
-];
-
-export const grammarScrambleSentences = [
-    { sentence: "The quick brown fox jumps over the lazy dog." },
-    { sentence: "Cognitive training can improve mental flexibility." },
-    { sentence: "Working memory is crucial for complex reasoning." },
-    { sentence: "The cat sat on the warm, sunny windowsill." },
-];

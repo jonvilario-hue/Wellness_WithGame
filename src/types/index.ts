@@ -1,3 +1,6 @@
+// This file is the single source of truth for all shared types in the application.
+
+// --- Core Cognitive & Domain Types ---
 export type TrainingFocus = 'neutral' | 'math' | 'music' | 'verbal';
 export type CHCDomain = 'Gf' | 'Gc' | 'Gwm' | 'Gs' | 'Gv' | 'Ga' | 'Glr' | 'EF';
 
@@ -17,33 +20,34 @@ export const chcDomains: {
   name: string; 
   description: string; 
   gameTitle: string;
-  tasks: string[];
-  supportsMath: boolean;
-  supportsMusic: boolean;
-  supportsVerbal: boolean;
 }[] = [
-  { key: 'Gf', id: 'gf_pattern_matrix', name: '(Gf) Fluid Reasoning', description: 'Solve new problems', gameTitle: 'Pattern Matrix', tasks: ['pattern_matrix'], supportsMath: true, supportsMusic: true, supportsVerbal: true },
-  { key: 'Gc', id: 'gc_verbal_inference', name: '(Gc) Crystallized Intelligence', description: 'Use learned knowledge', gameTitle: 'Verbal Inference Builder', tasks: ['verbal_inference'], supportsMath: true, supportsMusic: true, supportsVerbal: true },
-  { key: 'Gwm', id: 'gwm_dynamic_sequence', name: '(Gwm) Working Memory', description: 'Use and hold information', gameTitle: 'Dynamic Sequence', tasks: ['sequence_transform'], supportsMath: true, supportsMusic: true, supportsVerbal: true },
-  { key: 'Gs', id: 'gs_rapid_code', name: '(Gs) Processing Speed', description: 'Work fast and accurately', gameTitle: 'Rapid Code Match', tasks: ['code_match'], supportsMath: true, supportsMusic: true, supportsVerbal: true },
-  { key: 'Gv', id: 'gv_visual_lab', name: '(Gv) Visual Processing', description: 'Visualize and rotate objects', gameTitle: 'Visual Processing Lab', tasks: ['mental_rotation', 'balance_puzzle'], supportsMath: true, supportsMusic: true, supportsVerbal: true },
-  { key: 'Ga', id: 'ga_auditory_lab', name: '(Ga) Auditory Processing', description: 'Analyze and distinguish sounds', gameTitle: 'Auditory Processing Lab', tasks: ['gap_detection', 'frequency_discrimination', 'figure_ground', 'rhythm_discrimination'], supportsMath: true, supportsMusic: true, supportsVerbal: true },
-  { key: 'Glr', id: 'glr_fluency_storm', name: '(Glr) Long-Term Retrieval', description: 'Store and retrieve information', gameTitle: 'Glr Retrieval Trainer', tasks: ['associative_chain', 'spaced_retrieval', 'category_sprint'], supportsMath: true, supportsMusic: true, supportsVerbal: true },
-  { key: 'EF', id: 'ef_focus_switch', name: '(EF) Executive Function', description: 'Focus, switch, control tasks', gameTitle: 'Focus Switch Reactor', tasks: ['focus_switch'], supportsMath: true, supportsMusic: true, supportsVerbal: true },
+  { key: 'Gf', id: 'gf_pattern_matrix', name: '(Gf) Fluid Reasoning', description: 'Solve new problems', gameTitle: 'Pattern Matrix' },
+  { key: 'Gc', id: 'gc_verbal_inference', name: '(Gc) Crystallized Intelligence', description: 'Use learned knowledge', gameTitle: 'Verbal Inference Builder' },
+  { key: 'Gwm', id: 'gwm_dynamic_sequence', name: '(Gwm) Working Memory', description: 'Use and hold information', gameTitle: 'Dynamic Sequence' },
+  { key: 'Gs', id: 'gs_rapid_code', name: '(Gs) Processing Speed', description: 'Work fast and accurately', gameTitle: 'Rapid Code Match' },
+  { key: 'Gv', id: 'gv_visual_lab', name: '(Gv) Visual Processing', description: 'Visualize and manipulate objects', gameTitle: 'Visual Processing Lab' },
+  { key: 'Ga', id: 'ga_auditory_lab', name: '(Ga) Auditory Processing', description: 'Analyze and distinguish sounds', gameTitle: 'Auditory Processing Lab' },
+  { key: 'Glr', id: 'glr_fluency_storm', name: '(Glr) Long-Term Retrieval', description: 'Store and retrieve information', gameTitle: 'Retrieval Trainer' },
+  { key: 'EF', id: 'ef_focus_switch', name: '(EF) Executive Function', description: 'Focus, switch, and control tasks', gameTitle: 'Focus Switch Reactor' },
 ];
 
+// --- Difficulty & Adaptive Engine Types ---
 export type Tier = 0 | 1 | 2 | 3;
 export type TierSelection = Tier | 4; // 4 represents "Automatic"
 
 export interface TrialResult {
   correct: boolean;
   reactionTimeMs: number;
+  // Optional metrics for specific games
+  value?: any; // The user's response value
+  omissions?: number; // For WM, number of missed items
+  intrusions?: number; // For WM, number of incorrect items added
 }
 
 export interface AdaptiveState {
   gameId: GameId;
   lastFocus: TrainingFocus;
-  tier: Tier;
+  tier: TierSelection; // Allow "Automatic" tier
   levelFloor: number;
   levelCeiling: number;
   currentLevel: number;
@@ -58,15 +62,29 @@ export interface AdaptiveState {
   levelHistory: { sessionDate: number; startLevel: number; endLevel: number; avgAccuracy: number; avgRT: number }[];
 }
 
+
+// --- Universal Difficulty Policy Schema ---
+
+// Defines parameters for the "container" of the task
 export type MechanicConfig = {
+    [key: string]: any;
+    responseWindowMs?: number; // Time to respond
+    timeLimit?: number; // Total time for the task
+    sequenceLength?: number; // For WM tasks
+    gridSize?: number; // For matrix/grid tasks
+    distractorCount?: number; // Number of incorrect options
+    switchInterval?: number; // For EF tasks
+    noiseLevel?: number; // For Ga tasks (e.g., SNR)
+};
+
+// Defines parameters for the "content" of the task
+export type ContentParams = {
     [key: string]: any;
 };
 
 export type ContentConfig = {
-    sub_variant?: string;
-    params?: {
-        [key: string]: any;
-    };
+    sub_variant?: string; // e.g., 'lexical_decision' or 'homophone_hunter' for Gs
+    params?: ContentParams;
 };
 
 export type LevelDefinition = {
@@ -81,42 +99,4 @@ export interface DifficultyPolicy {
   targetAccuracyHigh: number;
   targetAccuracyLow: number;
   levelMap: Record<number, LevelDefinition>;
-}
-
-
-// --- Verbal Mode Specific Types for Database Schema Simulation ---
-
-export interface VerbalStimulus {
-    word: string;
-    phonemes: string; // e.g., "h æ p i n ə s"
-    syllables: number;
-    root?: string;
-    affixes?: string[];
-    part_of_speech: 'noun' | 'verb' | 'adjective' | 'adverb';
-    semantic_category: string[];
-    frequency_score: number; // e.g., 8.4 (higher is more common)
-    cultural_specificity: 'universal' | 'regional_us' | 'regional_uk';
-    age_appropriateness: 'all' | '12+' | '16+';
-}
-
-export interface UserSessionLog {
-    sessionId: string;
-    userId: string;
-    gameId: GameId;
-    focus: TrainingFocus;
-    sessionStartTime: number; // timestamp
-    sessionEndTime: number; // timestamp
-    startLevel: number;
-    endLevel: number;
-    trials: TrialLog[];
-}
-
-export interface TrialLog {
-    trialId: number;
-    level: number;
-    stimulus: any; // Could be a VerbalStimulus, a math problem, etc.
-    response: any;
-    isCorrect: boolean;
-    reactionTimeMs: number;
-    timestamp: number;
 }

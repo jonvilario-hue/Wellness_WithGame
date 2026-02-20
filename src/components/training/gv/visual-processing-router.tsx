@@ -7,6 +7,7 @@ import { BalancePuzzle } from './balance-puzzle';
 import { Skeleton } from '@/components/ui/skeleton';
 import { VisualMusicMatch } from './visual-music-match';
 import { OrthographicConstruction } from './orthographic-construction';
+import { TypographicSearch } from './typographic-search';
 
 export function VisualProcessingRouter() {
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
@@ -25,9 +26,11 @@ export function VisualProcessingRouter() {
     case 'math':
       return <BalancePuzzle focus={effectiveFocus} />;
     case 'music':
-      return <VisualMusicMatch focus={effectiveFocus} />;
+      return <VisualMusicMatch focus={effective-focus} />;
     case 'verbal':
-        return <OrthographicConstruction focus={effectiveFocus} />;
+        // The Orthographic Construction task was replaced by Typographic Search 
+        // to better align with the Gv domain (visual scanning).
+        return <TypographicSearch focus={effectiveFocus} />;
     case 'neutral':
     default:
       return <MentalRotationLab focus={effectiveFocus} />;
