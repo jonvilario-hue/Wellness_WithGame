@@ -27,6 +27,18 @@ const getMeasurePath = (id: string): string => {
     return measures[id] || measures['q_q_h'];
 }
 
+const generateContourPath = (id: string): string => {
+    const contours: Record<string, string> = {
+        'q_q_h': 'M 30 50 L 80 50 L 130 30',
+        'h_q_q': 'M 30 30 L 80 50 L 130 50',
+        'e_e_q_q': 'M 30 60 L 60 40 L 90 40 L 120 20',
+        'q_up_q_down': 'M 30 60 L 80 20 L 130 70',
+        'dotted_q_e': 'M 30 50 L 100 50 L 130 30',
+    };
+    return contours[id] || contours['q_q_h'];
+};
+
+
 type Measure = { id: string, desc: string };
 type Puzzle = {
     target: Measure;
@@ -34,9 +46,21 @@ type Puzzle = {
     answer: Measure;
 }
 
-const generatePuzzleForLevel = (level: number): Puzzle => {
-    const params = policy.levelMap[level]?.music || policy.levelMap[1].music;
-    const measurePool = params.measures as Measure[];
+const generatePuzzleForLevel = (level: number, focus: TrainingFocus): Puzzle => {
+    const { content_config } = policy.levelMap[level] || policy.levelMap[1];
+    const params = content_config[focus]?.params;
+    if (!params) throw new Error(`No music params found for level ${level}`);
+
+    // This is a simplified generator. A real one would use a music library.
+    const allMeasures: Measure[] = [
+        {id: 'q_q_h', desc: 'Two quarters, one half'},
+        {id: 'h_q_q', desc: 'One half, two quarters'},
+        {id: 'e_e_q_q', desc: 'Two eighths, two quarters'},
+        {id: 'q_up_q_down', desc: 'Up, then down'},
+        {id: 'dotted_q_e', desc: 'Dotted quarter, then eighth'},
+    ];
+
+    const measurePool = allMeasures.filter(m => params.measures.includes(m.id));
     const numOptions = params.distractorCount + 1;
 
     const shuffled = [...measurePool].sort(() => Math.random() - 0.5);
@@ -46,13 +70,14 @@ const generatePuzzleForLevel = (level: number): Puzzle => {
     return { target, options, answer: target };
 };
 
-const MusicNotation = ({ path, className }: { path: string; className?: string }) => (
+
+const MusicNotation = ({ path, className, isContour }: { path: string; className?: string; isContour?: boolean }) => (
     <div className={cn("relative w-full h-full", className)}>
-        {[40, 60, 80, 100, 120].map(y => (
+        { !isContour && [40, 60, 80, 100, 120].map(y => (
              <div key={y} className="absolute bg-muted-foreground h-[1px] w-full" style={{ top: `${y}px` }} />
         ))}
-        <svg viewBox="0 0 300 150" className="w-full h-full">
-            <path d={getMeasurePath(path)} stroke="hsl(var(--primary))" strokeWidth="6" fill="none" strokeLinecap="round" />
+        <svg viewBox={isContour ? "0 0 150 80" : "0 0 300 150"} className="w-full h-full">
+            <path d={isContour ? generateContourPath(path) : getMeasurePath(path)} stroke="hsl(var(--primary))" strokeWidth="6" fill="none" strokeLinecap="round" />
         </svg>
     </div>
 );
@@ -79,12 +104,16 @@ export function VisualMusicMatch({ focus }: { focus: TrainingFocus }) {
     }, [focus, getAdaptiveState]);
     
     const startNewTrial = useCallback((state: AdaptiveState) => {
-        setPuzzle(generatePuzzleForLevel(state.currentLevel));
+        const onRamp = state.uncertainty > 0.7;
+        const loadedLevel = onRamp
+          ? Math.max(state.levelFloor, state.currentLevel - 2)
+          : state.currentLevel;
+        setPuzzle(generatePuzzleForLevel(loadedLevel, focus));
         setSelectedId(null);
         setFeedback('');
         setGameState('playing');
         trialStartTime.current = Date.now();
-    }, []);
+    }, [focus]);
 
     const startNewSession = useCallback(() => {
         if (!adaptiveState) return;
@@ -115,7 +144,7 @@ export function VisualMusicMatch({ focus }: { focus: TrainingFocus }) {
             if (currentTrialIndex.current >= policy.sessionLength) {
                 setGameState('finished');
                 const finalState = endSession(newState, [...sessionTrials, trialResult]);
-                updateAdaptiveState(GAME_ID, focus, finalState);
+                updateAdaptiveState(GAME_ID, finalState);
             } else {
                 startNewTrial(newState);
             }
@@ -144,6 +173,9 @@ export function VisualMusicMatch({ focus }: { focus: TrainingFocus }) {
         }
         if (!puzzle) return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
 
+        // For this game, we'll use contour graphs to avoid notation literacy issues
+        const useContour = true;
+
         return (
             <div className="flex flex-col items-center gap-6 w-full">
                 <div className="w-full flex justify-between font-mono text-sm">
@@ -153,7 +185,7 @@ export function VisualMusicMatch({ focus }: { focus: TrainingFocus }) {
                 <div>
                     <h3 className="text-center font-semibold mb-2">Target</h3>
                     <div className="p-4 bg-muted rounded-lg w-72 h-40">
-                        <MusicNotation path={puzzle.target.id} />
+                        <MusicNotation path={puzzle.target.id} isContour={useContour} />
                     </div>
                 </div>
 
@@ -174,7 +206,7 @@ export function VisualMusicMatch({ focus }: { focus: TrainingFocus }) {
                                 gameState === 'feedback' && selectedId === option.id && option.id !== puzzle.answer.id && 'bg-destructive/20 border-destructive'
                             )}
                         >
-                            <MusicNotation path={option.id} />
+                            <MusicNotation path={option.id} isContour={useContour} />
                         </Button>
                     ))}
                 </div>
@@ -187,9 +219,9 @@ export function VisualMusicMatch({ focus }: { focus: TrainingFocus }) {
             <CardHeader className="text-center">
                 <CardTitle className="flex items-center justify-center gap-2">
                     <Music2 />
-                    (Gv) Visual Music Match
+                    (Gv) Melodic Contour Match
                 </CardTitle>
-                <CardDescription>Find the musical measure below that exactly matches the target.</CardDescription>
+                <CardDescription>Find the visual shape below that exactly matches the target melody's contour.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center gap-6 min-h-[500px] justify-center">
                 {renderContent()}

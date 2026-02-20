@@ -31,19 +31,7 @@ type NeutralRule = 'color' | 'word' | 'no_go';
 type MathRule = 'parity' | 'magnitude' | 'digit_sum' | 'no_go';
 
 // --- Music Mode Config ---
-const notes = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
-const qualities = ['MAJOR', 'MINOR'];
-type MusicRule = 'quality' | 'no_go';
-
-// Simple check for major/minor "feel"
-const isMajor = (noteSequence: string[]) => {
-    const majorIntervals = new Set(['CE', 'FA', 'GB']);
-    for(let i = 0; i < noteSequence.length - 1; i++) {
-        const interval = noteSequence[i] + noteSequence[i+1];
-        if (majorIntervals.has(interval)) return true;
-    }
-    return false;
-}
+type MusicRule = 'pitch_direction' | 'rhythm_evenness' | 'harmony_quality' | 'timbre_family' | 'no_go';
 
 export function FocusSwitchReactor() {
   const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
@@ -56,7 +44,7 @@ export function FocusSwitchReactor() {
   
   const [score, setScore] = useState(0);
   const [rule, setRule] = useState<NeutralRule | MathRule | MusicRule>('word');
-  const [stimulus, setStimulus] = useState<any>({ word: 'PRIMARY', color: 'text-primary', value: 7, noteSequence: ['C','E','G'] });
+  const [stimulus, setStimulus] = useState<any>({ word: 'PRIMARY', color: 'text-primary', value: 7, pitch: 440, rhythm: [0.5, 0.5], harmony: 'major', timbre: 'piano' });
   const [inlineFeedback, setInlineFeedback] = useState({ message: '', type: '' });
   const [shuffledOptions, setShuffledOptions] = useState<any[]>([]);
 
@@ -80,54 +68,34 @@ export function FocusSwitchReactor() {
     ruleRef.current = rule;
   }, [rule]);
 
-  const generateNeutralStimulus = useCallback(() => {
-    const randomWord = colorMap[Math.floor(Math.random() * colorMap.length)];
-    const randomColor = colorMap[Math.floor(Math.random() * colorMap.length)];
-    setStimulus({ word: randomWord.name, color: randomColor.textClass });
-  }, []);
-  
-  const generateMathStimulus = useCallback(() => {
-    const value = Math.floor(Math.random() * 98) + 2; // numbers from 2 to 99
-    setStimulus({ value });
-  }, []);
-  
-  const generateMusicStimulus = useCallback(() => {
-    const sequenceLength = 3;
-    const noteSequence = Array.from({length: sequenceLength}, () => notes[Math.floor(Math.random() * notes.length)]);
-    setStimulus({ noteSequence });
-  }, []);
-
   const generateStimulus = useCallback(() => {
-    if (currentMode === 'math') {
-        generateMathStimulus();
-    } else if (currentMode === 'music') {
-        generateMusicStimulus();
-    } else {
-        generateNeutralStimulus();
-    }
-  }, [currentMode, generateMathStimulus, generateNeutralStimulus, generateMusicStimulus]);
-
-  const getAvailableRules = useCallback(() => {
-    if (!adaptiveState) return ['word'];
-
-    const onRamp = adaptiveState.uncertainty > 0.7;
-    const loadedLevel = onRamp
-      ? Math.max(adaptiveState.levelFloor, adaptiveState.currentLevel - 2)
-      : adaptiveState.currentLevel;
-
-    const levelDef = policy.levelMap[loadedLevel] || policy.levelMap[20];
-    const { content_config, mechanic_config } = levelDef;
-    const contentParams = content_config[currentMode];
+    const state = adaptiveState;
+    if (!state) return;
     
-    let baseRules: (NeutralRule | MathRule | MusicRule)[] = [];
-    if(currentMode === 'math') baseRules = contentParams.rules;
-    else if (currentMode === 'music') baseRules = ['quality'];
-    else baseRules = ['color', 'word'];
+    const onRamp = state.uncertainty > 0.7;
+    const loadedLevel = onRamp ? Math.max(state.levelFloor, state.currentLevel - 2) : state.currentLevel;
+    const levelDef = policy.levelMap[loadedLevel] || policy.levelMap[20];
+    const { content_config } = levelDef;
+    const contentParams = content_config[currentMode].params;
 
-    const available = baseRules.slice(0, contentParams.ruleCount);
-    if(mechanic_config.noGo) available.push('no_go');
-    return available;
+    if (currentMode === 'math') {
+        const value = Math.floor(Math.random() * 98) + 2;
+        setStimulus({ value });
+    } else if (currentMode === 'music') {
+        const pitchDirection = Math.random() > 0.5 ? 'ascending' : 'descending';
+        const isEven = Math.random() > 0.5;
+        const rhythm = isEven ? [0.5, 0.5] : [0.75, 0.25]; // Simple vs syncopated
+        const harmony = Math.random() > 0.5 ? 'major' : 'minor';
+        const families = ['piano', 'guitar', 'strings', 'brass'];
+        const timbre = families[Math.floor(Math.random() * families.length)];
+        setStimulus({ pitchDirection, rhythm, harmony, timbre });
+    } else { // Neutral
+        const randomWord = colorMap[Math.floor(Math.random() * colorMap.length)];
+        const randomColor = colorMap[Math.floor(Math.random() * colorMap.length)];
+        setStimulus({ word: randomWord.name, color: randomColor.textClass });
+    }
   }, [adaptiveState, currentMode]);
+
 
   const startNewTrial = useCallback((state: AdaptiveState) => {
     generateStimulus();
@@ -137,9 +105,12 @@ export function FocusSwitchReactor() {
       ? Math.max(state.levelFloor, state.currentLevel - 2)
       : state.currentLevel;
     const levelDef = policy.levelMap[loadedLevel] || policy.levelMap[20];
-    const { mechanic_config } = levelDef;
+    const { mechanic_config, content_config } = levelDef;
+    const contentParams = content_config[currentMode].params;
+    
+    let availableRules: (NeutralRule | MathRule | MusicRule)[] = contentParams.rules || ['color', 'word'];
+    if(mechanic_config.noGo) availableRules.push('no_go');
 
-    const availableRules = getAvailableRules();
     let newRule = ruleRef.current;
     
     ruleSwitchCounter.current++;
@@ -154,9 +125,13 @@ export function FocusSwitchReactor() {
         if (newRule === 'parity') options = ['EVEN', 'ODD'];
         else if (newRule === 'magnitude') options = ['< 50', '> 50'];
         else if (newRule === 'digit_sum') options = ['SUM < 10', 'SUM > 10'];
-        else options = ['EVEN', 'ODD', '< 50', '> 50'];
+        else options = ['EVEN', 'ODD']; // Fallback
     } else if (currentMode === 'music') {
-        options = qualities;
+        if (newRule === 'pitch_direction') options = ['ASCENDING', 'DESCENDING'];
+        else if (newRule === 'rhythm_evenness') options = ['EVEN', 'UNEVEN'];
+        else if (newRule === 'harmony_quality') options = ['MAJOR', 'MINOR'];
+        else if (newRule === 'timbre_family') options = ['PIANO', 'GUITAR', 'STRINGS', 'BRASS'];
+        else options = ['ASCENDING', 'DESCENDING']; // Fallback
     } else { // Neutral mode
         options = colorMap;
     }
@@ -166,7 +141,7 @@ export function FocusSwitchReactor() {
     setInlineFeedback({ message: '', type: '' });
     setGameState('running');
     trialStartTime.current = Date.now();
-  }, [generateStimulus, getAvailableRules, currentMode]);
+  }, [generateStimulus, currentMode]);
   
   const startNewSession = useCallback(() => {
     if (!adaptiveState) return;
@@ -202,7 +177,7 @@ export function FocusSwitchReactor() {
         if(currentTrialIndex.current >= policy.sessionLength) {
             setGameState('finished');
             const finalState = endSession(newState, [...sessionTrials, trialResult]);
-            updateAdaptiveState(GAME_ID, finalState);
+            updateAdaptiveState(finalState);
         } else {
             startNewTrial(newState);
         }
@@ -242,8 +217,16 @@ export function FocusSwitchReactor() {
             isCorrect = (answer === digitSum);
         }
     } else { // Music mode
-        const quality = isMajor(stimulus.noteSequence) ? 'MAJOR' : 'MINOR';
-        isCorrect = (answer === quality);
+        if (rule === 'pitch_direction') {
+            isCorrect = (stimulus.pitchDirection.toUpperCase() === answer);
+        } else if (rule === 'rhythm_evenness') {
+            const evenness = stimulus.rhythm[0] === 0.5 ? 'EVEN' : 'UNEVEN';
+            isCorrect = (evenness === answer);
+        } else if (rule === 'harmony_quality') {
+            isCorrect = (stimulus.harmony.toUpperCase() === answer);
+        } else if (rule === 'timbre_family') {
+            isCorrect = (stimulus.timbre.toUpperCase() === answer);
+        }
     }
     
     processNextTurn(isCorrect);
@@ -274,13 +257,16 @@ export function FocusSwitchReactor() {
       if (rule === 'parity') text = 'Is the number EVEN or ODD?';
       if (rule === 'magnitude') text = 'Is the number GREATER or LESS than 50?';
       if (rule === 'digit_sum') text = 'Is the SUM OF DIGITS GREATER or LESS than 10?';
-      if (rule === 'quality') text = 'Is the sequence MAJOR or MINOR?';
+      if (rule === 'pitch_direction') text = 'Is the melody ASCENDING or DESCENDING?';
+      if (rule === 'rhythm_evenness') text = 'Is the rhythm EVEN or UNEVEN?';
+      if (rule === 'harmony_quality') text = 'Is the harmony MAJOR or MINOR?';
+      if (rule === 'timbre_family') text = 'What is the instrument family?';
       if (rule === 'no_go') text = "DON'T RESPOND";
       
       return <span className="font-bold text-primary uppercase">{text}</span>;
   }
   
-  const buttonGridCols = currentMode === 'neutral' ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-2';
+  const buttonGridCols = (currentMode === 'neutral' || currentMode === 'music') ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-2';
 
   const renderContent = () => {
       switch (gameState) {
@@ -315,7 +301,7 @@ export function FocusSwitchReactor() {
                 <div className="text-6xl font-extrabold" >
                   {currentMode === 'neutral' && <span className={stimulus.color}>{stimulus.word}</span>}
                   {currentMode === 'math' && <span className="text-primary">{stimulus.value}</span>}
-                  {currentMode === 'music' && <span className="text-primary tracking-widest">{stimulus.noteSequence?.join(' ')}</span>}
+                  {currentMode === 'music' && <span className="text-primary tracking-widest">{stimulus.timbre}</span>}
                 </div>
               </div>
                <div className="h-6 text-sm font-semibold">
@@ -374,5 +360,3 @@ export function FocusSwitchReactor() {
     </Card>
   );
 }
-
-    
