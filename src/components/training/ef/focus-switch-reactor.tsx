@@ -9,6 +9,7 @@ import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // --- Imports for adaptive engine ---
 import { Loader2 } from 'lucide-react';
@@ -48,8 +49,6 @@ type MusicRule = 'quality' | 'no_go';
 
 // Simple check for major/minor "feel"
 const isMajor = (noteSequence: string[]) => {
-    // This is a heuristic. A true major scale has a specific interval pattern.
-    // For this game, we'll use a simpler rule: if it contains a 'happy' sounding interval like C-E or G-B.
     const majorIntervals = new Set(['CE', 'FA', 'GB']);
     for(let i = 0; i < noteSequence.length - 1; i++) {
         const interval = noteSequence[i] + noteSequence[i+1];
@@ -65,6 +64,9 @@ export function FocusSwitchReactor() {
   const [sessionTrials, setSessionTrials] = useState<TrialResult[]>([]);
   const trialStartTime = useRef(0);
   const currentTrialIndex = useRef(0);
+  const ruleSwitchCounter = useRef(0);
+  const [hasSeenPrimalityHint, setHasSeenPrimalityHint] = useState(false);
+  const [hasSeenQualityHint, setHasSeenQualityHint] = useState(false);
 
   // ORIGINAL COMPONENT STATE
   const [gameState, setGameState] = useState<'loading' | 'start' | 'running' | 'feedback' | 'finished'>('loading');
@@ -84,11 +86,11 @@ export function FocusSwitchReactor() {
   // INITIALIZE ADAPTIVE STATE
   useEffect(() => {
     if (isLoaded) {
-      const initialState = getAdaptiveState(GAME_ID);
+      const initialState = getAdaptiveState(GAME_ID, currentMode);
       setAdaptiveState(initialState);
       setGameState('start');
     }
-  }, [isLoaded, getAdaptiveState]);
+  }, [isLoaded, getAdaptiveState, currentMode]);
   
   useEffect(() => {
     ruleRef.current = rule;
@@ -121,27 +123,31 @@ export function FocusSwitchReactor() {
     }
   }, [currentMode, generateMathStimulus, generateNeutralStimulus, generateMusicStimulus]);
 
-  const generateRule = useCallback(() => {
-    const noGoChance = 0.2;
-    if (Math.random() < noGoChance) {
-        return 'no_go';
-    }
-    
-    if (currentMode === 'math') {
-        return (Math.random() < 0.5 ? 'parity' : 'primality');
-    } else if (currentMode === 'music') {
-        return 'quality';
-    } else { // Neutral mode
-        return (Math.random() < 0.5 ? 'color' : 'word');
-    }
-  }, [currentMode]);
-  
+  const getAvailableRules = useCallback(() => {
+    if (!adaptiveState) return ['word'];
+    const params = policy.levelMap[adaptiveState.currentLevel] || policy.levelMap[20];
+    const ruleCount = params.ruleCount;
+    let baseRules: (NeutralRule | MathRule | MusicRule)[] = [];
+    if (currentMode === 'math') baseRules = ['parity', 'primality'];
+    else if (currentMode === 'music') baseRules = ['quality'];
+    else baseRules = ['color', 'word'];
+
+    const available = baseRules.slice(0, ruleCount);
+    if(params.noGo) available.push('no_go');
+    return available;
+  }, [adaptiveState, currentMode]);
+
   const startNewTrial = useCallback((state: AdaptiveState) => {
     generateStimulus();
     
+    const params = policy.levelMap[state.currentLevel] || policy.levelMap[20];
+    const availableRules = getAvailableRules();
     let newRule = ruleRef.current;
-    if (Math.random() < 0.3) { 
-      newRule = generateRule();
+    
+    ruleSwitchCounter.current++;
+    if (ruleSwitchCounter.current >= params.switchIntervalSec) { 
+      newRule = availableRules[Math.floor(Math.random() * availableRules.length)];
+      ruleSwitchCounter.current = 0;
     }
     setRule(newRule as any);
 
@@ -162,7 +168,7 @@ export function FocusSwitchReactor() {
     setInlineFeedback({ message: '', type: '' });
     setGameState('running');
     trialStartTime.current = Date.now();
-  }, [generateStimulus, generateRule, currentMode]);
+  }, [generateStimulus, getAvailableRules, currentMode]);
   
   const startNewSession = useCallback(() => {
     if (!adaptiveState) return;
@@ -170,6 +176,7 @@ export function FocusSwitchReactor() {
     setAdaptiveState(sessionState);
     setSessionTrials([]);
     currentTrialIndex.current = 0;
+    ruleSwitchCounter.current = 0;
     setScore(0);
     startNewTrial(sessionState);
   }, [adaptiveState, startNewTrial]);
@@ -197,12 +204,12 @@ export function FocusSwitchReactor() {
         if(currentTrialIndex.current >= policy.sessionLength) {
             setGameState('finished');
             const finalState = endSession(newState, [...sessionTrials, trialResult]);
-            updateAdaptiveState(GAME_ID, finalState);
+            updateAdaptiveState(GAME_ID, currentMode, finalState);
         } else {
             startNewTrial(newState);
         }
     }, 2000);
-  }, [gameState, adaptiveState, sessionTrials, updateAdaptiveState, startNewTrial]);
+  }, [gameState, adaptiveState, sessionTrials, updateAdaptiveState, startNewTrial, currentMode]);
   
   const handleAnswer = useCallback((answer: string) => {
     if (gameState !== 'running') return;
@@ -254,13 +261,35 @@ export function FocusSwitchReactor() {
 
 
   const getRuleText = () => {
-      if (rule === 'color') return 'Respond to the COLOR';
-      if (rule === 'word') return 'Respond to the WORD';
-      if (rule === 'parity') return 'Is the number EVEN or ODD?';
-      if (rule === 'primality') return 'Is the number PRIME or COMPOSITE?';
-      if (rule === 'quality') return 'Is the sequence MAJOR or MINOR?';
-      if (rule === 'no_go') return "DON'T RESPOND";
-      return '';
+      let text = '';
+      if (rule === 'color') text = 'Respond to the COLOR';
+      if (rule === 'word') text = 'Respond to the WORD';
+      if (rule === 'parity') text = 'Is the number EVEN or ODD?';
+      if (rule === 'primality') text = 'Is the number PRIME or COMPOSITE?';
+      if (rule === 'quality') text = 'Is the sequence MAJOR or MINOR?';
+      if (rule === 'no_go') text = "DON'T RESPOND";
+
+      let hint = '';
+      if (rule === 'primality' && !hasSeenPrimalityHint) {
+          hint = 'A prime number is only divisible by 1 and itself (e.g., 2, 3, 5, 7, 11).';
+          setTimeout(() => setHasSeenPrimalityHint(true), 5000);
+      }
+      if (rule === 'quality' && !hasSeenQualityHint) {
+          hint = 'Major sequences often sound "happy" or "bright."';
+          setTimeout(() => setHasSeenQualityHint(true), 5000);
+      }
+
+      if (hint) {
+          return (
+              <TooltipProvider>
+                  <Tooltip>
+                      <TooltipTrigger asChild><span className="font-bold text-primary uppercase underline decoration-dashed">{text}</span></TooltipTrigger>
+                      <TooltipContent><p>{hint}</p></TooltipContent>
+                  </Tooltip>
+              </TooltipProvider>
+          )
+      }
+      return <span className="font-bold text-primary uppercase">{text}</span>;
   }
   
   const buttonGridCols = currentMode === 'neutral' ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-2';
@@ -294,7 +323,7 @@ export function FocusSwitchReactor() {
                 <span>Score: {score}</span>
               </div>
               <div className="p-8 bg-muted rounded-lg w-full">
-                <p className="text-xl mb-4">Rule: <span className="font-bold text-primary uppercase">{getRuleText()}</span></p>
+                <p className="text-xl mb-4">Rule: {getRuleText()}</p>
                 <div className="text-6xl font-extrabold" >
                   {currentMode === 'neutral' && <span className={stimulus.color}>{stimulus.word}</span>}
                   {currentMode === 'math' && <span className="text-primary">{stimulus.value}</span>}

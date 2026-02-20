@@ -13,10 +13,11 @@ export const getDefaultState = (gameId: GameId, focus: TrainingFocus, tier: Tier
     return {
         gameId,
         focus,
+        lastFocus: focus,
         tier,
         levelFloor: config.range[0],
         levelCeiling: config.range[1],
-        currentLevel: config.range[0] + 1,
+        currentLevel: config.range[0],
         uncertainty: 0.8,
         consecutiveCorrect: 0,
         consecutiveWrong: 0,

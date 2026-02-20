@@ -68,7 +68,8 @@ export const usePerformanceStore = create<PerformanceStateData & PerformanceActi
 
       getAdaptiveState: (gameId, focus) => {
         const state = get();
-        const gameState = state.gameStates[gameId]?.[focus];
+        let gameState = state.gameStates[gameId]?.[focus];
+        
         // If a game state somehow doesn't exist, create it.
         if (!gameState) {
           const newGameState = getDefaultState(gameId, focus, state.globalTier);
@@ -76,8 +77,24 @@ export const usePerformanceStore = create<PerformanceStateData & PerformanceActi
               if (!s.gameStates[gameId]) s.gameStates[gameId] = {};
               s.gameStates[gameId]![focus] = newGameState;
           });
-          return newGameState;
+          gameState = newGameState;
         }
+
+        // Layer Switching Logic (Rule 6)
+        if (gameState.lastFocus !== focus) {
+            set(s => {
+                const stateToUpdate = s.gameStates[gameId]![focus]!;
+                stateToUpdate.uncertainty = Math.min(stateToUpdate.uncertainty + 0.3, 0.8);
+                stateToUpdate.consecutiveCorrect = 0;
+                stateToUpdate.consecutiveWrong = 0;
+                stateToUpdate.smoothedAccuracy = 0.75;
+                stateToUpdate.smoothedRT = 0;
+                stateToUpdate.lastFocus = focus;
+            });
+            // Re-get the state after the update
+            return get().gameStates[gameId]![focus]!;
+        }
+
         return gameState;
       },
 
@@ -97,7 +114,7 @@ export const usePerformanceStore = create<PerformanceStateData & PerformanceActi
       }
     })),
     {
-      name: 'cognitive-performance-storage-v3-focus-aware',
+      name: 'cognitive-performance-storage-v4-layer-aware', // Incremented version
       storage: createJSONStorage(() => localStorage),
     }
   )

@@ -42,6 +42,7 @@ export interface TrialResult {
 export interface AdaptiveState {
   gameId: GameId;
   focus: TrainingFocus;
+  lastFocus: TrainingFocus;
   tier: Tier;
   levelFloor: number;
   levelCeiling: number;

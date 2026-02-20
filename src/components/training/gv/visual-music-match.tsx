@@ -15,24 +15,33 @@ import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types"
 const GAME_ID: GameId = 'gv_visual_lab';
 const policy = difficultyPolicies[GAME_ID];
 
-const measures = [
-    { id: 'q_q_h', path: 'M70 100 L70 50 M60 50 L80 50 M140 100 L140 50 M130 50 L150 50 M220 100 L220 50', desc: 'Two quarter notes, one half note' },
-    { id: 'h_q_q', path: 'M70 100 L70 50 M150 100 L150 50 M140 50 L160 50 M220 100 L220 50 M210 50 L230 50', desc: 'One half note, two quarter notes' },
-    { id: 'e_e_q_q', path: 'M70 100 L70 40 M110 100 L110 40 M70 40 L110 40 M160 100 L160 50 M150 50 L170 50 M230 100 L230 50 M220 50 L240 50', desc: 'Two eighth notes, two quarter notes' },
-    { id: 'q_up_q_down', path: 'M70 90 L70 40 M60 40 L80 40 M140 60 L140 10 M130 10 L150 10 M220 110 L220 60 M210 60 L230 60', desc: 'Pitches: low, high, middle' },
-];
+// Use a function to generate paths to make them more dynamic later
+const getMeasurePath = (id: string): string => {
+    const measures: Record<string, string> = {
+        'q_q_h': 'M70 100 L70 50 M60 50 L80 50 M140 100 L140 50 M130 50 L150 50 M220 100 L220 50',
+        'h_q_q': 'M70 100 L70 50 M150 100 L150 50 M140 50 L160 50 M220 100 L220 50 M210 50 L230 50',
+        'e_e_q_q': 'M70 100 L70 40 M110 100 L110 40 M70 40 L110 40 M160 100 L160 50 M150 50 L170 50 M230 100 L230 50 M220 50 L240 50',
+        'q_up_q_down': 'M70 90 L70 40 M60 40 L80 40 M140 60 L140 10 M130 10 L150 10 M220 110 L220 60 M210 60 L230 60',
+        'dotted_q_e': 'M70 100 L70 50 M85 75 a 5 5 0 1 1 0 -0.01 M140 100 L140 40 M140 40 L110 40', // Approximated
+    };
+    return measures[id] || measures['q_q_h'];
+}
 
-type Measure = typeof measures[0];
+type Measure = { id: string, desc: string };
 type Puzzle = {
     target: Measure;
     options: Measure[];
     answer: Measure;
 }
 
-const generatePuzzle = (): Puzzle => {
-    const shuffled = [...measures].sort(() => Math.random() - 0.5);
+const generatePuzzleForLevel = (level: number): Puzzle => {
+    const params = policy.levelMap[level]?.music || policy.levelMap[1].music;
+    const measurePool = params.measures as Measure[];
+    const numOptions = params.distractorCount + 1;
+
+    const shuffled = [...measurePool].sort(() => Math.random() - 0.5);
     const target = shuffled[0];
-    const decoys = shuffled.slice(1, 4);
+    const decoys = shuffled.slice(1, numOptions);
     const options = [target, ...decoys].sort(() => Math.random() - 0.5);
     return { target, options, answer: target };
 };
@@ -43,7 +52,7 @@ const MusicNotation = ({ path, className }: { path: string; className?: string }
              <div key={y} className="absolute bg-muted-foreground h-[1px] w-full" style={{ top: `${y}px` }} />
         ))}
         <svg viewBox="0 0 300 150" className="w-full h-full">
-            <path d={path} stroke="hsl(var(--primary))" strokeWidth="6" fill="none" strokeLinecap="round" />
+            <path d={getMeasurePath(path)} stroke="hsl(var(--primary))" strokeWidth="6" fill="none" strokeLinecap="round" />
         </svg>
     </div>
 );
@@ -70,7 +79,7 @@ export function VisualMusicMatch({ focus }: { focus: TrainingFocus }) {
     }, [focus, getAdaptiveState]);
     
     const startNewTrial = useCallback((state: AdaptiveState) => {
-        setPuzzle(generatePuzzle());
+        setPuzzle(generatePuzzleForLevel(state.currentLevel));
         setSelectedId(null);
         setFeedback('');
         setGameState('playing');
@@ -114,11 +123,11 @@ export function VisualMusicMatch({ focus }: { focus: TrainingFocus }) {
     };
     
     const renderContent = () => {
-        if (gameState === 'loading') return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
+        if (gameState === 'loading' || !adaptiveState) return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
         if (gameState === 'start') {
              return (
                 <div className="flex flex-col items-center gap-4">
-                  <div className="font-mono text-lg">Level: {adaptiveState?.currentLevel}</div>
+                  <div className="font-mono text-lg">Level: {adaptiveState.currentLevel}</div>
                   <Button onClick={startNewSession} size="lg">Start Session</Button>
                 </div>
             );
@@ -139,12 +148,12 @@ export function VisualMusicMatch({ focus }: { focus: TrainingFocus }) {
             <div className="flex flex-col items-center gap-6 w-full">
                 <div className="w-full flex justify-between font-mono text-sm">
                     <span>Trial: {currentTrialIndex.current + 1} / {policy.sessionLength}</span>
-                    <span>Score: {sessionTrials.filter(t => t.correct).length}</span>
+                    <span>Level: {adaptiveState.currentLevel}</span>
                 </div>
                 <div>
                     <h3 className="text-center font-semibold mb-2">Target</h3>
                     <div className="p-4 bg-muted rounded-lg w-72 h-40">
-                        <MusicNotation path={puzzle.target.path} />
+                        <MusicNotation path={puzzle.target.id} />
                     </div>
                 </div>
 
@@ -165,7 +174,7 @@ export function VisualMusicMatch({ focus }: { focus: TrainingFocus }) {
                                 gameState === 'feedback' && selectedId === option.id && option.id !== puzzle.answer.id && 'bg-destructive/20 border-destructive'
                             )}
                         >
-                            <MusicNotation path={option.path} />
+                            <MusicNotation path={option.id} />
                         </Button>
                     ))}
                 </div>

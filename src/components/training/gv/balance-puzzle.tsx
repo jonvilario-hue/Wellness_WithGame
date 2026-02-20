@@ -12,7 +12,7 @@ import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engin
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
 
-const GAME_ID: GameId = 'gv_visual_lab'; // This game maps to the Gv lab
+const GAME_ID: GameId = 'gv_visual_lab';
 const policy = difficultyPolicies[GAME_ID];
 
 const shapes = [
@@ -32,28 +32,44 @@ type Puzzle = {
     options: number[];
 };
 
-const generatePuzzle = (): Puzzle => {
+const generatePuzzleForLevel = (level: number): Puzzle => {
+    const params = policy.levelMap[level]?.math || policy.levelMap[1].math;
+    const numShapesInPlay = params.shapeCount;
+    const maxWeight = params.maxWeight;
+
     const weights: Record<string, number> = {};
-    const shuffledWeights = [1, 2, 3, 4, 5].sort(() => Math.random() - 0.5);
-    shapes.forEach((shape, index) => {
-        weights[shape.id] = shuffledWeights[index];
+    const availableWeights = Array.from({length: maxWeight}, (_, i) => i + 1).sort(() => Math.random() - 0.5);
+    shapes.slice(0, 5).forEach((shape, index) => {
+        weights[shape.id] = availableWeights[index];
     });
 
-    const puzzleShapes = [...shapes].sort(() => Math.random() - 0.5).slice(0, 3);
-    const [s1, s2, s3] = puzzleShapes;
+    const puzzleShapes = [...shapes].sort(() => Math.random() - 0.5).slice(0, numShapesInPlay);
+    
+    let leftSide: Shape[] = [];
+    let rightSide: Shape[] = [];
+    let leftWeight = 0;
+    let rightWeight = 0;
 
-    let leftSide = [s1];
-    let rightSide = [s2, s3];
-    let leftWeight = weights[s1.id];
-    let rightWeight = weights[s2.id] + weights[s3.id];
-    if(leftWeight > rightWeight) {
-        const diff = leftWeight - rightWeight;
+    // Build a balanced equation
+    for (let i = 0; i < params.equationTerms; i++) {
+        const shape = puzzleShapes[Math.floor(Math.random() * puzzleShapes.length)];
+        if (leftWeight <= rightWeight) {
+            leftSide.push(shape);
+            leftWeight += weights[shape.id];
+        } else {
+            rightSide.push(shape);
+            rightWeight += weights[shape.id];
+        }
+    }
+    
+    // Balance the scales
+    const diff = Math.abs(leftWeight - rightWeight);
+    if (diff > 0) {
         const fillerShape = shapes.find(s => weights[s.id] === diff);
-        if(fillerShape) rightSide.push(fillerShape);
-    } else if (rightWeight > leftWeight) {
-        const diff = rightWeight - leftWeight;
-        const fillerShape = shapes.find(s => weights[s.id] === diff);
-        if(fillerShape) leftSide.push(fillerShape);
+        if (fillerShape) {
+            if (leftWeight > rightWeight) rightSide.push(fillerShape);
+            else leftSide.push(fillerShape);
+        }
     }
     
     const questionShape = puzzleShapes[Math.floor(Math.random() * puzzleShapes.length)];
@@ -93,7 +109,7 @@ export function BalancePuzzle({ focus }: { focus: TrainingFocus }) {
     }, [focus, getAdaptiveState]);
     
     const startNewTrial = useCallback((state: AdaptiveState) => {
-        setPuzzle(generatePuzzle());
+        setPuzzle(generatePuzzleForLevel(state.currentLevel));
         setSelectedAnswer(null);
         setInlineFeedback({ message: '', type: '' });
         setGameState('playing');
@@ -137,11 +153,11 @@ export function BalancePuzzle({ focus }: { focus: TrainingFocus }) {
     };
 
     const renderContent = () => {
-        if (gameState === 'loading') return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
+        if (gameState === 'loading' || !adaptiveState) return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
         if (gameState === 'start') {
             return (
                 <div className="flex flex-col items-center gap-4">
-                  <div className="font-mono text-lg">Level: {adaptiveState?.currentLevel}</div>
+                  <div className="font-mono text-lg">Level: {adaptiveState.currentLevel}</div>
                   <Button onClick={startNewSession} size="lg">Start Session</Button>
                 </div>
             );
@@ -162,7 +178,7 @@ export function BalancePuzzle({ focus }: { focus: TrainingFocus }) {
             <div className="w-full flex flex-col items-center gap-6">
                 <div className="w-full flex justify-between font-mono text-sm">
                     <span>Trial: {currentTrialIndex.current + 1} / {policy.sessionLength}</span>
-                    <span>Level: {adaptiveState?.currentLevel}</span>
+                    <span>Level: {adaptiveState.currentLevel}</span>
                 </div>
                 <div className="w-full p-4 bg-muted rounded-lg">
                     <h3 className="text-center text-sm font-semibold mb-2">Rule</h3>

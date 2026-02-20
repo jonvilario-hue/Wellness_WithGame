@@ -3,67 +3,83 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { cn } from "@/lib/utils";
 import { BrainCircuit, Loader2 } from "lucide-react";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
+import { useTrainingFocus } from "@/hooks/use-training-focus";
+import { useTrainingOverride } from "@/hooks/use-training-override";
 import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
-import type { AdaptiveState, TrialResult, GameId } from "@/types";
+import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
 
 const GAME_ID: GameId = 'gf_pattern_matrix';
 const policy = difficultyPolicies[GAME_ID];
 
-// --- Generation logic remains largely the same but will be driven by level parameters ---
-const shapes = ['circle', 'square', 'triangle', 'diamond'];
-const colors = ['bg-primary', 'bg-accent', 'bg-chart-3', 'bg-chart-4'];
-const rotations = [0, 90, 180, 270];
-const fills = ['fill', 'outline'];
+// --- Stimulus Generation ---
+const neutralShapes = ['circle', 'square', 'triangle', 'diamond'];
+const neutralColors = ['bg-primary', 'bg-accent', 'bg-chart-3', 'bg-chart-4'];
+const neutralRotations = [0, 90, 180, 270];
+const neutralFills = ['fill', 'outline'];
+type NeutralElement = { type: 'neutral', shape: string; color: string; rotation: number; fill: 'fill' | 'outline' };
 
-type NeutralElement = { shape: string; color: string; rotation: number; fill: 'fill' | 'outline' };
-type Puzzle = { grid: (NeutralElement | null)[]; missingIndex: number; answer: NeutralElement; options: NeutralElement[]; size: number };
+const mathSymbols = ['∑', 'π', '∞', '≠', '∫', '∂'];
+const mathColors = ['text-chart-1', 'text-chart-2', 'text-chart-3', 'text-chart-4'];
+type MathElement = { type: 'math', symbol: string; color: string; size: number };
+
+const musicSymbols = ['♩', '♪', '♫', '♭', '♯', '♮'];
+const musicPositions = ['-translate-y-2', 'translate-y-0', 'translate-y-2', 'translate-y-4'];
+type MusicElement = { type: 'music', symbol: string; position: string; duration: number }; // duration as 1,2,4
+
+type PuzzleElement = NeutralElement | MathElement | MusicElement;
+type Puzzle = { grid: (PuzzleElement | null)[]; missingIndex: number; answer: PuzzleElement; options: PuzzleElement[]; size: number };
 
 const getNextInSequence = <T,>(val: T, collection: T[]) => {
   const currentIndex = collection.indexOf(val);
   return collection[(currentIndex + 1) % collection.length];
 };
 
-const generatePuzzleForLevel = (level: number): Puzzle => {
+const generatePuzzleForLevel = (level: number, focus: TrainingFocus): Puzzle => {
     const params = policy.levelMap[level] || policy.levelMap[Object.keys(policy.levelMap).pop() as any];
     const size = params.gridSize === "3x3" ? 3 : 2;
-    const grid: (NeutralElement | null)[] = Array(size * size).fill(null);
+    const grid: (PuzzleElement | null)[] = Array(size * size).fill(null);
     const missingIndex = Math.floor(Math.random() * (size * size));
-
     const ruleTypes = (params.ruleType as string).split('+');
-    const baseElement: NeutralElement = {
-        shape: shapes[Math.floor(Math.random() * shapes.length)],
-        color: colors[Math.floor(Math.random() * colors.length)],
-        rotation: rotations[Math.floor(Math.random() * rotations.length)],
-        fill: fills[Math.floor(Math.random() * fills.length)] as 'fill' | 'outline',
-    };
+    let baseElement: PuzzleElement;
+    let elementSet: any;
+
+    if (focus === 'math') {
+        baseElement = { type: 'math', symbol: mathSymbols[0], color: mathColors[0], size: 1 };
+        elementSet = { symbol: mathSymbols, color: mathColors, size: [1, 1.2, 1.4, 1.6] };
+    } else if (focus === 'music') {
+        baseElement = { type: 'music', symbol: musicSymbols[0], position: musicPositions[0], duration: 1 };
+        elementSet = { symbol: musicSymbols, position: musicPositions, duration: [1, 2, 4] };
+    } else { // Neutral
+        baseElement = { type: 'neutral', shape: neutralShapes[0], color: neutralColors[0], rotation: 0, fill: 'fill' };
+        elementSet = { shape: neutralShapes, color: neutralColors, rotation: neutralRotations, fill: neutralFills };
+    }
 
     for (let i = 0; i < size * size; i++) {
         const row = Math.floor(i / size);
         const col = i % size;
-        let newElement = { ...baseElement };
+        let newElement: any = { ...baseElement };
 
-        if (ruleTypes.includes('shape')) newElement.shape = getNextInSequence(baseElement.shape, Array(col).fill(0).reduce(p => getNextInSequence(p, shapes), baseElement.shape));
-        if (ruleTypes.includes('color')) newElement.color = getNextInSequence(baseElement.color, Array(row).fill(0).reduce(p => getNextInSequence(p, colors), baseElement.color));
-        if (ruleTypes.includes('rotation')) newElement.rotation = getNextInSequence(baseElement.rotation, Array(col).fill(0).reduce(p => getNextInSequence(p, rotations), baseElement.rotation));
-        if (ruleTypes.includes('fill')) newElement.fill = getNextInSequence(baseElement.fill, Array(row % 2).fill(0).reduce(p => getNextInSequence(p, fills as any), baseElement.fill));
-        
+        for (const rule of ruleTypes) {
+            if (rule in newElement) {
+                newElement[rule] = Array(col).fill(0).reduce(p => getNextInSequence(p, elementSet[rule]), newElement[rule]);
+            }
+        }
         grid[i] = newElement;
     }
 
     const answer = grid[missingIndex]!;
-    const options: NeutralElement[] = [answer];
+    const options: PuzzleElement[] = [answer];
 
     while (options.length < 6) {
-        const tempDecoy = { ...answer };
-        const changeProp = ['shape', 'color', 'rotation', 'fill'][Math.floor(Math.random() * 4)] as keyof NeutralElement;
-        const collection = { shape: shapes, color: colors, rotation: rotations, fill: fills as any[] }[changeProp as keyof typeof collection] as any[];
-        (tempDecoy[changeProp] as any) = getNextInSequence(tempDecoy[changeProp], collection);
+        let tempDecoy: any = { ...answer };
+        const changeProp = Object.keys(elementSet)[Math.floor(Math.random() * Object.keys(elementSet).length)];
+        tempDecoy[changeProp] = getNextInSequence(tempDecoy[changeProp], elementSet[changeProp]);
         if (!options.some(o => JSON.stringify(o) === JSON.stringify(tempDecoy))) {
             options.push(tempDecoy);
         }
@@ -75,44 +91,60 @@ const generatePuzzleForLevel = (level: number): Puzzle => {
 };
 
 // --- Display Components ---
-const ShapeComponent = ({ shape, color, rotation, fill }: NeutralElement) => {
-  const baseClasses = "w-10 h-10 transition-all";
-  const style = { transform: `rotate(${rotation}deg)` };
-  const outlineClasses = `bg-transparent border-4 ${color.replace('bg-','border-')}`;
-
-  switch (shape) {
-    case 'circle': return <div className={cn(baseClasses, "rounded-full", fill === 'fill' ? color : outlineClasses)} style={style} />;
-    case 'square': return <div className={cn(baseClasses, "rounded-md", fill === 'fill' ? color : outlineClasses)} style={style} />;
-    case 'triangle':
-        if (fill === 'fill') {
-            const triangleColorClass = color.replace('bg-', 'border-b-');
-            const triangleStyle = { ...style, width: 0, height: 0, borderLeft: '20px solid transparent', borderRight: '20px solid transparent', borderBottomWidth: '40px', borderBottomStyle: 'solid' };
-            return <div style={triangleStyle} className={cn("!bg-transparent", triangleColorClass, 'h-auto w-auto')} />;
+const ElementComponent = ({ element }: { element: PuzzleElement }) => {
+  switch (element.type) {
+    case 'neutral':
+        const { shape, color, rotation, fill } = element;
+        const baseClasses = "w-10 h-10 transition-all";
+        const style = { transform: `rotate(${rotation}deg)` };
+        const outlineClasses = `bg-transparent border-4 ${color.replace('bg-','border-')}`;
+        if (shape === 'circle') return <div className={cn(baseClasses, "rounded-full", fill === 'fill' ? color : outlineClasses)} style={style} />;
+        if (shape === 'square') return <div className={cn(baseClasses, "rounded-md", fill === 'fill' ? color : outlineClasses)} style={style} />;
+        if (shape === 'triangle') {
+            if (fill === 'fill') {
+                const triangleColorClass = color.replace('bg-', 'border-b-');
+                const triangleStyle = { ...style, width: 0, height: 0, borderLeft: '20px solid transparent', borderRight: '20px solid transparent', borderBottomWidth: '40px', borderBottomStyle: 'solid' };
+                return <div style={triangleStyle} className={cn("!bg-transparent", triangleColorClass, 'h-auto w-auto')} />;
+            }
+            return <div className="w-10 h-10" style={style}> <svg viewBox="0 0 100 100" className={`fill-transparent ${color.replace('bg-', 'stroke-')}`} strokeWidth="10"><polygon points="50,10 90,90 10,90" /></svg></div>
         }
-        return <div className="w-10 h-10" style={style}> <svg viewBox="0 0 100 100" className={`fill-transparent ${color.replace('bg-', 'stroke-')}`} strokeWidth="10"><polygon points="50,10 90,90 10,90" /></svg></div>
-    case 'diamond': return <div className={cn(baseClasses, "transform rotate-45 rounded-sm", fill === 'fill' ? color : outlineClasses)} style={{ transform: `rotate(${rotation + 45}deg)` }}/>;
-    default: return <div className={cn(baseClasses, color)} />;
+        if (shape === 'diamond') return <div className={cn(baseClasses, "transform rotate-45 rounded-sm", fill === 'fill' ? color : outlineClasses)} style={{ transform: `rotate(${rotation + 45}deg)` }}/>;
+        return <div className={cn(baseClasses, color)} />;
+    case 'math':
+      return <div className={cn("text-4xl font-bold", element.color)} style={{ transform: `scale(${element.size})` }}>{element.symbol}</div>;
+    case 'music':
+      return <div className={cn("text-4xl font-bold text-primary", element.position)}>{element.symbol}</div>;
+    default:
+      return null;
   }
 };
 
 export function PatternMatrix() {
     const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
+    const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
+    const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
+
     const [adaptiveState, setAdaptiveState] = useState<AdaptiveState | null>(null);
     const [gameState, setGameState] = useState<'loading' | 'start' | 'playing' | 'feedback' | 'finished'>('loading');
     const [sessionTrials, setSessionTrials] = useState<TrialResult[]>([]);
     
     const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
-    const [selectedOption, setSelectedOption] = useState<NeutralElement | null>(null);
+    const [selectedOption, setSelectedOption] = useState<PuzzleElement | null>(null);
     const [feedback, setFeedback] = useState('');
 
     const trialStartTime = useRef(0);
     const currentTrialIndex = useRef(0);
 
+    const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
+    const currentMode = isComponentLoaded ? (override || globalFocus) : 'neutral';
+
     useEffect(() => {
-        const initialState = getAdaptiveState(GAME_ID);
-        setAdaptiveState(initialState);
-        setGameState('start');
-    }, [getAdaptiveState]);
+        if (isComponentLoaded) {
+            const initialState = getAdaptiveState(GAME_ID, currentMode);
+            setAdaptiveState(initialState);
+            setGameState('start');
+        }
+    }, [isComponentLoaded, currentMode, getAdaptiveState]);
 
     const startNewSession = useCallback(() => {
         if (!adaptiveState) return;
@@ -121,17 +153,17 @@ export function PatternMatrix() {
         setSessionTrials([]);
         currentTrialIndex.current = 0;
         startNewTrial(sessionState);
-    }, [adaptiveState]);
+    }, [adaptiveState, startNewTrial]);
 
-    const startNewTrial = (state: AdaptiveState) => {
-        setPuzzle(generatePuzzleForLevel(state.currentLevel));
+    const startNewTrial = useCallback((state: AdaptiveState) => {
+        setPuzzle(generatePuzzleForLevel(state.currentLevel, currentMode));
         setSelectedOption(null);
         setFeedback('');
         setGameState('playing');
         trialStartTime.current = Date.now();
-    };
+    }, [currentMode]);
 
-    const handleSelectOption = (option: NeutralElement) => {
+    const handleSelectOption = (option: PuzzleElement) => {
         if (gameState !== 'playing' || !puzzle || !adaptiveState) return;
 
         setGameState('feedback');
@@ -152,7 +184,7 @@ export function PatternMatrix() {
             if (currentTrialIndex.current >= policy.sessionLength) {
                 setGameState('finished');
                 const finalState = endSession(newState, [...sessionTrials, trialResult]);
-                updateAdaptiveState(GAME_ID, finalState);
+                updateAdaptiveState(GAME_ID, currentMode, finalState);
             } else {
                 startNewTrial(newState);
             }
@@ -164,13 +196,18 @@ export function PatternMatrix() {
             case 'loading':
                 return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
             case 'start':
-                return <Button onClick={startNewSession} size="lg">Start Session</Button>;
+                return (
+                    <div className="flex flex-col items-center gap-4">
+                        <div className="font-mono text-lg">Level: {adaptiveState?.currentLevel}</div>
+                        <Button onClick={startNewSession} size="lg" disabled={!adaptiveState}>Start Session</Button>
+                    </div>
+                );
             case 'finished':
                 const finalAccuracy = sessionTrials.filter(t => t.correct).length / sessionTrials.length;
                 return (
                     <div className="flex flex-col items-center gap-4">
                         <CardTitle>Session Complete!</CardTitle>
-                        <p>Accuracy: {(finalAccuracy * 100).toFixed(0)}%</p>
+                        <p>Accuracy: {isNaN(finalAccuracy) ? 'N/A' : (finalAccuracy * 100).toFixed(0) + '%'}</p>
                         <Button onClick={() => setGameState('start')} size="lg">Play Again</Button>
                     </div>
                 );
@@ -188,9 +225,9 @@ export function PatternMatrix() {
                         {puzzle.grid.map((cell, index) => (
                             <div key={index} className="w-20 h-20 bg-background/50 rounded-md flex items-center justify-center">
                             {index === puzzle.missingIndex ? (
-                                selectedOption ? <ShapeComponent {...selectedOption} /> : <span className="text-4xl font-bold text-primary">?</span>
+                                selectedOption ? <ElementComponent element={selectedOption} /> : <span className="text-4xl font-bold text-primary">?</span>
                             ) : (
-                                cell && <ShapeComponent {...cell} />
+                                cell && <ElementComponent element={cell} />
                             )}
                             </div>
                         ))}
@@ -215,7 +252,7 @@ export function PatternMatrix() {
                                     )}
                                     disabled={gameState === 'feedback'}
                                 >
-                                    <ShapeComponent {...option} />
+                                    <ElementComponent element={option} />
                                 </button>
                                 ))}
                             </div>

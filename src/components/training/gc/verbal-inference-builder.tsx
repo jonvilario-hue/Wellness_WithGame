@@ -12,77 +12,31 @@ import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
-import type { AdaptiveState, TrialResult, GameId } from "@/types";
+import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
 
 const GAME_ID: GameId = 'gc_verbal_inference';
 const policy = difficultyPolicies[GAME_ID];
 
-const neutralPuzzles = [
-  {
-    type: 'analogy',
-    question: "Doctor is to hospital as teacher is to ____.",
-    options: ["Book", "Student", "School", "Pencil"],
-    answer: "School",
-    explanation: "A doctor works in a hospital, and a teacher works in a school. The relationship is person to workplace."
-  },
-  {
-    type: 'context',
-    question: "The river, widened by weeks of rain, began to ____ the nearby village with murky water.",
-    options: ["evaporate", "inundate", "solidify", "irrigate"],
-    answer: "inundate",
-    explanation: "'Inundate' means to flood or overwhelm, which fits the context of a widened river and a village."
-  },
-  {
-    type: 'inference',
-    question: "Despite the chaos around him, the monk remained ____, a silent anchor in a swirling storm.",
-    options: ["agitated", "boisterous", "imperturbable", "volatile"],
-    answer: "imperturbable",
-    explanation: "'Imperturbable' means unable to be upset or excited; calm. This contrasts with the surrounding chaos."
-  },
-  {
-    type: 'relationship',
-    question: "Which word does not belong with the others?",
-    options: ["Branch", "Leaf", "Root", "Feather"],
-    answer: "Feather",
-    explanation: "Branch, leaf, and root are all parts of a tree. A feather is part of a bird."
-  },
-];
+type Puzzle = {
+  type: string;
+  question: string;
+  options: string[];
+  answer: string;
+  explanation: string;
+};
 
-const mathPuzzles = [
-  {
-    type: 'word-problem',
-    question: "A train travels 300 miles in 5 hours. What is its average speed in miles per hour?",
-    options: ["50 mph", "60 mph", "70 mph", "55 mph"],
-    answer: "60 mph",
-    explanation: "Speed is distance divided by time (300 miles / 5 hours = 60 mph)."
-  },
-  {
-    type: 'logic',
-    question: "If X > Y and Y > Z, which statement is definitely true?",
-    options: ["X < Z", "X = Z", "X > Z", "Y > X"],
-    answer: "X > Z",
-    explanation: "This is the transitive property of inequality. If X is greater than Y, and Y is greater than Z, then X must be greater than Z."
-  },
-];
+const generatePuzzleForLevel = (level: number, focus: TrainingFocus): Puzzle => {
+    const params = policy.levelMap[level] || policy.levelMap[Object.keys(policy.levelMap).pop() as any];
+    const puzzlePool = params[focus] || params['neutral']; // Fallback to neutral
+    const puzzleTemplate = puzzlePool[Math.floor(Math.random() * puzzlePool.length)];
 
-const musicPuzzles = [
-  {
-    type: 'terminology',
-    question: "Which term refers to the speed of a piece of music?",
-    options: ["Dynamics", "Tempo", "Rhythm", "Pitch"],
-    answer: "Tempo",
-    explanation: "Tempo is the speed or pace of a given piece."
-  },
-  {
-    type: 'analogy',
-    question: "Verse is to song as chapter is to ____.",
-    options: ["Poem", "Book", "Paragraph", "Page"],
-    answer: "Book",
-    explanation: "A verse is a section of a song, just as a chapter is a section of a book."
-  },
-];
-
-type Puzzle = (typeof neutralPuzzles)[0];
+    // In a real implementation, you would dynamically generate puzzles here.
+    // For this prototype, we'll use the templates directly.
+    return {
+        ...puzzleTemplate,
+        options: [...puzzleTemplate.options, puzzleTemplate.answer].sort(() => Math.random() - 0.5)
+    };
+};
 
 export function VerbalInferenceBuilder() {
   const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
@@ -103,14 +57,6 @@ export function VerbalInferenceBuilder() {
   const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
   const currentMode = isComponentLoaded ? (override || globalFocus) : 'neutral';
   
-  const puzzleSet = useMemo(() => {
-    switch (currentMode) {
-        case 'math': return mathPuzzles;
-        case 'music': return musicPuzzles;
-        default: return neutralPuzzles;
-    }
-  }, [currentMode]);
-  
   useEffect(() => {
     if (isComponentLoaded) {
       const initialState = getAdaptiveState(GAME_ID, currentMode);
@@ -119,18 +65,14 @@ export function VerbalInferenceBuilder() {
     }
   }, [isComponentLoaded, currentMode, getAdaptiveState]);
   
-  const generateNewPuzzle = useCallback((level: number) => {
-    // In a real implementation, `level` would determine the complexity (e.g., word rarity)
-    const newPuzzle = puzzleSet[Math.floor(Math.random() * puzzleSet.length)];
-    setPuzzle({
-      ...newPuzzle,
-      options: [...newPuzzle.options].sort(() => Math.random() - 0.5)
-    });
+  const startNewTrial = useCallback((state: AdaptiveState) => {
+    const newPuzzle = generatePuzzleForLevel(state.currentLevel, currentMode);
+    setPuzzle(newPuzzle);
     setSelectedAnswer(null);
     setInlineFeedback({ message: '', type: '' });
     setGameState('playing');
     trialStartTime.current = Date.now();
-  }, [puzzleSet]);
+  }, [currentMode]);
 
   const startNewSession = useCallback(() => {
     if (!adaptiveState) return;
@@ -138,8 +80,8 @@ export function VerbalInferenceBuilder() {
     setAdaptiveState(sessionState);
     setSessionTrials([]);
     currentTrialIndex.current = 0;
-    generateNewPuzzle(sessionState.currentLevel);
-  }, [adaptiveState, generateNewPuzzle]);
+    startNewTrial(sessionState);
+  }, [adaptiveState, startNewTrial]);
 
   const handleAnswer = (option: string) => {
     if (gameState !== 'playing' || !puzzle || !adaptiveState) return;
@@ -164,7 +106,7 @@ export function VerbalInferenceBuilder() {
             const finalState = endSession(newState, [...sessionTrials, trialResult]);
             updateAdaptiveState(GAME_ID, currentMode, finalState);
         } else {
-            generateNewPuzzle(newState.currentLevel);
+            startNewTrial(newState);
         }
     }, 2500);
   };
@@ -184,7 +126,7 @@ export function VerbalInferenceBuilder() {
       return (
         <div className="flex flex-col items-center gap-4">
           <div className="font-mono text-lg">Level: {adaptiveState?.currentLevel}</div>
-          <Button onClick={startNewSession} size="lg">Start Session</Button>
+          <Button onClick={startNewSession} size="lg" disabled={!adaptiveState}>Start Session</Button>
         </div>
       );
     }
