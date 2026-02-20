@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Sliders } from 'lucide-react';
@@ -7,7 +6,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TrainingSettings } from '@/components/settings/training-settings';
 import { AppearanceSettings } from '@/components/settings/appearance-settings';
 import { Header } from '@/components/header';
-import { PageNav } from '@/components/page-nav';
 import { MotivationalMessage } from '@/components/motivational-message';
 
 export default function SettingsPage() {
@@ -18,7 +16,6 @@ export default function SettingsPage() {
         <>
             <div className="sticky top-0 z-20">
                 <Header />
-                <PageNav />
             </div>
             <MotivationalMessage />
             <main className="flex-1 p-4 sm:p-6 md:p-8">
