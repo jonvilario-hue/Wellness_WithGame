@@ -18,7 +18,6 @@ import type { AdaptiveState, TrialResult, GameId } from "@/types";
 const GAME_ID: GameId = 'ef_focus_switch';
 const policy = difficultyPolicies[GAME_ID];
 
-
 // --- Neutral Mode Config ---
 const colorMap = [
     { name: 'DESTRUCTIVE', textClass: 'text-destructive', bgClass: 'bg-destructive hover:bg-destructive/90', textFgClass: 'text-destructive-foreground' },
@@ -28,10 +27,8 @@ const colorMap = [
 ];
 type NeutralRule = 'color' | 'word' | 'no_go';
 
-
 // --- Math Mode Config ---
 type MathRule = 'parity' | 'magnitude' | 'digit_sum' | 'no_go';
-
 
 // --- Music Mode Config ---
 const notes = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
@@ -118,15 +115,17 @@ export function FocusSwitchReactor() {
       ? Math.max(adaptiveState.levelFloor, adaptiveState.currentLevel - 2)
       : adaptiveState.currentLevel;
 
-    const params = policy.levelMap[loadedLevel] || policy.levelMap[20];
-    const ruleCount = params.ruleCount;
+    const levelDef = policy.levelMap[loadedLevel] || policy.levelMap[20];
+    const { content_config, mechanic_config } = levelDef;
+    const contentParams = content_config[currentMode];
+    
     let baseRules: (NeutralRule | MathRule | MusicRule)[] = [];
-    if (currentMode === 'math') baseRules = ['parity', 'magnitude', 'digit_sum'];
+    if(currentMode === 'math') baseRules = contentParams.rules;
     else if (currentMode === 'music') baseRules = ['quality'];
     else baseRules = ['color', 'word'];
 
-    const available = baseRules.slice(0, ruleCount);
-    if(params.noGo) available.push('no_go');
+    const available = baseRules.slice(0, contentParams.ruleCount);
+    if(mechanic_config.noGo) available.push('no_go');
     return available;
   }, [adaptiveState, currentMode]);
 
@@ -137,13 +136,14 @@ export function FocusSwitchReactor() {
     const loadedLevel = onRamp
       ? Math.max(state.levelFloor, state.currentLevel - 2)
       : state.currentLevel;
-    const params = policy.levelMap[loadedLevel] || policy.levelMap[20];
+    const levelDef = policy.levelMap[loadedLevel] || policy.levelMap[20];
+    const { mechanic_config } = levelDef;
 
     const availableRules = getAvailableRules();
     let newRule = ruleRef.current;
     
     ruleSwitchCounter.current++;
-    if (ruleSwitchCounter.current >= params.switchIntervalSec) { 
+    if (ruleSwitchCounter.current >= mechanic_config.switchInterval) { 
       newRule = availableRules[Math.floor(Math.random() * availableRules.length)];
       ruleSwitchCounter.current = 0;
     }
@@ -161,8 +161,7 @@ export function FocusSwitchReactor() {
         options = colorMap;
     }
     
-    options.sort(() => Math.random() - 0.5);
-    setShuffledOptions(options);
+    setShuffledOptions([...options].sort(() => Math.random() - 0.5));
 
     setInlineFeedback({ message: '', type: '' });
     setGameState('running');
@@ -203,12 +202,12 @@ export function FocusSwitchReactor() {
         if(currentTrialIndex.current >= policy.sessionLength) {
             setGameState('finished');
             const finalState = endSession(newState, [...sessionTrials, trialResult]);
-            updateAdaptiveState(GAME_ID, currentMode, finalState);
+            updateAdaptiveState(GAME_ID, finalState);
         } else {
             startNewTrial(newState);
         }
     }, 2000);
-  }, [gameState, adaptiveState, sessionTrials, updateAdaptiveState, startNewTrial, currentMode]);
+  }, [gameState, adaptiveState, sessionTrials, updateAdaptiveState, startNewTrial]);
   
   const handleAnswer = useCallback((answer: any) => {
     if (gameState !== 'running') return;
@@ -256,7 +255,7 @@ export function FocusSwitchReactor() {
     if (gameState === 'running' && rule === 'no_go') {
         const onRamp = adaptiveState && adaptiveState.uncertainty > 0.7;
         const loadedLevel = adaptiveState && (onRamp ? Math.max(adaptiveState.levelFloor, adaptiveState.currentLevel - 2) : adaptiveState.currentLevel);
-        const waitTime = loadedLevel ? (policy.levelMap[loadedLevel]?.noGoWaitMs || 1500) : 1500;
+        const waitTime = loadedLevel ? (policy.levelMap[loadedLevel]?.mechanic_config.noGoWaitMs || 1500) : 1500;
 
         noGoTimer = setTimeout(() => {
             if(ruleRef.current === 'no_go') {
@@ -331,7 +330,7 @@ export function FocusSwitchReactor() {
               </div>
               <div className={cn("grid gap-4 w-full", buttonGridCols)}>
                 {shuffledOptions.map((option, index) => {
-                  if (currentMode === 'neutral') {
+                  if (currentMode === 'neutral' && typeof option === 'object') {
                       return (
                           <Button 
                               key={option.name + index} 
@@ -350,8 +349,9 @@ export function FocusSwitchReactor() {
                       )
                   }
                   // Fallback for math/music modes
+                  const optionKey = typeof option === 'object' ? JSON.stringify(option) : option;
                   return (
-                      <Button key={option + index} onClick={() => handleAnswer(option)} disabled={gameState === 'feedback'} variant="secondary" size="lg">
+                      <Button key={optionKey + index} onClick={() => handleAnswer(option)} disabled={gameState === 'feedback'} variant="secondary" size="lg">
                         {option}
                       </Button>
                   )
@@ -374,3 +374,5 @@ export function FocusSwitchReactor() {
     </Card>
   );
 }
+
+    

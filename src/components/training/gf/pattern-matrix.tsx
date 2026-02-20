@@ -57,12 +57,13 @@ const getNextInSequence = <T,>(val: T, collection: T[]) => {
   return collection[(currentIndex + 1) % collection.length];
 };
 
-const generatePuzzleForLevel = (level: number, variant: GameVariant) => {
-    const params = policy.levelMap[level] || policy.levelMap[20];
-    const size = params[variant]?.gridSize === "3x3" ? 3 : 2;
+const generatePuzzleForLevel = (level: number, variant: GameVariant, focus: TrainingFocus) => {
+    const levelDef = policy.levelMap[level] || policy.levelMap[20];
+    const { mechanic_config, content_config } = levelDef;
+    const size = mechanic_config.gridSize === "3x3" ? 3 : 2;
 
-    if (variant === 'probability') {
-        const probParams = params.probability;
+    if (focus === 'math' && content_config.math.sub_variant === 'probabilistic') {
+        const probParams = content_config.math;
         const populationRatio = Math.random() * 0.4 + 0.3; // 30-70%
         const population = Array(probParams.populationSize).fill(0).map((_, i) => i < probParams.populationSize * populationRatio);
         
@@ -74,7 +75,7 @@ const generatePuzzleForLevel = (level: number, variant: GameVariant) => {
 
         const options = new Set<number>([Math.round(populationRatio * 100)]);
         while (options.size < 4) {
-            const noise = (Math.random() - 0.5) * 0.4; // +/- 20%
+            const noise = (Math.random() - 0.5) * (probParams.noise * 2 || 0.4);
             options.add(Math.round(Math.max(0, Math.min(100, (populationRatio + noise) * 100))));
         }
         
@@ -90,15 +91,13 @@ const generatePuzzleForLevel = (level: number, variant: GameVariant) => {
     const grid: any[] = Array(size * size).fill(null);
     const missingIndex = Math.floor(Math.random() * (size * size));
 
-    if (variant === 'math') {
-        const mathParams = params.math;
-        // Simplified math puzzle generation
+    if (focus === 'math') {
         const start = Math.floor(Math.random()*5) + 1;
         const step = Math.floor(Math.random()*3) + 1;
         for(let i = 0; i < size * size; i++) grid[i] = { type: 'math', value: start + i * step };
     } else { // neutral
-        const neutralParams = params.neutral;
-        const ruleTypes = (neutralParams.ruleType as string).split('+');
+        const neutralParams = content_config.neutral;
+        const ruleTypes = (neutralParams.rule as string).split('+');
         const baseElement = { type: 'neutral', shape: neutralShapes[0], color: neutralColors[0], rotation: 0, fill: 'fill' };
         const elementSet = { shape: neutralShapes, color: neutralColors, rotation: neutralRotations, fill: neutralFills };
 
@@ -108,7 +107,7 @@ const generatePuzzleForLevel = (level: number, variant: GameVariant) => {
             let newElement: any = { ...baseElement };
             for (const rule of ruleTypes) {
                 if (rule in newElement) {
-                    newElement[rule] = Array(col).fill(0).reduce(p => getNextInSequence(p, elementSet[rule]), newElement[rule]);
+                    newElement[rule] = Array(col).fill(0).reduce(p => getNextInSequence(p, elementSet[rule as keyof typeof elementSet]), newElement[rule]);
                 }
             }
             grid[i] = newElement;
@@ -119,12 +118,12 @@ const generatePuzzleForLevel = (level: number, variant: GameVariant) => {
     const options: any[] = [answer];
     while (options.length < 6) {
         let tempDecoy: any = { ...answer };
-        if(variant === 'math') {
+        if(focus === 'math') {
             tempDecoy.value += (Math.random() > 0.5 ? 1 : -1) * (Math.floor(Math.random()*3)+1);
         } else {
              const changeProp = Object.keys(tempDecoy)[Math.floor(Math.random() * Object.keys(tempDecoy).length)];
              if(typeof tempDecoy[changeProp] !== 'string' || changeProp === 'type') continue;
-             const propOptions = {shape: neutralShapes, color: neutralColors, rotation: neutralRotations, fill: neutralFills}[changeProp];
+             const propOptions = {shape: neutralShapes, color: neutralColors, rotation: neutralRotations, fill: neutralFills}[changeProp as 'shape' | 'color' | 'rotation' | 'fill'];
              if(propOptions) tempDecoy[changeProp] = getNextInSequence(tempDecoy[changeProp], propOptions as any);
         }
         if (!options.some(o => JSON.stringify(o) === JSON.stringify(tempDecoy))) {
@@ -171,13 +170,15 @@ export function PatternMatrix() {
           ? Math.max(state.levelFloor, state.currentLevel - 2)
           : state.currentLevel;
           
+        const levelDef = policy.levelMap[loadedLevel] || policy.levelMap[20];
+
         if (currentMode === 'math') {
-            trialVariant.current = trialVariant.current === 'math' ? 'probability' : 'math';
+            trialVariant.current = levelDef.content_config.math.sub_variant === 'probabilistic' ? 'probability' : 'math';
         } else {
             trialVariant.current = 'neutral';
         }
         
-        setPuzzle(generatePuzzleForLevel(loadedLevel, trialVariant.current));
+        setPuzzle(generatePuzzleForLevel(loadedLevel, trialVariant.current, currentMode));
         setSelectedOption(null);
         setFeedback('');
         setGameState('playing');
@@ -214,7 +215,7 @@ export function PatternMatrix() {
             if (currentTrialIndex.current >= policy.sessionLength) {
                 setGameState('finished');
                 const finalState = endSession(newState, [...sessionTrials, trialResult]);
-                updateAdaptiveState(GAME_ID, currentMode, finalState);
+                updateAdaptiveState(GAME_ID, finalState);
             } else {
                 startNewTrial(newState);
             }
@@ -349,3 +350,5 @@ export function PatternMatrix() {
     </Card>
   );
 }
+
+    

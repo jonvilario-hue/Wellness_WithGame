@@ -11,13 +11,16 @@ import { cn } from '@/lib/utils';
 import { adjustDifficulty, startSession, endSession } from '@/lib/adaptive-engine';
 import { difficultyPolicies } from '@/data/difficulty-policies';
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from '@/types';
+import { useTrainingFocus } from '@/hooks/use-training-focus';
+import { useTrainingOverride } from '@/hooks/use-training-override';
 
 const GAME_ID: GameId = 'ga_auditory_lab';
 const policy = difficultyPolicies[GAME_ID];
 
 const useSpokenMath = () => {
-    const generateProblem = (level: number) => {
-        const params = policy.levelMap[level]?.math || policy.levelMap[1].math;
+    const generateProblem = (level: number, focus: TrainingFocus) => {
+        const levelDef = policy.levelMap[level] || policy.levelMap[1];
+        const params = levelDef.content_config[focus];
         const numOperands = params.operands;
         const operations = params.operations as ('+' | '-' | '*' | '/')[];
         
@@ -38,17 +41,17 @@ const useSpokenMath = () => {
             if (operation === '/') {
                 // Ensure division results in an integer
                 nextOperand = [1,2,3,4,5].find(d => answer % d === 0) || 1;
+                answer /= nextOperand;
+            } else if (operation === '*') {
+                 answer *= nextOperand;
+            } else if (operation === '-') {
+                 answer -= nextOperand;
+            } else {
+                 answer += nextOperand;
             }
 
             problemString += ` ${operation} ${nextOperand}`;
             spokenProblem.push(operation, String(nextOperand));
-
-            switch(operation) {
-                case '+': answer += nextOperand; break;
-                case '-': answer -= nextOperand; break;
-                case '*': answer *= nextOperand; break;
-                case '/': answer /= nextOperand; break;
-            }
         }
         return { problemString, spokenProblem, answer };
     };
@@ -64,9 +67,12 @@ const useSpokenMath = () => {
 }
 
 
-export function AuditoryCalculationTask({ focus, onComplete }: { focus: TrainingFocus, onComplete: () => void }) {
+export function AuditoryCalculationTask({ onComplete }: { onComplete: () => void }) {
     const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
     const { generateProblem, speak } = useSpokenMath();
+    
+    const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
+    const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
     
     const [adaptiveState, setAdaptiveState] = useState<AdaptiveState | null>(null);
     const [gameState, setGameState] = useState<'loading' | 'start' | 'playing' | 'feedback' | 'finished'>('loading');
@@ -78,12 +84,17 @@ export function AuditoryCalculationTask({ focus, onComplete }: { focus: Training
 
     const trialStartTime = useRef(0);
     const currentTrialIndex = useRef(0);
+    
+    const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
+    const currentMode = isComponentLoaded ? (override || globalFocus) : 'neutral';
 
      useEffect(() => {
-        const initialState = getAdaptiveState(GAME_ID, focus);
-        setAdaptiveState(initialState);
-        setGameState('start');
-    }, [focus, getAdaptiveState]);
+        if(isComponentLoaded) {
+            const initialState = getAdaptiveState(GAME_ID, currentMode);
+            setAdaptiveState(initialState);
+            setGameState('start');
+        }
+    }, [isComponentLoaded, currentMode, getAdaptiveState]);
     
     const playProblemAudio = useCallback((spokenProblem: string[]) => {
         spokenProblem.forEach((part, index) => {
@@ -108,12 +119,12 @@ export function AuditoryCalculationTask({ focus, onComplete }: { focus: Training
           ? Math.max(state.levelFloor, state.currentLevel - 2)
           : state.currentLevel;
         
-        const newProblem = generateProblem(loadedLevel);
+        const newProblem = generateProblem(loadedLevel, currentMode);
         setProblem(newProblem);
         setUserInput('');
         setFeedback('');
         playProblemAudio(newProblem.spokenProblem);
-    }, [generateProblem, playProblemAudio]);
+    }, [generateProblem, playProblemAudio, currentMode]);
 
     const startNewSession = useCallback(() => {
         if (!adaptiveState) return;
@@ -145,14 +156,14 @@ export function AuditoryCalculationTask({ focus, onComplete }: { focus: Training
             if (currentTrialIndex.current >= policy.sessionLength) {
                 setGameState('finished');
                 const finalState = endSession(newState, [...sessionTrials, trialResult]);
-                updateAdaptiveState(GAME_ID, focus, finalState);
+                updateAdaptiveState(GAME_ID, finalState);
                 onComplete();
             } else {
                 startNewTrial(newState);
             }
         }, 2500);
 
-    }, [gameState, userInput, problem, adaptiveState, sessionTrials, updateAdaptiveState, startNewTrial, onComplete, focus]);
+    }, [gameState, userInput, problem, adaptiveState, sessionTrials, updateAdaptiveState, startNewTrial, onComplete]);
     
     if (gameState === 'loading' || !adaptiveState) return <Loader2 className="w-12 h-12 animate-spin text-primary" />;
 
@@ -196,3 +207,5 @@ export function AuditoryCalculationTask({ focus, onComplete }: { focus: Training
         </div>
     )
 }
+
+    

@@ -22,12 +22,12 @@ const mathSymbolKeyPool = ['+', '−', '×', '÷', '%', '∑', '√', '∞', '='
 const musicSymbolKeyPool = ['♩', '♪', '♫', '♭', '♯', '♮', '𝄞', '𝄢', '𝄡'];
 const digits = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
-type GameVariant = 'symbol' | 'numeracy';
+type GameVariant = 'symbol_substitution' | 'magnitude_comparison';
 
 type NumeracyProblem = {
     type: 'numeracy';
-    values: (string | number)[];
-    correctAnswer: string | number;
+    values: string[];
+    correctAnswer: string;
 };
 
 type SymbolProblem = {
@@ -60,7 +60,7 @@ export function RapidCodeMatch() {
   
   const trialStartTime = useRef(0);
   const keyChangeCounter = useRef(0);
-  const trialVariant = useRef<GameVariant>('symbol');
+  const trialVariant = useRef<GameVariant>('symbol_substitution');
 
   const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
   const currentMode = isComponentLoaded ? (override || globalFocus) : 'neutral';
@@ -74,8 +74,11 @@ export function RapidCodeMatch() {
   }, [currentMode]);
   
   const generateSymbolProblem = useCallback((level: number): SymbolProblem => {
-    const params = policy.levelMap[level]?.symbol || policy.levelMap[1].symbol;
-    const numSymbols = params.distractorCount + 1;
+    const levelDef = policy.levelMap[level] || policy.levelMap[1];
+    const { mechanic_config, content_config } = levelDef;
+    const contentParams = content_config[currentMode];
+    
+    const numSymbols = mechanic_config.distractorCount + 1;
     const shuffledSymbols = [...symbolPool].sort(() => Math.random() - 0.5);
     const map: { [key: string]: number } = {};
     shuffledSymbols.slice(0, numSymbols).forEach((symbol, index) => {
@@ -96,34 +99,33 @@ export function RapidCodeMatch() {
   }, [symbolPool, problem]);
 
   const generateNumeracyProblem = useCallback((level: number): NumeracyProblem => {
-      const params = policy.levelMap[level]?.numeracy || policy.levelMap[1].numeracy;
-      const numOptions = params.options;
-      const format = params.formats[Math.floor(Math.random() * params.formats.length)];
+    const levelDef = policy.levelMap[level] || policy.levelMap[1];
+    const { content_config } = levelDef;
+    const contentParams = content_config.math; // Numeracy is a math-only variant
+    const formats = contentParams.params.formats as ('decimal' | 'fraction' | 'percent')[];
 
-      let correctAnswer: string | number;
-      const options = new Set<string | number>();
+    const generateValue = () => {
+        const format = formats[Math.floor(Math.random() * formats.length)];
+        if (format === 'fraction') {
+            const d = Math.floor(Math.random() * (contentParams.params.max_denominator - 2)) + 2;
+            const n = Math.floor(Math.random() * (d - 1)) + 1;
+            return { str: `${n}/${d}`, val: n/d };
+        }
+        if (format === 'percent') {
+            const val = Math.floor(Math.random() * 99) + 1;
+            return { str: `${val}%`, val: val / 100 };
+        }
+        // decimal
+        return { str: (Math.random() * 0.98 + 0.01).toFixed(contentParams.params.decimal_places || 2), val: Math.random() };
+    }
 
-      if (format === 'fraction') {
-          const denominator = [4, 5, 8, 10, 20][Math.floor(Math.random() * 5)];
-          const numerator = Math.floor(Math.random() * (denominator - 1)) + 1;
-          correctAnswer = `${numerator}/${denominator}`;
-          options.add(correctAnswer);
-          while (options.size < numOptions) {
-              const d = [4, 5, 8, 10, 20][Math.floor(Math.random() * 5)];
-              const n = Math.floor(Math.random() * (d - 1)) + 1;
-              options.add(`${n}/${d}`);
-          }
-      } else { // decimal or percent
-          const value = Math.round((Math.random() * 0.8 + 0.1) * 100) / 100;
-          correctAnswer = format === 'percent' ? `${value * 100}%` : value;
-          options.add(correctAnswer);
-           while (options.size < numOptions) {
-              const v = Math.round((Math.random() * 0.8 + 0.1) * 100) / 100;
-              options.add(format === 'percent' ? `${v * 100}%` : v);
-          }
-      }
+    let val1 = generateValue();
+    let val2 = generateValue();
+    while(Math.abs(val1.val - val2.val) < 0.05) val2 = generateValue();
+
+    const correctAnswer = val1.val > val2.val ? val1.str : val2.str;
       
-      return { type: 'numeracy', values: Array.from(options), correctAnswer };
+    return { type: 'numeracy', values: [val1.str, val2.str], correctAnswer };
   }, []);
 
   const startNewTrial = (state: AdaptiveState) => {
@@ -132,14 +134,16 @@ export function RapidCodeMatch() {
           ? Math.max(state.levelFloor, state.currentLevel - 2)
           : state.currentLevel;
 
-      // 50/50 Rule: Alternate between variants
-      if (currentMode === 'math') {
-          trialVariant.current = trialVariant.current === 'symbol' ? 'numeracy' : 'symbol';
+      const levelDef = policy.levelMap[loadedLevel] || policy.levelMap[1];
+      const contentParams = levelDef.content_config[currentMode];
+      
+      if (currentMode === 'math' && contentParams.sub_variant === 'magnitude_comparison') {
+          trialVariant.current = (Math.random() > 0.5) ? 'symbol_substitution' : 'magnitude_comparison';
       } else {
-          trialVariant.current = 'symbol';
+          trialVariant.current = 'symbol_substitution';
       }
       
-      if (trialVariant.current === 'numeracy') {
+      if (trialVariant.current === 'magnitude_comparison') {
           setProblem(generateNumeracyProblem(loadedLevel));
       } else {
           setProblem(generateSymbolProblem(loadedLevel));
@@ -174,10 +178,10 @@ export function RapidCodeMatch() {
     } else if (timeLeft <= 0 && gameState === 'running' && adaptiveState) {
         setGameState('finished');
         const finalState = endSession(adaptiveState, sessionTrials);
-        updateAdaptiveState(GAME_ID, currentMode, finalState);
+        updateAdaptiveState(GAME_ID, finalState);
     }
     return () => clearTimeout(timer);
-  }, [gameState, timeLeft, adaptiveState, currentMode, sessionTrials, updateAdaptiveState]);
+  }, [gameState, timeLeft, adaptiveState, sessionTrials, updateAdaptiveState]);
 
   const handleAnswer = useCallback((answer: number | string) => {
     if (gameState !== 'running' || !adaptiveState || !problem) return;
@@ -185,21 +189,16 @@ export function RapidCodeMatch() {
     setGameState('feedback');
     const reactionTimeMs = Date.now() - trialStartTime.current;
 
-    const onRamp = adaptiveState.uncertainty > 0.7;
-    const loadedLevel = onRamp
-      ? Math.max(adaptiveState.levelFloor, adaptiveState.currentLevel - 2)
-      : adaptiveState.currentLevel;
-    const params = policy.levelMap[loadedLevel]?.symbol || policy.levelMap[1].symbol;
+    const levelDef = policy.levelMap[adaptiveState.currentLevel] || policy.levelMap[1];
+    const { mechanic_config } = levelDef;
     
     let isCorrect = false;
     if(problem.type === 'symbol') {
         isCorrect = problem.keyMap[problem.stimulus] === answer;
     } else { // numeracy
-        const evalAnswer = typeof answer === 'string' ? eval(answer) : answer;
-        const evalCorrect = typeof problem.correctAnswer === 'string' ? eval(problem.correctAnswer) : problem.correctAnswer;
-        isCorrect = Math.abs(evalAnswer - evalCorrect) < 0.001;
+        isCorrect = problem.correctAnswer === answer;
     }
-    isCorrect = isCorrect && reactionTimeMs < params.responseWindowMs;
+    isCorrect = isCorrect && reactionTimeMs < mechanic_config.responseWindowMs;
 
     const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs };
     setSessionTrials(prev => [...prev, trialResult]);
@@ -244,6 +243,28 @@ export function RapidCodeMatch() {
     }
     if (!problem) return <Loader2 className="animate-spin"/>;
     
+    if (problem.type === 'numeracy') {
+        return (
+            <div className="w-full">
+                <div className="flex justify-between w-full text-lg font-mono mb-4">
+                    <span>Score: {sessionTrials.filter(t => t.correct).length}</span>
+                    <span>Time: {timeLeft}s</span>
+                </div>
+                 <div className="relative mb-6 h-24 flex flex-col items-center justify-center">
+                    <p className="text-3xl font-bold text-primary mb-4">Which is larger?</p>
+                 </div>
+                <div className="grid grid-cols-2 gap-4">
+                  {problem.values.map((val) => (
+                     <Button key={String(val)} onClick={() => handleAnswer(String(val))} variant="secondary" size="lg" className="text-4xl h-32" disabled={gameState === 'feedback'}>
+                      {val}
+                    </Button>
+                  ))}
+                </div>
+            </div>
+        )
+    }
+
+    // Symbol Problem
     return (
       <div className="w-full">
         <div className="flex justify-between w-full text-lg font-mono mb-4">
@@ -251,16 +272,14 @@ export function RapidCodeMatch() {
           <span>Time: {timeLeft}s</span>
         </div>
         
-        {problem.type === 'symbol' && (
-            <div className="flex justify-center gap-4 p-3 bg-muted rounded-lg mb-6 flex-wrap">
-              {Object.entries(problem.keyMap).map(([symbol, digit]) => (
-                <div key={symbol} className="flex flex-col items-center p-2">
-                  <span className="text-3xl font-bold text-primary">{symbol}</span>
-                  <span className="text-xl font-mono">{digit}</span>
-                </div>
-              ))}
+        <div className="flex justify-center gap-4 p-3 bg-muted rounded-lg mb-6 flex-wrap">
+          {Object.entries(problem.keyMap).map(([symbol, digit]) => (
+            <div key={symbol} className="flex flex-col items-center p-2">
+              <span className="text-3xl font-bold text-primary">{symbol}</span>
+              <span className="text-xl font-mono">{digit}</span>
             </div>
-        )}
+          ))}
+        </div>
 
         <div className="h-6 text-sm font-semibold mb-2">
           {inlineFeedback.message && (
@@ -271,29 +290,16 @@ export function RapidCodeMatch() {
         </div>
 
         <div className="relative inline-block mb-6 h-24 flex items-center justify-center">
-            {problem.type === 'symbol' ? (
-                <>
-                    <div className="text-8xl font-extrabold text-primary">
-                        {problem.stimulus}
-                    </div>
-                    <NoiseOverlay />
-                </>
-            ) : (
-                <div className="text-4xl font-extrabold text-primary">
-                    Which of these is equal to {problem.correctAnswer}?
-                </div>
-            )}
+            <div className="text-8xl font-extrabold text-primary">
+                {problem.stimulus}
+            </div>
+            <NoiseOverlay />
         </div>
         
-        <div className={cn("grid gap-2 justify-center max-w-md mx-auto", problem.type === 'symbol' ? 'grid-cols-5' : 'grid-cols-2')}>
-          {problem.type === 'symbol' && Object.entries(problem.keyMap).map(([_, digit]) => (
+        <div className={cn("grid gap-2 justify-center max-w-md mx-auto grid-cols-5")}>
+          {Object.entries(problem.keyMap).map(([_, digit]) => (
             <Button key={digit} onClick={() => handleAnswer(digit)} variant="secondary" size="lg" className="text-2xl h-16" disabled={gameState === 'feedback'}>
               {digit}
-            </Button>
-          ))}
-          {problem.type === 'numeracy' && problem.values.map((val) => (
-             <Button key={String(val)} onClick={() => handleAnswer(String(val))} variant="secondary" size="lg" className="text-2xl h-16" disabled={gameState === 'feedback'}>
-              {val}
             </Button>
           ))}
         </div>
@@ -313,3 +319,5 @@ export function RapidCodeMatch() {
     </Card>
   );
 }
+
+    

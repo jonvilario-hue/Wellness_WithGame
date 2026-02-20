@@ -18,13 +18,14 @@ import { useTrainingOverride } from "@/hooks/use-training-override";
 const GAME_ID: GameId = 'gwm_dynamic_sequence';
 const policy = difficultyPolicies[GAME_ID];
 
-const generateSequence = (length: number, focus: TrainingFocus) => {
-  let chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  if (focus === 'math') {
-    chars = '0123456789+-*/=';
-  } else if (focus === 'music') {
-    chars = 'CDEFGAB♩♪♫♭♯♮';
-  }
+const generateSequence = (length: number, charSet: string) => {
+  let chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  if(charSet === 'alphanumeric') chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  if (charSet === 'numeric') chars = '0123456789';
+  if (charSet === 'numeric_ops') chars = '0123456789+-*/=';
+  if (charSet === 'notes') chars = 'CDEFGAB';
+  if (charSet === 'notes_symbols') chars = 'CDEFGAB♩♪♫♭♯♮';
+  
   let result = '';
   for (let i = 0; i < length; i++) {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
@@ -75,8 +76,11 @@ export function DynamicSequenceTransformer() {
       ? Math.max(state.levelFloor, state.currentLevel - 2)
       : state.currentLevel;
 
-    const levelParams = policy.levelMap[loadedLevel] || policy.levelMap[Object.keys(policy.levelMap).pop() as any];
-    const newSequence = generateSequence(levelParams.sequenceLength, currentMode);
+    const levelDef = policy.levelMap[loadedLevel] || policy.levelMap[Object.keys(policy.levelMap).pop() as any];
+    const { mechanic_config, content_config } = levelDef;
+    const contentParams = content_config[currentMode];
+
+    const newSequence = generateSequence(mechanic_config.sequenceLength, contentParams.chars);
     const newTask = tasks[Math.floor(Math.random() * tasks.length)];
     
     setSequence(newSequence);
@@ -88,7 +92,7 @@ export function DynamicSequenceTransformer() {
     setTimeout(() => {
       setGameState('answering');
       trialStartTime.current = Date.now();
-    }, levelParams.displayTimeMs || 1500);
+    }, mechanic_config.displayTimeMs || 1500);
   }, [currentMode]);
 
   const startNewSession = useCallback(() => {
@@ -104,12 +108,12 @@ export function DynamicSequenceTransformer() {
     if (!sequence || !task) return '';
     switch(task.id) {
         case 'reverse': return sequence.split('').reverse().join('');
-        case 'alpha_only': return sequence.replace(/[^A-Z♩♪♫♭♯♮]/g, '');
+        case 'alpha_only': return sequence.replace(/[^A-Z♩♪♫♭♯♮]/gi, '');
         case 'numeric_only': return sequence.replace(/[^0-9+\-*/=]/g, '');
         case 'remove_first': return sequence.substring(1);
         case 'alpha_shift':
-            return sequence.replace(/[^A-Z]/g, '').split('').map(char => 
-                char === 'Z' ? 'A' : String.fromCharCode(char.charCodeAt(0) + 1)
+            return sequence.replace(/[^A-Z]/gi, '').split('').map(char => 
+                char.toUpperCase() === 'Z' ? 'A' : String.fromCharCode(char.charCodeAt(0) + 1)
             ).join('');
         case 'every_other':
             return sequence.split('').filter((_, i) => i % 2 === 0).join('');
@@ -124,7 +128,7 @@ export function DynamicSequenceTransformer() {
     
     setGameState('feedback');
     const reactionTimeMs = Date.now() - trialStartTime.current;
-    const isCorrect = userAnswer.toUpperCase().trim() === correctAnswer;
+    const isCorrect = userAnswer.toUpperCase().trim() === correctAnswer.toUpperCase();
 
     const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs };
     setSessionTrials(prev => [...prev, trialResult]);
@@ -139,13 +143,13 @@ export function DynamicSequenceTransformer() {
         if(currentTrialIndex.current >= policy.sessionLength) {
             setGameState('finished');
             const finalState = endSession(newState, [...sessionTrials, trialResult]);
-            updateAdaptiveState(GAME_ID, currentMode, finalState);
+            updateAdaptiveState(GAME_ID, finalState);
         } else {
             startNewTrial(newState);
         }
     }, 2500);
 
-  }, [gameState, userAnswer, correctAnswer, adaptiveState, sessionTrials, updateAdaptiveState, startNewTrial, currentMode]);
+  }, [gameState, userAnswer, correctAnswer, adaptiveState, sessionTrials, updateAdaptiveState, startNewTrial]);
 
   const renderContent = () => {
     if (!isComponentLoaded || gameState === 'loading') {

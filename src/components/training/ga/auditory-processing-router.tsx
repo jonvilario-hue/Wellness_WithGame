@@ -16,7 +16,6 @@ import { AuditoryCalculationTask } from "./auditory-calculation-task";
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
 
-
 const GAME_ID: GameId = 'ga_auditory_lab';
 const policy = difficultyPolicies[GAME_ID];
 
@@ -81,15 +80,18 @@ const useAudioEngine = () => {
     return { getAudioContext, resumeContext, setVolume, playTone };
 };
 
-const GapDetectionModule = ({ onComplete }: { onComplete: (result: { score: number }) => void }) => {
+const GapDetectionModule = ({ onComplete, level }: { onComplete: (result: { score: number }) => void, level: number }) => {
     const { getAudioContext, playTone, resumeContext } = useAudioEngine();
     const [trials, setTrials] = useState(0);
-    const [gap, setGap] = useState(50);
-    const [correctStreak, setCorrectStreak] = useState(0);
     const [isAnswering, setIsAnswering] = useState(false);
     const [feedback, setFeedback] = useState<'correct'|'incorrect'|null>(null);
     const currentTrialRef = useRef<{ hasGap: boolean } | null>(null);
     const baseFreq = 1000;
+    
+    const { mechanic_config, content_config } = policy.levelMap[level];
+    const contentParams = content_config['neutral']; // This module is only for neutral
+    const gap = contentParams.params.gapMs;
+
 
     const runTrial = useCallback(() => {
         resumeContext();
@@ -130,18 +132,6 @@ const GapDetectionModule = ({ onComplete }: { onComplete: (result: { score: numb
         setIsAnswering(false);
         const isCorrect = userChoseGap === currentTrialRef.current.hasGap;
         setFeedback(isCorrect ? 'correct' : 'incorrect');
-
-        if (isCorrect) {
-            const newStreak = correctStreak + 1;
-            setCorrectStreak(newStreak);
-            if (newStreak >= 2) {
-                setGap(g => Math.max(2, g - 5));
-                setCorrectStreak(0);
-            }
-        } else {
-            setCorrectStreak(0);
-            setGap(g => Math.min(100, g + 5));
-        }
         setTrials(t => t + 1);
     };
     
@@ -201,7 +191,9 @@ export function AuditoryProcessingRouter() {
         setGameState('finished');
     }
 
-    const renderGameState = () => {
+    const renderContent = () => {
+        if (!adaptiveState) return <Loader2 className="w-12 h-12 animate-spin text-primary" />;
+
         switch (gameState) {
             case 'idle':
                 return <Button onClick={() => setGameState('headphoneCheck')} size="lg">Start Auditory Lab</Button>;
@@ -236,10 +228,10 @@ export function AuditoryProcessingRouter() {
 
             case 'running':
                  if (currentMode === 'math') {
-                    return <AuditoryCalculationTask focus={currentMode} onComplete={handleGameComplete} />;
+                    return <AuditoryCalculationTask onComplete={handleGameComplete} />;
                 }
                 // Fallback for neutral and music modes
-                return <GapDetectionModule onComplete={handleGameComplete} />;
+                return <GapDetectionModule onComplete={handleGameComplete} level={adaptiveState.currentLevel} />;
 
             case 'finished':
                 return (
@@ -261,8 +253,10 @@ export function AuditoryProcessingRouter() {
                 <CardDescription>A rotating lab of exercises to sharpen your brain's ability to analyze and distinguish sounds.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center justify-center gap-6 min-h-[350px]">
-                {renderGameState()}
+                {renderContent()}
             </CardContent>
         </Card>
     );
 }
+
+    
