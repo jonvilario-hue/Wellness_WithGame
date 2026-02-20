@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Radar,
   RadarChart,
@@ -21,14 +21,34 @@ import { useTrainingFocus } from '@/hooks/use-training-focus';
 
 export function FullStrengthProfile() {
   const [isClient, setIsClient] = useState(false);
-  const { getAdaptiveState } = usePerformanceStore();
-  const { focus, isLoaded: isFocusLoaded } = useTrainingFocus();
+  
+  // OPTIMIZATION: Select only the gameStates object, which is the sole dependency.
+  const gameStates = usePerformanceStore(state => state.gameStates);
+  const { isLoaded: isFocusLoaded } = useTrainingFocus();
 
   useEffect(() => {
     setIsClient(true);
   }, []);
 
-  const isComponentLoaded = isClient && isFocusLoaded;
+  const isComponentLoaded = isClient && isFocusLoaded && gameStates;
+
+  // OPTIMIZATION: Memoize the chart data calculation. It will only re-run when gameStates changes.
+  const chartData = useMemo(() => {
+    if (!isComponentLoaded) return [];
+    return chcDomains.map(domain => {
+      const gameState = gameStates[domain.id];
+      const score = gameState ? Math.round((gameState.currentLevel / gameState.levelCeiling) * 100) : 0;
+      const displayScore = score > 0 ? score : Math.round(Math.random() * 20 + 20); // Use real score or fallback for display
+
+      return {
+        subject: domain.key,
+        name: domain.name,
+        score: displayScore,
+        fullMark: 100,
+      };
+    });
+  }, [isComponentLoaded, gameStates]);
+
 
   if (!isComponentLoaded) {
     return (
@@ -40,19 +60,6 @@ export function FullStrengthProfile() {
       </div>
     );
   }
-
-  const chartData = chcDomains.map(domain => {
-    const gameState = getAdaptiveState(domain.id);
-    const score = gameState ? Math.round((gameState.currentLevel / gameState.levelCeiling) * 100) : 0;
-    const displayScore = score > 0 ? score : Math.round(Math.random() * 20 + 20); // Use real score or fallback for display
-
-    return {
-      subject: domain.key,
-      name: domain.name,
-      score: displayScore,
-      fullMark: 100,
-    };
-  });
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
@@ -76,22 +83,21 @@ export function FullStrengthProfile() {
         </ResponsiveContainer>
       </div>
       <div className="space-y-2">
-        {chcDomains.map(domain => {
-          const Icon = domainIcons[domain.key];
-          const data = chartData.find(d => d.subject === domain.key);
-          const score = data?.score ?? 0;
-          return (
-            <div key={domain.key} className="flex items-center p-2 rounded-lg bg-muted/50">
-              <Icon className="w-5 h-5 mr-3 text-muted-foreground" />
-              <div className="flex-grow">
-                <p className="font-medium text-sm">{domain.name}</p>
-                <div className="w-full bg-background rounded-full h-1.5 mt-1">
-                    <div className="bg-primary h-1.5 rounded-full" style={{ width: `${score}%` }}></div>
+        {chartData.map(data => {
+            const domain = chcDomains.find(d => d.key === data.subject)!;
+            const Icon = domainIcons[domain.key];
+            return (
+                <div key={domain.key} className="flex items-center p-2 rounded-lg bg-muted/50">
+                    <Icon className="w-5 h-5 mr-3 text-muted-foreground" />
+                    <div className="flex-grow">
+                        <p className="font-medium text-sm">{domain.name}</p>
+                        <div className="w-full bg-background rounded-full h-1.5 mt-1">
+                            <div className="bg-primary h-1.5 rounded-full" style={{ width: `${data.score}%` }}></div>
+                        </div>
+                    </div>
+                    <span className="font-mono text-lg font-semibold ml-4">{data.score}</span>
                 </div>
-              </div>
-              <span className="font-mono text-lg font-semibold ml-4">{score}</span>
-            </div>
-          );
+            );
         })}
       </div>
     </div>

@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -14,8 +13,8 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { domainIcons, SigmaIcon } from '@/components/icons';
 import type { CHCDomain, TrainingFocus } from '@/types';
-import { useState, useEffect, memo } from 'react';
-import { ArrowDown, ArrowUp, Info, Minus, Brain, Music, MessageSquare, View } from 'lucide-react';
+import { useState, useEffect, memo, useMemo } from 'react';
+import { ArrowDown, ArrowUp, Info, Minus, Brain, Music, MessageSquare, View, Smile } from 'lucide-react';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { useTrainingFocus } from '@/hooks/use-training-focus';
 import { cn } from '@/lib/utils';
@@ -36,17 +35,7 @@ interface ChcDomainCardProps {
   };
 }
 
-const ChcDomainCardComponent = ({ domain }: ChcDomainCardProps) => {
-  const Icon = domainIcons[domain.key];
-  const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
-  const { gameStates } = usePerformanceStore();
-
-  const [isClient, setIsClient] = useState(false);
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
-  
-  const getTrendInfo = (trend: number) => {
+const getTrendInfo = (trend: number) => {
     if (trend > 2) {
       return { Icon: ArrowUp, color: 'text-green-500', text: 'Trending upward' };
     }
@@ -54,26 +43,42 @@ const ChcDomainCardComponent = ({ domain }: ChcDomainCardProps) => {
       return { Icon: ArrowDown, color: 'text-muted-foreground', text: 'Natural fluctuation' };
     }
     return { Icon: Minus, color: 'text-primary', text: 'Holding steady' };
-  };
+};
 
+const ChcDomainCardComponent = ({ domain }: ChcDomainCardProps) => {
+  const Icon = domainIcons[domain.key];
+  const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
+  
+  // OPTIMIZATION: Select only the specific game state needed by this card.
+  // This prevents re-renders when other game states change.
+  const gameState = usePerformanceStore(state => state.gameStates[domain.id] || null);
+
+  const [isClient, setIsClient] = useState(false);
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+  
   const focusInfo: Record<TrainingFocus, { Icon: any; label: string; color: string; supported: boolean; }> = {
     neutral: { Icon: Brain, label: 'Core Thinking', color: 'text-muted-foreground', supported: true },
     math: { Icon: SigmaIcon, label: 'Math Reasoning', color: 'text-energize', supported: domain.supportsMath },
     music: { Icon: Music, label: 'Music Cognition', color: 'text-blue-500', supported: domain.supportsMusic },
     verbal: { Icon: MessageSquare, label: 'Verbal Reasoning', color: 'text-purple-500', supported: domain.supportsVerbal },
     spatial: { Icon: View, label: 'Spatial Reasoning', color: 'text-teal-500', supported: domain.supportsSpatial },
+    eq: { Icon: Smile, label: 'Emotional Intelligence', color: 'text-pink-500', supported: false },
   };
   
   const activeMode = focusInfo[globalFocus] || focusInfo.neutral;
   
-  const isLoaded = isGlobalFocusLoaded && isClient && gameStates && gameStates[domain.id];
+  const isLoaded = isGlobalFocusLoaded && isClient;
   
-  // Use the single, unified game state
-  const gameState = isLoaded ? gameStates[domain.id] : null;
-  const score = gameState ? Math.round((gameState.currentLevel / gameState.levelCeiling) * 100) : 0;
+  // OPTIMIZATION: Memoize score and trend calculations to avoid re-computing on every render.
+  const score = useMemo(() => {
+    if (!isLoaded || !gameState) return 0;
+    return Math.round((gameState.currentLevel / gameState.levelCeiling) * 100);
+  }, [isLoaded, gameState]);
   
-  const calculateTrend = () => {
-    if (!gameState || !gameState.levelHistory || gameState.levelHistory.length === 0) return 0;
+  const trend = useMemo(() => {
+    if (!isLoaded || !gameState || !gameState.levelHistory || gameState.levelHistory.length === 0) return 0;
     const history = gameState.levelHistory;
     if (history.length > 1) {
         const last = history[history.length - 1].endLevel;
@@ -84,9 +89,8 @@ const ChcDomainCardComponent = ({ domain }: ChcDomainCardProps) => {
         if(session.startLevel > 0) return ((session.endLevel - session.startLevel) / session.startLevel) * 100;
     }
     return 0;
-  };
+  }, [isLoaded, gameState]);
   
-  const trend = isLoaded ? calculateTrend() : 0;
   const { Icon: TrendIcon, color: trendColor, text: trendText } = getTrendInfo(trend);
 
   return (
@@ -113,7 +117,7 @@ const ChcDomainCardComponent = ({ domain }: ChcDomainCardProps) => {
         )}
       </CardHeader>
       <CardContent className="space-y-4 py-4 flex-grow">
-        {!isLoaded ? (
+        {!isLoaded || !gameState ? (
           <div className="space-y-3 pt-2">
             <Skeleton className="h-4 w-full" />
             <Skeleton className="h-4 w-2/3" />
