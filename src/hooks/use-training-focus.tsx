@@ -21,7 +21,7 @@ export function TrainingFocusProvider({ children }: { children: React.ReactNode 
   useEffect(() => {
     try {
       const savedFocus = window.localStorage.getItem(TRAINING_FOCUS_KEY) as TrainingFocus | null;
-      if (savedFocus && ['neutral', 'math', 'music'].includes(savedFocus)) {
+      if (savedFocus && ['neutral', 'math', 'music', 'verbal'].includes(savedFocus)) {
         setFocusState(savedFocus);
       }
     } catch (error) {

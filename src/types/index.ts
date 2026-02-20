@@ -1,6 +1,6 @@
 
 
-export type TrainingFocus = 'neutral' | 'math' | 'music';
+export type TrainingFocus = 'neutral' | 'math' | 'music' | 'verbal';
 export type CHCDomain = 'Gf' | 'Gc' | 'Gwm' | 'Gs' | 'Gv' | 'Ga' | 'Glr' | 'EF';
 
 export type GameId = 

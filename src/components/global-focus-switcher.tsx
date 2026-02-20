@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useTrainingFocus } from '@/hooks/use-training-focus';
 import { useTrainingOverride } from '@/hooks/use-training-override';
-import { Brain, Music } from 'lucide-react';
+import { Brain, Music, MessageSquare } from 'lucide-react';
 import { SigmaIcon } from './icons';
 
 export function GlobalFocusSwitcher() {
@@ -22,7 +22,7 @@ export function GlobalFocusSwitcher() {
   const { setOverride } = useTrainingOverride();
 
   const handleFocusChange = (value: string) => {
-    const newFocus = value as 'neutral' | 'math' | 'music';
+    const newFocus = value as 'neutral' | 'math' | 'music' | 'verbal';
     setFocus(newFocus);
     setOverride(null); 
   };
@@ -31,6 +31,7 @@ export function GlobalFocusSwitcher() {
     neutral: { Icon: Brain, label: 'Core Thinking' },
     math: { Icon: SigmaIcon, label: 'Math Reasoning' },
     music: { Icon: Music, label: 'Music Cognition' },
+    verbal: { Icon: MessageSquare, label: 'Verbal Reasoning' },
   };
 
   const { Icon, label } = focusInfo[focus] || focusInfo.neutral;
@@ -64,6 +65,9 @@ export function GlobalFocusSwitcher() {
           </DropdownMenuRadioItem>
           <DropdownMenuRadioItem value="music" className="gap-2">
             <Music className="w-4 h-4"/> Music Cognition
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="verbal" className="gap-2">
+            <MessageSquare className="w-4 h-4"/> Verbal Reasoning
           </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>

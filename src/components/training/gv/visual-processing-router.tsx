@@ -7,6 +7,7 @@ import { MentalRotationLab } from './mental-rotation-lab';
 import { BalancePuzzle } from './balance-puzzle';
 import { Skeleton } from '@/components/ui/skeleton';
 import { VisualMusicMatch } from './visual-music-match';
+import { OrthographicConstruction } from './orthographic-construction';
 
 export function VisualProcessingRouter() {
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
@@ -26,6 +27,8 @@ export function VisualProcessingRouter() {
       return <BalancePuzzle focus={effectiveFocus} />;
     case 'music':
       return <VisualMusicMatch focus={effectiveFocus} />;
+    case 'verbal':
+        return <OrthographicConstruction focus={effectiveFocus} />;
     case 'neutral':
     default:
       return <MentalRotationLab focus={effectiveFocus} />;

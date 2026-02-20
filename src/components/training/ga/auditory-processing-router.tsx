@@ -6,13 +6,14 @@ import { Button } from "@/components/ui/button";
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription } from "@/components/ui/alert-dialog";
-import { Headphones, Volume2, Loader2, Music, Check, X } from "lucide-react";
+import { Headphones, Volume2, Loader2, Music, Check, X, MessageSquare } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import { AuditoryCalculationTask } from "./auditory-calculation-task";
+import { CocktailPartyDecoder } from './cocktail-party-decoder';
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
 
@@ -93,7 +94,7 @@ const PitchDiscriminationModule = ({ onComplete, level }: { onComplete: (result:
     const [feedback, setFeedback] = useState<'correct'|'incorrect'|null>(null);
     const currentTrialRef = useRef<{ secondIsHigher: boolean } | null>(null);
     
-    const { content_config } = policy.levelMap[level];
+    const { content_config } = policy.levelMap[level] || policy.levelMap[1];
     const contentParams = content_config['music'].params;
     const freqDelta = contentParams.freqDelta || 50;
 
@@ -230,11 +231,14 @@ export function AuditoryProcessingRouter() {
                 );
 
             case 'running':
-                 if (currentMode === 'math') {
+                if (currentMode === 'math') {
                     return <AuditoryCalculationTask onComplete={handleGameComplete} />;
                 }
-                 if (currentMode === 'music') {
+                if (currentMode === 'music') {
                     return <PitchDiscriminationModule onComplete={handleGameComplete} level={adaptiveState.currentLevel} />;
+                }
+                if (currentMode === 'verbal') {
+                    return <CocktailPartyDecoder onComplete={handleGameComplete} level={adaptiveState.currentLevel} />;
                 }
                 // Fallback for neutral mode - a generic gap detection task
                 return <PitchDiscriminationModule onComplete={handleGameComplete} level={adaptiveState.currentLevel} />;
@@ -255,7 +259,7 @@ export function AuditoryProcessingRouter() {
     return (
         <Card className="w-full max-w-2xl">
             <CardHeader className="text-center">
-                <CardTitle>(Ga) Auditory Processing Lab</CardTitle>
+                <CardTitle className="flex items-center justify-center gap-2"><MessageSquare />(Ga) Auditory Processing Lab</CardTitle>
                 <CardDescription>A rotating lab of exercises to sharpen your brain's ability to analyze and distinguish sounds.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center justify-center gap-6 min-h-[350px]">
