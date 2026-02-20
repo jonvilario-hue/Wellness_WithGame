@@ -1,7 +1,7 @@
 // This file is the single source of truth for all shared types in the application.
 
 // --- Core Cognitive & Domain Types ---
-export type TrainingFocus = 'neutral' | 'math' | 'music' | 'verbal' | 'spatial';
+export type TrainingFocus = 'neutral' | 'math' | 'music' | 'verbal' | 'spatial' | 'eq';
 export type CHCDomain = 'Gf' | 'Gc' | 'Gwm' | 'Gs' | 'Gv' | 'Ga' | 'Glr' | 'EF';
 
 export type GameId = 

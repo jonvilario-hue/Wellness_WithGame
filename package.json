@@ -41,6 +41,7 @@
     "dotenv": "^16.5.0",
     "framer-motion": "^11.5.7",
     "genkit": "^1.13.0",
+    "howler": "^2.2.4",
     "immer": "^10.1.1",
     "lucide-react": "^0.475.0",
     "next": "15.3.8",
@@ -54,6 +55,7 @@
     "zustand": "^4.5.4"
   },
   "devDependencies": {
+    "@types/howler": "^2.2.11",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

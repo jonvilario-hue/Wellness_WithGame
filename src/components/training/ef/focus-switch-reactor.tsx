@@ -310,12 +310,23 @@ export function FocusSwitchReactor() {
   if (currentMode === 'spatial') {
     return <GameStub 
         name="Perspective Shift" 
-        description="A simple scene contains several distinct 3D objects. A cue randomly switches between 'YOUR VIEW' and 'MAP VIEW' (top-down), forcing you to rapidly switch your mental frame of reference to answer questions about relative object positions."
         chcFactor="Executive Function (EF) / Spatial Orientation"
+        description="A simple scene contains several distinct 3D objects. A cue randomly switches between 'YOUR VIEW' and 'MAP VIEW' (top-down), forcing you to rapidly switch your mental frame of reference to answer questions about relative object positions."
         techStack={['CSS 3D Transforms']}
         complexity="High"
         fallbackPlan="Use 2D icons on a grid. 'MAP VIEW' is the grid rotated 180 degrees. The core mechanic of switching mental reference frames is preserved without 3D rendering."
     />;
+  }
+
+  if (currentMode === 'eq') {
+    return <GameStub 
+      name="Affective Stroop"
+      chcFactor="Executive Function (EF) / Inhibition"
+      description="A face displaying one emotion (e.g., Anger) is shown with a conflicting emotion word overlaid (e.g., 'JOY'). The user must inhibit the impulse to read the word and correctly identify the facial expression. The target rule ('Name the Face' vs. 'Name the Word') switches periodically."
+      techStack={['Licensed Face Asset Library']}
+      complexity="Medium"
+      fallbackPlan="Use colored words instead of faces (classic Stroop test) if face assets are unavailable. The core inhibition mechanic is preserved, but the emotional component is lost."
+    />
   }
 
   const renderContent = () => {
