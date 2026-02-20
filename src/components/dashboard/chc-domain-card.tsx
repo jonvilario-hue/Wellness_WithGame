@@ -25,6 +25,7 @@ import { usePerformanceStore } from '@/hooks/use-performance-store';
 interface ChcDomainCardProps {
   domain: {
     key: CHCDomain;
+    id: any;
     name: string;
     description: string;
     gameTitle: string;
@@ -37,7 +38,7 @@ interface ChcDomainCardProps {
 const ChcDomainCardComponent = ({ domain }: ChcDomainCardProps) => {
   const Icon = domainIcons[domain.key];
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
-  const { performance } = usePerformanceStore();
+  const { gameStates } = usePerformanceStore();
 
   const [isClient, setIsClient] = useState(false);
   useEffect(() => {
@@ -54,7 +55,7 @@ const ChcDomainCardComponent = ({ domain }: ChcDomainCardProps) => {
     return { Icon: Minus, color: 'text-primary', text: 'Holding steady' };
   };
 
-  const isLoaded = isGlobalFocusLoaded && isClient;
+  const isLoaded = isGlobalFocusLoaded && isClient && gameStates;
   
   const focusInfo = {
     neutral: { Icon: Brain, label: 'Core Thinking', color: 'text-muted-foreground', supported: true },
@@ -66,11 +67,24 @@ const ChcDomainCardComponent = ({ domain }: ChcDomainCardProps) => {
   const modeToDisplay = activeMode.supported ? globalFocus : 'neutral';
   const { Icon: ModeIcon, label: modeLabel, color: modeColor } = focusInfo[modeToDisplay];
   
-  const perfData = isLoaded ? performance[domain.key] : null;
-  const scoreData = perfData ? perfData[modeToDisplay] : null;
-  const score = Math.round(scoreData?.score ?? 0);
-  const trend = scoreData?.trend ?? 0;
+  const gameState = isLoaded ? gameStates[domain.id] : null;
+  const score = gameState ? Math.round((gameState.currentLevel / 20) * 100) : 0;
   
+  const calculateTrend = () => {
+    if (!gameState || !gameState.levelHistory || gameState.levelHistory.length === 0) return 0;
+    const history = gameState.levelHistory;
+    if (history.length > 1) {
+        const last = history[history.length - 1].endLevel;
+        const prev = history[history.length - 2].endLevel;
+        if (prev > 0) return ((last - prev) / prev) * 100;
+    } else if (history.length === 1) {
+        const session = history[0];
+        if(session.startLevel > 0) return ((session.endLevel - session.startLevel) / session.startLevel) * 100;
+    }
+    return 0;
+  };
+  
+  const trend = isLoaded ? calculateTrend() : 0;
   const { Icon: TrendIcon, color: trendColor, text: trendText } = getTrendInfo(trend);
 
   return (
@@ -97,7 +111,7 @@ const ChcDomainCardComponent = ({ domain }: ChcDomainCardProps) => {
         )}
       </CardHeader>
       <CardContent className="space-y-4 py-4 flex-grow">
-        {!isLoaded || !scoreData ? (
+        {!isLoaded ? (
           <div className="space-y-3 pt-2">
             <Skeleton className="h-4 w-full" />
             <Skeleton className="h-4 w-2/3" />
@@ -115,8 +129,8 @@ const ChcDomainCardComponent = ({ domain }: ChcDomainCardProps) => {
                       </span>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>Adaptive skill rating (50 = average, 100 = high mastery)</p>
-                      <p className="font-bold capitalize">{modeToDisplay} Mode</p>
+                      <p>Adaptive skill rating (0-100)</p>
+                      <p className="font-bold">Level: {gameState?.currentLevel ?? 'N/A'}</p>
                     </TooltipContent>
                   </Tooltip>
                 <span className="text-sm font-bold text-primary">{score}</span>
@@ -132,7 +146,6 @@ const ChcDomainCardComponent = ({ domain }: ChcDomainCardProps) => {
                   </TooltipTrigger>
                   <TooltipContent>
                     <p>{trendText}</p>
-                     <p className="font-bold capitalize">{modeToDisplay} Mode</p>
                   </TooltipContent>
                 </Tooltip>
                 <div className={`flex items-center font-bold ${trendColor}`}>

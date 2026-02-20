@@ -24,18 +24,23 @@ export function WeakAreaRecommendations() {
   const [error, setError] = useState<string | null>(null);
   const [isInsightVisible, setIsInsightVisible] = useState(false);
   const { organicGrowth } = useTheme();
-  const { performance } = usePerformanceStore();
+  const { gameStates } = usePerformanceStore();
 
   useEffect(() => {
+    if (!gameStates) return;
+
     startTransition(async () => {
       try {
-        const flatPerformanceData = Object.entries(performance).map(([domain, data]) => ({
-          domain,
-          score: data.neutral.score,
-          sessions: data.neutral.sessions,
-        })) as any; // Cast as any to satisfy the input type
+        const flatPerformanceData = chcDomains.map(domainInfo => {
+          const gameState = gameStates[domainInfo.id];
+          return {
+            domain: domainInfo.key,
+            score: gameState?.currentLevel ?? 0,
+            sessions: gameState?.sessionCount ?? 0,
+          };
+        });
 
-        const res = await getWeakAreaRecommendationsAction(flatPerformanceData);
+        const res = await getWeakAreaRecommendationsAction(flatPerformanceData as any);
         setResult(res);
       } catch (e) {
         setError('Failed to get recommendations. Please try again.');
@@ -47,7 +52,7 @@ export function WeakAreaRecommendations() {
     if (dismissed !== 'true') {
       setIsInsightVisible(true);
     }
-  }, [performance]);
+  }, [gameStates]);
 
   const handleDismissInsight = () => {
     setIsInsightVisible(false);

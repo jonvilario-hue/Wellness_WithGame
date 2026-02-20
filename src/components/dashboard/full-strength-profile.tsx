@@ -21,14 +21,14 @@ import { useTrainingFocus } from '@/hooks/use-training-focus';
 
 export function FullStrengthProfile() {
   const [isClient, setIsClient] = useState(false);
-  const { performance } = usePerformanceStore();
+  const { gameStates } = usePerformanceStore();
   const { focus: globalFocus, isLoaded: isFocusLoaded } = useTrainingFocus();
 
   useEffect(() => {
     setIsClient(true);
   }, []);
 
-  if (!isClient || !isFocusLoaded) {
+  if (!isClient || !isFocusLoaded || !gameStates) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Skeleton className="h-80 w-full" />
@@ -40,15 +40,14 @@ export function FullStrengthProfile() {
   }
 
   const chartData = chcDomains.map(domain => {
-    const perfData = performance[domain.key];
-    const modeToDisplay = domain.supportsMath && globalFocus === 'math' ? 'math' : domain.supportsMusic && globalFocus === 'music' ? 'music' : 'neutral';
-    const scoreData = perfData?.[modeToDisplay];
-    const score = Math.round(scoreData?.score || 0);
+    const gameState = gameStates[domain.id];
+    const score = gameState ? Math.round((gameState.currentLevel / 20) * 100) : 0;
+    const displayScore = score > 0 ? score : Math.round(Math.random() * 20 + 20); // Use real score or fallback for display
 
     return {
       subject: domain.key,
       name: domain.name,
-      score: score > 0 ? score : Math.round(Math.random() * 20 + 20), // Use real score or fallback for display
+      score: displayScore,
       fullMark: 100,
     };
   });

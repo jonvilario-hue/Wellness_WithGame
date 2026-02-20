@@ -12,6 +12,7 @@ import { Skeleton } from '../ui/skeleton';
 import { useTheme } from '@/hooks/use-theme';
 import { GrowthDecoration } from '../ui/growth-decoration';
 import { usePerformanceStore } from '@/hooks/use-performance-store';
+import { chcDomains } from '@/types';
 
 const recommendationIcons = {
   weakArea: TrendingUp,
@@ -26,17 +27,22 @@ export function PerformanceInsights() {
   const [isPending, startTransition] = useTransition();
   const [isInsightVisible, setIsInsightVisible] = useState(false);
   const { organicGrowth } = useTheme();
-  const { performance } = usePerformanceStore();
+  const { gameStates } = usePerformanceStore();
 
 
   useEffect(() => {
+    if (!gameStates) return;
+    
     startTransition(async () => {
-      const flatPerformanceData = Object.entries(performance).map(([domain, data]) => ({
-        domain,
-        score: data.neutral.score,
-        trend: data.neutral.trend,
-      })) as any;
-      const result = await getTrainingRecommendationAction(flatPerformanceData);
+      const flatPerformanceData = chcDomains.map(domainInfo => {
+        const gameState = gameStates[domainInfo.id];
+        return {
+          domain: domainInfo.key,
+          score: gameState?.currentLevel ?? 0,
+          trend: 0, // Trend is not used by the flow, pass 0
+        };
+      });
+      const result = await getTrainingRecommendationAction(flatPerformanceData as any);
       setRecommendation(result);
     });
 
@@ -44,7 +50,7 @@ export function PerformanceInsights() {
     if (dismissed !== 'true') {
       setIsInsightVisible(true);
     }
-  }, [performance]);
+  }, [gameStates]);
 
   const handleDismissInsight = () => {
     setIsInsightVisible(false);
