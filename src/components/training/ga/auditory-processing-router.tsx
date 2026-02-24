@@ -15,11 +15,13 @@ import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
 import { GameStub } from "../game-stub";
 import { AuditoryDebugger } from "../logic/auditory-debugger";
+import { GaAbstractAuditoryTasks } from "./ga-abstract-auditory-tasks";
+
 
 const GAME_ID: GameId = 'ga_auditory_lab';
 const policy = difficultyPolicies[GAME_ID];
 
-// --- Core Audio Engine ---
+// --- Core Audio Engine (used by non-Core modes) ---
 const useAudioEngine = () => {
     const audioContextRef = useRef<AudioContext | null>(null);
     const primaryGainRef = useRef<GainNode | null>(null);
@@ -52,26 +54,6 @@ const useAudioEngine = () => {
         if (primaryGainRef.current && context) {
             primaryGainRef.current.gain.setValueAtTime(volume, context.currentTime);
         }
-    }, [getAudioContext]);
-
-    const playTone = useCallback(({ freq, duration, startTime, rampTime = 0.005, type = 'sine' }: { freq: number, duration: number, startTime: number, rampTime?: number, type?: OscillatorType}) => {
-        const context = getAudioContext();
-        if (!context || !primaryGainRef.current) return;
-
-        const osc = context.createOscillator();
-        const gain = context.createGain();
-        osc.type = type;
-        osc.frequency.setValueAtTime(freq, context.currentTime);
-        osc.connect(gain);
-        gain.connect(primaryGainRef.current);
-
-        gain.gain.setValueAtTime(0, startTime);
-        gain.gain.linearRampToValueAtTime(1, startTime + rampTime);
-        gain.gain.setValueAtTime(1, startTime + duration - rampTime);
-        gain.gain.linearRampToValueAtTime(0, startTime + duration);
-
-        osc.start(startTime);
-        osc.stop(startTime + duration);
     }, [getAudioContext]);
     
      useEffect(() => {
@@ -116,13 +98,15 @@ const useAudioEngine = () => {
     }, []);
 
 
-    return { getAudioContext, resumeContext, setVolume, playTone, playNoise, stopNoise };
+    return { getAudioContext, resumeContext, setVolume, playNoise, stopNoise };
 };
 
 const PhonemeInNoiseModule = ({ onComplete, level, focus }: { onComplete: (result: { score: number, hits: number, falseAlarms: number }) => void, level: number, focus: TrainingFocus }) => {
     const { resumeContext, playNoise, stopNoise } = useAudioEngine();
-    const { content_config } = policy.levelMap[level] || policy.levelMap[1];
-    const params = content_config[focus]?.params || content_config['neutral']!.params;
+    const policyForLevel = policy.levelMap[level] || policy.levelMap[1];
+    const contentConfig = policyForLevel.content_config[focus];
+    
+    const params = contentConfig?.params || { phonemes: ['p', 'b'], noise_level: 0 };
 
     const [trials, setTrials] = useState(0);
     const [score, setScore] = useState(0);
@@ -154,7 +138,7 @@ const PhonemeInNoiseModule = ({ onComplete, level, focus }: { onComplete: (resul
             return () => clearTimeout(trialTimeout);
         }, 800);
 
-    }, [params, resumeContext, playNoise]);
+    }, [params, resumeContext, playNoise, isAnswering]);
 
     useEffect(() => {
         if (trials < 15) { 
@@ -234,6 +218,10 @@ export function AuditoryProcessingRouter() {
     
     const handleGameComplete = () => {
         setGameState('finished');
+    }
+
+    if (currentMode === 'neutral') {
+        return <GaAbstractAuditoryTasks focus={currentMode} />;
     }
     
     if (currentMode === 'spatial') {

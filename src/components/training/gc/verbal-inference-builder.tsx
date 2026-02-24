@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +17,7 @@ import { GameStub } from "../game-stub";
 import { GcSpatialLexicon } from "./gc-spatial-lexicon";
 import { RegulationArchitect } from "./regulation-architect";
 import { LogicLibrary } from '../logic/logic-library';
+import { GcNovelConceptLearner } from "./gc-novel-concept-learner";
 
 const GAME_ID: GameId = 'gc_verbal_inference';
 const policy = difficultyPolicies[GAME_ID];
@@ -173,29 +173,7 @@ export function VerbalInferenceBuilder() {
   }
   
   if (currentMode === 'neutral') {
-    return (
-        <Card className="w-full max-w-2xl text-center">
-             <CardHeader>
-                <CardTitle className="flex items-center justify-center gap-2">
-                    <BookOpenText />
-                    (Gc) Crystallized Intelligence
-                </CardTitle>
-                <CardDescription>
-                   This game tests your stored knowledge. Because 'Crystallized Intelligence' is about what you already know, there is no 'neutral' version of this game. Please select another training mode like Verbal, Math, or Logic.
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                <GameStub 
-                    name="Knowledge Base"
-                    chcFactor="Crystallized Intelligence (Gc)"
-                    description="This game requires applying learned knowledge. A 'neutral' or 'abstract' version is not applicable for this cognitive factor."
-                    techStack={[]}
-                    complexity="Low"
-                    fallbackPlan="N/A"
-                />
-            </CardContent>
-        </Card>
-    )
+    return <GcNovelConceptLearner focus={currentMode} />;
   }
 
   if (currentMode === 'spatial') {
