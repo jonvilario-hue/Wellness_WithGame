@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,7 +18,6 @@ import { AlgorithmFluency } from "../logic/algorithm-fluency";
 import { SpacedRetrievalMode } from "./spaced-retrieval-mode";
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
-import { logTrialResult } from "@/lib/analytics";
 
 const GLR_GAME_ID: GameId = 'glr_fluency_storm';
 const glrPolicy = difficultyPolicies[GLR_GAME_ID];
@@ -135,7 +133,7 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (result: { sc
         return generalWordList;
     }, [focus]);
 
-    const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
+    const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
     const adaptiveState = getAdaptiveState(GLR_GAME_ID, focus);
 
     const [chain, setChain] = useState<string[]>([]);
@@ -195,7 +193,16 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (result: { sc
                 word: currentWord
             }
         };
-        logTrialResult(GLR_GAME_ID, adaptiveState.currentLevel, trial);
+        
+        logTrial({
+            userId: 'local_user',
+            module_id: GLR_GAME_ID,
+            currentLevel: adaptiveState.currentLevel,
+            isCorrect: trial.correct,
+            responseTime_ms: trial.reactionTimeMs,
+            meta: trial.telemetry,
+        });
+
         setTrials(prev => [...prev, trial]);
         const newState = adjustDifficulty(trial, adaptiveState, glrPolicy);
         updateAdaptiveState(GLR_GAME_ID, focus, newState);
@@ -235,7 +242,7 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (result: { sc
 // --- MODE 3: CATEGORY SWITCHING SPRINT ---
 function CategorySwitchingMode({ onComplete, focus }: { onComplete: (result: { score: number, trials: TrialResult[] }) => void, focus: TrainingFocus }) {
     const { logSubmittedWord, isWordSubmitted } = useGlrStore();
-    const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
+    const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
     
     const [categoryIndex, setCategoryIndex] = useState(0);
     const [timeLeft, setTimeLeft] = useState(10);
@@ -302,9 +309,18 @@ function CategorySwitchingMode({ onComplete, focus }: { onComplete: (result: { s
                 word
             }
         };
-        logTrialResult(GLR_GAME_ID, getAdaptiveState(GLR_GAME_ID, focus).currentLevel, trial);
-        setTrials(prev => [...prev, trial]);
+
         const adaptiveState = getAdaptiveState(GLR_GAME_ID, focus);
+        logTrial({
+            userId: 'local_user',
+            module_id: GLR_GAME_ID,
+            currentLevel: adaptiveState.currentLevel,
+            isCorrect: trial.correct,
+            responseTime_ms: trial.reactionTimeMs,
+            meta: trial.telemetry,
+        });
+
+        setTrials(prev => [...prev, trial]);
         const newState = adjustDifficulty(trial, adaptiveState, glrPolicy);
         updateAdaptiveState(GLR_GAME_ID, focus, newState);
 
