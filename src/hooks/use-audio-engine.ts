@@ -151,7 +151,7 @@ export const useAudioEngine = () => {
             window.removeEventListener('keydown', handleFirstInteraction);
         };
         window.addEventListener('click', handleFirstInteraction);
-        window.addEventListener('keydown', handleFirstInteraction);
+        window.removeEventListener('keydown', handleFirstInteraction);
         
         return () => {
             window.removeEventListener('click', handleFirstInteraction);
@@ -186,21 +186,22 @@ export const useAudioEngine = () => {
             time += intervalSeconds;
          });
          
-         if (onEnd && handles.length > 0) {
-            const lastVoice = handles[handles.length - 1].voice;
-            lastVoice.osc.onended = () => {
+         if (onEnd) {
+            if (handles.length > 0) {
+                const lastHandle = handles[handles.length - 1];
+                const originalOnEnded = lastHandle.voice.osc.onended;
+                lastHandle.voice.osc.onended = (e) => {
+                    if (originalOnEnded) originalOnEnded.call(lastHandle.voice.osc, e);
+                    onEnd();
+                };
+            } else {
+                // If no notes were played (empty sequence), call immediately
                 onEnd();
-                 // Clean up old onended handler to prevent memory leaks
-                lastVoice.osc.onended = null;
-            };
-         } else if (onEnd) {
-             onEnd();
+            }
          }
-         
          return handles;
     }, [context, scheduleTone]);
 
-    // 10. Update the return type of useAudioEngine.
     return {
         audioContext: context,
         isAudioReady,

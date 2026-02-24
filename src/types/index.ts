@@ -1,4 +1,3 @@
-
 'use client';
 
 // This file is the single source of truth for all shared types in the application.
@@ -18,24 +17,22 @@ export type GameId =
   | 'ef_focus_switch';
 
 // --- Local Cache & Telemetry ---
-// Updated to match the strict schema from the audit (Section E2)
 export interface TrialRecord {
-  id: string; // UUID, now equivalent to trialId
-  sessionId: string; // UUID for the session
-  userId: string; // Firebase Auth UID
+  id: string; // UUID for the trial
+  sessionId?: string; // Optional: UUID for the session
+  userId?: string; // Optional: Firebase Auth UID
   
-  module_id: GameId; // Renamed from gameType for consistency
+  module_id: GameId;
   mode: TrainingFocus;
   condition?: string; // e.g., 'congruent', 'incongruent', 'switch', 'stay'
   
-  timestamp: number; // Server timestamp from Firestore
+  timestamp: number; // Wall clock time (Date.now())
   stimulusOnsetTs: number; // High-precision timestamp from AudioContext
-  responseTs: number; // High-precision timestamp from user event
-  rtMs: number; // Calculated from the two timestamps above
-
-  currentLevel: number; // Level at the start of the trial
+  responseTs: number; // High-precision timestamp from user event or AudioContext
+  
+  currentLevel: number;
   isCorrect: boolean;
-  timedOut: boolean;
+  rtMs: number; // Final calculated reaction time
   
   meta: Record<string, any>; // Rich, module-specific data payload
   deviceInfo?: {
