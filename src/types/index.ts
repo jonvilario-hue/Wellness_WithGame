@@ -1,3 +1,4 @@
+'use client';
 
 // This file is the single source of truth for all shared types in the application.
 
@@ -5,7 +6,7 @@
 export type TrainingFocus = 'neutral' | 'math' | 'music' | 'verbal' | 'spatial' | 'eq' | 'logic';
 export type CHCDomain = 'Gf' | 'Gc' | 'Gwm' | 'Gs' | 'Gv' | 'Ga' | 'Glr' | 'EF';
 
-export type GameId = 
+export type GameId =
   | 'gf_pattern_matrix'
   | 'gc_verbal_inference'
   | 'gwm_dynamic_sequence'
@@ -15,6 +16,17 @@ export type GameId =
   | 'glr_fluency_storm'
   | 'ef_focus_switch';
 
+// --- Local Cache & Telemetry ---
+export interface TrialRecord {
+  id: string;
+  userId: string;
+  timestamp: number; // Date.now()
+  module_id: GameId;
+  currentLevel: number;
+  isCorrect: boolean;
+  responseTime_ms: number;
+  meta: Record<string, any>; // module-specific extended payload
+}
 
 // --- Difficulty & Adaptive Engine Types ---
 export type Tier = 0 | 1 | 2 | 3;

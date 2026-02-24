@@ -1,12 +1,9 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { cn } from "@/lib/utils";
-import { useTrainingFocus } from "@/hooks/use-training-focus";
-import { useTrainingOverride } from "@/hooks/use-training-override";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -15,6 +12,9 @@ import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engin
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
 import { GameStub } from "../game-stub";
+import { useTrainingFocus } from "@/hooks/use-training-focus";
+import { useTrainingOverride } from "@/hooks/use-training-override";
+
 
 const GAME_ID: GameId = 'ef_focus_switch';
 const policy = difficultyPolicies[GAME_ID];
@@ -46,13 +46,12 @@ type Stimulus = {
 };
 
 export function FocusSwitchReactor() {
-  const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
+  const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
   const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
 
   const [adaptiveState, setAdaptiveState] = useState<AdaptiveState | null>(null);
   const [gameState, setGameState] = useState<'loading' | 'start' | 'running' | 'feedback' | 'finished'>('loading');
-  const [sessionTrials, setSessionTrials] = useState<TrialResult[]>([]);
   
   const [score, setScore] = useState(0);
   const [rule, setRule] = useState<NeutralRule | MathRule>('position');
@@ -131,7 +130,6 @@ export function FocusSwitchReactor() {
     if (!adaptiveState) return;
     const sessionState = startSession(adaptiveState);
     setAdaptiveState(sessionState);
-    setSessionTrials([]);
     currentTrialIndex.current = 0;
     ruleSwitchCounter.current = 0;
     setScore(0);
@@ -174,7 +172,15 @@ export function FocusSwitchReactor() {
             responseSide,
         }
     };
-    setSessionTrials(prev => [...prev, trialResult]);
+    
+    logTrial({
+      userId: 'local_user', // Placeholder
+      module_id: GAME_ID,
+      currentLevel: adaptiveState.currentLevel,
+      isCorrect: correct,
+      responseTime_ms: reactionTimeMs,
+      meta: trialResult.telemetry
+    });
     
     const newState = adjustDifficulty(trialResult, adaptiveState, policy);
     setAdaptiveState(newState);
@@ -186,13 +192,13 @@ export function FocusSwitchReactor() {
         currentTrialIndex.current++;
         if(currentTrialIndex.current >= policy.sessionLength) {
             setGameState('finished');
-            const finalState = endSession(newState, [...sessionTrials, trialResult]);
+            const finalState = endSession(newState, []);
             updateAdaptiveState(GAME_ID, currentMode, finalState);
         } else {
             startNewTrial(newState);
         }
     }, 600); // Increased feedback duration
-  }, [gameState, adaptiveState, sessionTrials, updateAdaptiveState, startNewTrial, currentMode, stimulus]);
+  }, [gameState, adaptiveState, updateAdaptiveState, startNewTrial, currentMode, stimulus, logTrial]);
   
   const handleAnswer = useCallback((answer: 'left' | 'right', source: 'click' | 'keyboard') => {
     if (gameState !== 'running' || !stimulus) return;
@@ -295,11 +301,10 @@ export function FocusSwitchReactor() {
             </div>
           );
         case 'finished':
-          const finalAccuracy = sessionTrials.length > 0 ? sessionTrials.filter(t => t.correct).length / sessionTrials.length : 0;
           return (
             <div className="flex flex-col items-center gap-4">
               <CardTitle>Session Complete!</CardTitle>
-              <p>Accuracy: {(finalAccuracy * 100).toFixed(0)}%</p>
+              <p>Score: {score} / {policy.sessionLength}</p>
               <Button onClick={() => setGameState('start')} size="lg">Play Again</Button>
             </div>
           );
@@ -353,10 +358,10 @@ export function FocusSwitchReactor() {
   }
 
   return (
-    <Card className="w-full max-w-2xl text-center bg-black border-gray-700 text-white">
+    <Card className="w-full max-w-2xl text-center bg-background">
       <CardHeader>
         <CardTitle>(EF) Focus Switch Reactor</CardTitle>
-        <CardDescription className="text-gray-400">Inhibition & Task-Switching Challenge. Pay attention to the rule!</CardDescription>
+        <CardDescription>Inhibition & Task-Switching Challenge. Pay attention to the rule!</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-6 min-h-[500px] justify-center">
         {renderContent()}

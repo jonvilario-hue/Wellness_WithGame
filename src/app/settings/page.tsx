@@ -1,11 +1,11 @@
-
 'use client';
 
-import { Sliders, Palette } from 'lucide-react';
+import { Sliders, Palette, Database } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TrainingSettings } from '@/components/settings/training-settings';
 import { AppearanceSettings } from '@/components/settings/appearance-settings';
+import { CacheSettings } from '@/components/settings/cache-settings';
 import { Header } from '@/components/header';
 import { MotivationalMessage } from '@/components/motivational-message';
 
@@ -24,17 +24,20 @@ export default function SettingsPage() {
                     <div className="space-y-2">
                         <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
                         <p className="text-muted-foreground">
-                            Customize your training experience and app appearance.
+                            Customize your training experience, app appearance, and data.
                         </p>
                     </div>
 
                     <Tabs defaultValue={tab} className="space-y-6">
-                        <TabsList>
+                        <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3">
                             <TabsTrigger value="training" className="gap-2">
                                 <Sliders className="h-4 w-4"/> Training
                             </TabsTrigger>
                             <TabsTrigger value="appearance" className="gap-2">
                                 <Palette className="h-4 w-4"/> Appearance
+                            </TabsTrigger>
+                            <TabsTrigger value="cache" className="gap-2">
+                                <Database className="h-4 w-4"/> Data Cache
                             </TabsTrigger>
                         </TabsList>
 
@@ -43,6 +46,11 @@ export default function SettingsPage() {
                         </TabsContent>
                         <TabsContent value="appearance">
                             <AppearanceSettings />
+                        </TabsContent>
+                         <TabsContent value="cache">
+                            <div className="flex justify-center">
+                              <CacheSettings />
+                            </div>
                         </TabsContent>
                     </Tabs>
                 </div>
