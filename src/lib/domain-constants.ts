@@ -1,4 +1,5 @@
 
+
 import {
   BrainCircuit,
   BookOpenText,
@@ -39,7 +40,7 @@ export const DOMAIN_META: Record<
     gameTitle: 'Verbal Inference Builder',
     id: 'gc_verbal_inference',
     icon: BookOpenText,
-    color: 'bg-purple-500/10 text-purple-500',
+    color: 'bg-amber-500/10 text-amber-500',
   },
   Gwm: {
     name: '(Gwm) Working Memory',
@@ -47,7 +48,7 @@ export const DOMAIN_META: Record<
     gameTitle: 'Dynamic Sequence',
     id: 'gwm_dynamic_sequence',
     icon: MemoryStick,
-    color: 'bg-yellow-500/10 text-yellow-500',
+    color: 'bg-cyan-500/10 text-cyan-500',
   },
   Gs: {
     name: '(Gs) Processing Speed',
@@ -63,7 +64,7 @@ export const DOMAIN_META: Record<
     gameTitle: 'Visual Processing Lab',
     id: 'gv_visual_lab',
     icon: View,
-    color: 'bg-teal-500/10 text-teal-500',
+    color: 'bg-lime-500/10 text-lime-500',
   },
   Ga: {
     name: '(Ga) Auditory Processing',
@@ -71,7 +72,7 @@ export const DOMAIN_META: Record<
     gameTitle: 'Auditory Processing Lab',
     id: 'ga_auditory_lab',
     icon: Ear,
-    color: 'bg-pink-500/10 text-pink-500',
+    color: 'bg-violet-500/10 text-violet-500',
   },
   Glr: {
     name: '(Glr) Long-Term Retrieval',
@@ -79,7 +80,7 @@ export const DOMAIN_META: Record<
     gameTitle: 'Retrieval Trainer',
     id: 'glr_fluency_storm',
     icon: Archive,
-    color: 'bg-indigo-500/10 text-indigo-500',
+    color: 'bg-emerald-500/10 text-emerald-500',
   },
   EF: {
     name: '(EF) Executive Function',
@@ -87,13 +88,19 @@ export const DOMAIN_META: Record<
     gameTitle: 'Focus Switch Reactor',
     id: 'ef_focus_switch',
     icon: Goal,
-    color: 'bg-green-500/10 text-green-500',
+    color: 'bg-rose-500/10 text-rose-500',
   },
 };
 
 export const chcDomains = Object.entries(DOMAIN_META).map(([key, value]) => ({
   key: key as CHCDomain,
   ...value,
+  supportsMath: ['Gf', 'Gwm', 'Gs', 'Gv', 'Gc', 'Ga', 'Glr', 'EF'].includes(key),
+  supportsMusic: ['Gf', 'Gwm', 'Gs', 'Gv', 'Gc', 'Ga', 'Glr', 'EF'].includes(key),
+  supportsVerbal: ['Gf', 'Gwm', 'Gs', 'Gv', 'Gc', 'Ga', 'Glr', 'EF'].includes(key),
+  supportsSpatial: ['Gf', 'Gwm', 'Gs', 'Gv', 'Gc', 'Glr', 'EF'].includes(key),
+  supportsEq: ['Gf', 'Gwm', 'Gs', 'Gv', 'Gc', 'Glr', 'EF'].includes(key),
+  supportsLogic: ['Gf', 'Gwm', 'Gs', 'Gv', 'Gc', 'Glr', 'EF'].includes(key),
 }));
 
 

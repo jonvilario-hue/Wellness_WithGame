@@ -10,7 +10,7 @@ import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
-import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
+import { adjustDifficulty, startSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
 import { clozeSentences, morphologyWordPairs, spatialConcepts } from "@/data/verbal-content";
@@ -20,6 +20,7 @@ import { RegulationArchitect } from "./regulation-architect";
 import { LogicLibrary } from '../logic/logic-library';
 import { GcNovelConceptLearner } from "./gc-novel-concept-learner";
 import GcMathConcepts from "./gc-math-concepts";
+import { GcMusicKnowledge } from "./gc-music-knowledge";
 
 
 const GAME_ID: GameId = 'gc_verbal_inference';
@@ -92,7 +93,6 @@ export function VerbalInferenceBuilder() {
 
   const [adaptiveState, setAdaptiveState] = useState<AdaptiveState | null>(null);
   const [gameState, setGameState] = useState<'loading' | 'start' | 'playing' | 'feedback' | 'finished'>('loading');
-  const [sessionTrials, setSessionTrials] = useState<TrialResult[]>([]);
   
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
@@ -131,7 +131,6 @@ export function VerbalInferenceBuilder() {
     const sessionState = startSession(adaptiveState);
     updateAdaptiveState(GAME_ID, currentMode, sessionState);
     setAdaptiveState(sessionState);
-    setSessionTrials([]);
     currentTrialIndex.current = 0;
     startNewTrial(sessionState);
   }, [adaptiveState, startNewTrial, updateAdaptiveState, currentMode]);
@@ -146,9 +145,6 @@ export function VerbalInferenceBuilder() {
 
     const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs, telemetry: {} };
     logTrial({
-      id: crypto.randomUUID(),
-      userId: 'local_user',
-      timestamp: Date.now(),
       module_id: GAME_ID,
       currentLevel: adaptiveState.currentLevel,
       isCorrect,
@@ -157,8 +153,6 @@ export function VerbalInferenceBuilder() {
         puzzleType: puzzle.type,
       }
     });
-
-    setSessionTrials(prev => [...prev, trialResult]);
     
     const newState = adjustDifficulty(trialResult, adaptiveState, policy);
     updateAdaptiveState(GAME_ID, currentMode, newState);
@@ -170,8 +164,6 @@ export function VerbalInferenceBuilder() {
         currentTrialIndex.current++;
         if (currentTrialIndex.current >= policy.sessionLength) {
             setGameState('finished');
-            const finalState = endSession(newState, [...sessionTrials, trialResult]);
-            updateAdaptiveState(GAME_ID, currentMode, finalState);
         } else {
             startNewTrial(newState);
         }
@@ -196,6 +188,10 @@ export function VerbalInferenceBuilder() {
 
   if (currentMode === 'math') {
     return <GcMathConcepts focus={currentMode} />;
+  }
+
+  if (currentMode === 'music') {
+    return <GcMusicKnowledge focus={currentMode} />;
   }
 
   if (currentMode === 'spatial') {
@@ -224,11 +220,9 @@ export function VerbalInferenceBuilder() {
       );
     }
     if (gameState === 'finished') {
-       const finalAccuracy = sessionTrials.filter(t => t.correct).length / sessionTrials.length;
        return (
         <div className="text-center space-y-4 animate-in fade-in">
           <CardTitle>Session Complete!</CardTitle>
-          <p className="text-xl">Accuracy: {isNaN(finalAccuracy) ? 'N/A' : (finalAccuracy * 100).toFixed(0) + '%'}</p>
           <Button onClick={() => setGameState('start')} size="lg">Play Again</Button>
         </div>
       );

@@ -42,7 +42,7 @@ export function Header() {
         <div className="flex-1 flex justify-center items-center">
             <Link href="/" className="flex items-center gap-2 rounded-lg p-2 transition-colors hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring">
                  <Icon className="h-7 w-7 text-primary" />
-                 <h1 className="text-xl font-bold text-foreground tracking-tight hidden sm:block">PuzzleMaster</h1>
+                 <h1 className="text-xl font-bold text-foreground tracking-tight hidden sm:block">Cognitive Crucible</h1>
             </Link>
         </div>
 

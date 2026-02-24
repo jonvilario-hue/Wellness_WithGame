@@ -20,7 +20,7 @@ import { RuleInductionEngine } from '../logic/rule-induction-engine';
 const GAME_ID: GameId = 'gf_pattern_matrix';
 const policy = difficultyPolicies[GAME_ID];
 
-type GameVariant = 'neutral' | 'math' | 'probability' | 'verbal';
+type GameVariant = 'neutral' | 'math' | 'probability' | 'verbal' | 'music';
 
 // --- Display Components ---
 const ElementComponent = ({ element }: { element: any }) => {
@@ -179,7 +179,7 @@ const generatePuzzleForLevel = (level: number, focus: GameVariant) => {
 };
 
 export function PatternMatrix() {
-    const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore.getState();
+    const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
     const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
     const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
 
@@ -246,7 +246,6 @@ export function PatternMatrix() {
         };
 
         logTrial({
-            userId: 'local_user',
             module_id: GAME_ID,
             currentLevel: levelPlayed,
             isCorrect,
@@ -268,6 +267,17 @@ export function PatternMatrix() {
             }
         }, 2000);
     };
+
+    if (currentMode === 'music') {
+        return <GameStub 
+            name="Musical Rule Induction"
+            chcFactor="Fluid Reasoning (Gf)"
+            description="Infer abstract rules from short musical sequences. For example, a 3x3 grid might show melodic transposition, and you must select the correct transposed melody for the final cell."
+            techStack={['Web Audio API', 'Tone.js']}
+            complexity="High"
+            fallbackPlan="If audio synthesis fails, the task falls back to using visual notation (SVG-based staves), becoming a visual pattern-matching task on musical symbols, preserving the Gf load."
+        />
+    }
 
     if (currentMode === 'spatial') {
         return <GameStub 

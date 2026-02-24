@@ -30,7 +30,7 @@ const useDomainProgress = (domainId: string, focus: TrainingFocus) => {
     const getAdaptiveState = usePerformanceStore(state => state.getAdaptiveState);
     const gameState = getAdaptiveState(domainId as any, focus);
     
-    const score = gameState ? Math.round((gameState.currentLevel / gameState.levelCeiling) * 100) : Math.random() * 25 + 20;
+    const score = gameState ? Math.round((gameState.currentLevel / gameState.levelCeiling) * 100) : 0;
     
     return { score };
 };
@@ -53,8 +53,8 @@ export function ChcDomainCard({ domain, onPlay }: { domain: (typeof import('@/li
       )}
     >
       <CardHeader className="flex-row items-start gap-4 space-y-0 pb-2">
-        <div className={cn('p-3 rounded-lg', domain.color)}>
-          <domain.icon className="w-6 h-6" />
+        <div className={cn('p-3 rounded-lg', domain.color.split(' ')[0])}>
+          <domain.icon className={cn("w-6 h-6", domain.color.split(' ')[1])} />
         </div>
         <div className="flex-1">
           <CardTitle className="font-headline text-base">{domain.name}</CardTitle>
@@ -74,7 +74,7 @@ export function ChcDomainCard({ domain, onPlay }: { domain: (typeof import('@/li
       </CardContent>
       <CardFooter>
         <Button
-          className={cn("w-full", domain.color.replace('bg-', 'hover:bg-').replace('/10', '/20'))}
+          className="w-full"
           disabled={isLocked}
           onClick={() => !isLocked && onPlay(domain.key)}
         >

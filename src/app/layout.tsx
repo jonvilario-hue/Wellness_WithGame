@@ -13,7 +13,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'PuzzleMaster',
+  title: 'Cognitive Crucible',
   description: 'A collection of games to sharpen your mind.',
 };
 

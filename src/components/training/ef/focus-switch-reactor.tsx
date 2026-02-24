@@ -9,7 +9,7 @@ import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Loader2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Keyboard } from 'lucide-react';
-import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
+import { adjustDifficulty, startSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
 import { GameStub } from "../game-stub";
@@ -171,7 +171,7 @@ export function FocusSwitchReactor() {
         telemetry: {
             inputMethod: source,
             rule: ruleRef.current,
-            switchOccurred: ruleRef.current !== previousRuleRef.current,
+            switchTrial: ruleRef.current !== previousRuleRef.current,
             targetSide,
             responseSide: responseSide || null,
             congruent: isCongruent
@@ -179,7 +179,6 @@ export function FocusSwitchReactor() {
     };
     
     logTrial({
-      userId: 'local_user',
       module_id: GAME_ID,
       currentLevel: levelPlayed,
       isCorrect: correct,
@@ -276,7 +275,7 @@ export function FocusSwitchReactor() {
       return <span className="font-bold text-primary uppercase">{text}</span>;
   }
   
-  if (currentMode !== 'neutral' && currentMode !== 'math') {
+  if (currentMode !== 'neutral' && currentMode !== 'math' && currentMode !== 'music') {
      return <GameStub 
       name="Focus Switch Reactor"
       chcFactor="Executive Function (EF)"

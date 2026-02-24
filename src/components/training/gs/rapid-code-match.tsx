@@ -48,7 +48,7 @@ const NoiseOverlay = () => (
 );
 
 export function RapidCodeMatch() {
-  const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore.getState();
+  const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
   const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
 
@@ -170,12 +170,11 @@ export function RapidCodeMatch() {
         telemetry: {
             ...telemetry,
             itemsAttempted: currentTrialIndex.current + 1,
-            errorsCommitted: mistakes.current,
+            itemsCorrect: (currentTrialIndex.current + 1) - mistakes.current,
             timeLimit_ms: mechanic_config.responseWindowMs,
         }
     };
     logTrial({
-      userId: 'local_user',
       module_id: GAME_ID,
       currentLevel: levelPlayed,
       isCorrect: trialResult.correct,
@@ -202,6 +201,17 @@ export function RapidCodeMatch() {
         }
     }, 500);
   }, [gameState, problem, startNewTrial, updateAdaptiveState, currentMode, logTrial, getAdaptiveState]);
+
+  if (currentMode === 'music') {
+    return <GameStub 
+        name="Rapid Musical Classification"
+        chcFactor="Processing Speed (Gs)"
+        description="Listen to two very short musical fragments (e.g., two notes, a two-note interval, or a simple rhythm) and make a speeded same/different judgment under intense time pressure."
+        techStack={['Web Audio API', 'Tone.js']}
+        complexity="Medium"
+        fallbackPlan="If audio synthesis fails, the task becomes a visual comparison of two simple notation fragments, which maintains the Gs load."
+    />;
+  }
 
   if (currentMode === 'spatial') {
     return <GameStub 
@@ -247,8 +257,8 @@ export function RapidCodeMatch() {
     }
     if (gameState === 'finished') {
       const finalState = getAdaptiveState(GAME_ID, currentMode);
-      const accuracy = currentTrialIndex.current > 0 ? finalState.recentTrials.slice(-currentTrialIndex.current).filter(r => r.correct).length / currentTrialIndex.current : 0;
-      const score = finalState.recentTrials.slice(-currentTrialIndex.current).filter(t => t.correct).length;
+      const accuracy = currentTrialIndex.current > 0 ? ((currentTrialIndex.current - mistakes.current) / currentTrialIndex.current) : 0;
+      const score = (currentTrialIndex.current - mistakes.current);
       return (
         <div className="flex flex-col items-center gap-4">
           <CardTitle>Game Over!</CardTitle>
@@ -262,7 +272,7 @@ export function RapidCodeMatch() {
     
     if (problem.type === 'lexical') {
         const state = getAdaptiveState(GAME_ID, currentMode);
-        const score = state?.recentTrials.filter(r => r.correct).length ?? 0;
+        const score = (currentTrialIndex.current - mistakes.current);
         return (
             <div className="w-full">
                 <div className="flex justify-between w-full text-lg font-mono mb-4 text-orange-200">
@@ -285,8 +295,7 @@ export function RapidCodeMatch() {
     }
 
     // Symbol Problem
-    const state = getAdaptiveState(GAME_ID, currentMode);
-    const score = state?.recentTrials.filter(r => r.correct).length ?? 0;
+    const score = (currentTrialIndex.current - mistakes.current);
     return (
       <div className="w-full">
         <div className="flex justify-between w-full text-lg font-mono mb-4 text-orange-200">
