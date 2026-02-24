@@ -18,6 +18,22 @@ import { GameStub } from "../game-stub";
 import { AlgorithmFluency } from "../logic/algorithm-fluency";
 import { SpacedRetrievalMode } from "./spaced-retrieval-mode";
 
+/**
+ * --- CORE MODE DESIGN DOCUMENTATION (from audit CORE-Glr-4) ---
+ * The Glr (Long-Term Retrieval) factor has three primary facets:
+ * 1. Category Fluency (retrieving items from a known semantic category).
+ * 2. Associative Fluency (creating chains of related concepts).
+ * 3. Spaced Retrieval (strengthening memory for specific items over time).
+ * 
+ * For a "Core" or "Neutral" mode to be psychometrically valid, it cannot rely on
+ * pre-existing semantic or linguistic knowledge. Therefore, both Category Fluency and
+ * Associative Fluency are invalid as Core tasks.
+ * 
+ * The ONLY valid Core Glr task is Spaced Retrieval of novel, abstract associations
+ * (e.g., memorizing pairs of random symbols). This component's router logic
+ * correctly defaults to `SpacedRetrievalMode` when the focus is 'neutral'.
+ */
+
 const generalAntonyms: Record<string, string> = { "hot": "cold", "fast": "slow", "happy": "sad", "big": "small", "up": "down", "light": "dark", "day": "night", "rich": "poor", "old": "new", "true": "false" };
 
 export function SemanticFluencyStorm() {

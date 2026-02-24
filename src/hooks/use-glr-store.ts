@@ -1,3 +1,4 @@
+
 'use client';
 
 import { create } from 'zustand';
@@ -53,7 +54,7 @@ export const useGlrStore = create<GlrState & GlrActions>()(
             spacedPairs: {},
             submittedWords: {},
             lastModeIndex: {
-                neutral: 2,
+                neutral: 2, // will always cycle to spaced (index 2)
                 math: 2,
                 music: 2,
                 verbal: 2,
@@ -63,13 +64,25 @@ export const useGlrStore = create<GlrState & GlrActions>()(
             },
 
             getNextMode: (focus) => {
-                // Per audit, certain modes should have fixed games for psychometric integrity.
+                /**
+                 * --- CORE MODE DESIGN DOCUMENTATION (from audit CORE-Glr-4) ---
+                 * The Glr (Long-Term Retrieval) factor has three primary facets:
+                 * 1. Category Fluency (retrieving items from a known semantic category).
+                 * 2. Associative Fluency (creating chains of related concepts).
+                 * 3. Spaced Retrieval (strengthening memory for specific items over time).
+                 * For a "Core" or "Neutral" mode to be psychometrically valid, it cannot rely on
+                 * pre-existing semantic or linguistic knowledge. Therefore, this logic enforces that
+                 * for 'neutral' focus, we ONLY use the 'spaced' retrieval mechanic (with abstract symbols),
+                 * as the other two require domain knowledge.
+                 */
+                if (focus === 'neutral') return 'spaced';
+
                 if (focus === 'math') return 'spaced'; // Math facts are best trained with spaced repetition.
                 if (focus === 'music') return 'spaced'; // Music theory terms also fit spaced repetition.
                 if (focus === 'logic') return 'associative'; // Logic is about associating concepts.
                 if (focus === 'eq') return 'category'; // EQ maps well to category fluency.
 
-                // For Neutral/Verbal/Spatial, rotate through all games
+                // For Verbal/Spatial, rotate through all games
                 const lastIndex = get().lastModeIndex[focus];
                 const nextIndex = (lastIndex + 1) % gameModes.length;
                 set(state => { state.lastModeIndex[focus] = nextIndex });

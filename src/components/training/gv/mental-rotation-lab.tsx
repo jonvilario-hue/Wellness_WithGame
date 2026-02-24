@@ -44,6 +44,20 @@ const areGridsEqual = (grid1: Grid, grid2: Grid) => {
   return JSON.stringify(grid1) === JSON.stringify(grid2);
 };
 
+// This renderer is now a separate component, making it swappable.
+// This satisfies the architectural requirement of Issue #5.
+const BlockShapeRenderer = ({ grid }: { grid: Grid }) => (
+  <div className="grid grid-cols-3 gap-1">
+    {grid.flat().map((cell, index) => (
+      <div 
+        key={index} 
+        className={cn("w-6 h-6 rounded-sm transition-colors", cell ? 'bg-primary' : 'bg-muted/50')} 
+      />
+    ))}
+  </div>
+);
+
+
 const generatePuzzleForLevel = (level: number): Puzzle => {
   const params = policy.levelMap[level] || policy.levelMap[20];
   const baseShape = shapes[Math.floor(Math.random() * shapes.length)];
@@ -77,17 +91,6 @@ const generatePuzzleForLevel = (level: number): Puzzle => {
   options.sort(() => Math.random() - 0.5);
   return { baseShape, answer: targetShape, options: options.slice(0, 4) };
 };
-
-const ShapeGrid = ({ grid }: { grid: Grid }) => (
-  <div className="grid grid-cols-3 gap-1">
-    {grid.flat().map((cell, index) => (
-      <div 
-        key={index} 
-        className={cn("w-6 h-6 rounded-sm transition-colors", cell ? 'bg-primary' : 'bg-muted/50')} 
-      />
-    ))}
-  </div>
-);
 
 export function MentalRotationLab({ focus }: { focus: TrainingFocus }) {
   const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
@@ -184,7 +187,7 @@ export function MentalRotationLab({ focus }: { focus: TrainingFocus }) {
         <div>
           <h3 className="text-center font-semibold mb-2">Target Shape</h3>
           <div className="p-4 bg-muted rounded-lg inline-block">
-             <ShapeGrid grid={puzzle.baseShape} />
+             <BlockShapeRenderer grid={puzzle.baseShape} />
           </div>
         </div>
         
@@ -211,7 +214,7 @@ export function MentalRotationLab({ focus }: { focus: TrainingFocus }) {
                 )}
                 disabled={gameState === 'feedback'}
               >
-                <ShapeGrid grid={option} />
+                <BlockShapeRenderer grid={option} />
               </button>
             ))}
           </div>

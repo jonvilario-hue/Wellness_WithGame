@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -221,11 +222,11 @@ export function RapidCodeMatch() {
           );
     }
     if (gameState === 'finished') {
-      const finalScore = sessionTrials.filter(t => t.correct).length;
+      const accuracy = sessionTrials.filter(t => t.correct).length / sessionTrials.length;
       return (
         <div className="flex flex-col items-center gap-4">
           <CardTitle>Game Over!</CardTitle>
-          <p className="text-xl">Your final score is: <span className="text-primary font-bold">{finalScore}</span></p>
+          <p className="text-xl">Accuracy: {isNaN(accuracy) ? 'N/A' : (accuracy * 100).toFixed(0) + '%'}</p>
           <Button onClick={() => setGameState('start')} size="lg">Play Again</Button>
         </div>
       );
