@@ -2,8 +2,28 @@
 'use client';
 
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
 import { messages, type MessageTrigger } from '@/data/motivational-messages';
+
+// Server-safe storage object for Zustand's persist middleware
+const storage: StateStorage = {
+  getItem: (name) => {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+    return window.localStorage.getItem(name);
+  },
+  setItem: (name, value) => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(name, value);
+    }
+  },
+  removeItem: (name) => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(name);
+    }
+  },
+};
 
 type MotivationState = {
   message: string | null;
@@ -63,7 +83,7 @@ export const useMotivationStore = create<MotivationState>()(
     }),
     {
       name: 'motivation-storage',
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => storage),
       partialize: (state) => ({ notificationsEnabled: state.notificationsEnabled }),
     }
   )

@@ -1,9 +1,29 @@
 'use client';
 
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import type { TrainingFocus } from '@/types';
+
+// Server-safe storage object for Zustand's persist middleware
+const storage: StateStorage = {
+  getItem: (name) => {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+    return window.localStorage.getItem(name);
+  },
+  setItem: (name, value) => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(name, value);
+    }
+  },
+  removeItem: (name) => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(name);
+    }
+  },
+};
 
 // --- Types ---
 const anHour = 60 * 60 * 1000;
@@ -153,7 +173,7 @@ export const useGlrStore = create<GlrState & GlrActions>()(
         })),
         {
             name: 'glr-training-storage-v3-router',
-            storage: createJSONStorage(() => localStorage),
+            storage: createJSONStorage(() => storage),
         }
     )
 );
