@@ -1,4 +1,3 @@
-
 # Platform Determinism Contract
 
 This document outlines the rules and guarantees for deterministic behavior in the cognitive training platform. Adherence to this contract is critical for data integrity, session replayability, and valid scientific analysis.
@@ -54,8 +53,6 @@ The local storage eviction strategy is designed to prevent data loss.
 2.  **Session Protection:** The eviction process **NEVER** deletes trial records belonging to a session where the `sessionComplete` flag is `false`. This protects all in-progress and buffered session data from being accidentally pruned.
 
 ## Section 6 — Session Recovery
-
-This section documents the platform's behavior when a session is interrupted.
 
 **Current Limitation:** In-progress training sessions are **NOT** currently recoverable across page reloads or full tab closures. While the adaptive state and completed trial data are persisted, the in-flight state of the current game (e.g., the PRNG sequence position, current trial index, active timers) is held in component memory and is lost.
 

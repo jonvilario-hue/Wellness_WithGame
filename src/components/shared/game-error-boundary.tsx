@@ -1,9 +1,8 @@
-
 'use client';
 
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, RefreshCcw } from 'lucide-react';
 
 interface Props {
   children: ReactNode;
@@ -13,6 +12,7 @@ interface Props {
 
 interface State {
   hasError: boolean;
+  error?: Error;
 }
 
 export class GameErrorBoundary extends Component<Props, State> {
@@ -20,9 +20,9 @@ export class GameErrorBoundary extends Component<Props, State> {
     hasError: false,
   };
 
-  public static getDerivedStateFromError(_: Error): State {
+  public static getDerivedStateFromError(error: Error): State {
     // Update state so the next render will show the fallback UI.
-    return { hasError: true };
+    return { hasError: true, error: error };
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
@@ -36,14 +36,20 @@ export class GameErrorBoundary extends Component<Props, State> {
       // You can render any custom fallback UI
       return (
         <div className="w-full max-w-lg text-center p-8 bg-destructive/10 rounded-lg border border-destructive">
-            <AlertTriangle className="w-12 h-12 text-destructive mx-auto mb-4" />
+            <AlertTriangle className="w-12 h-12 text-destructive mx-auto mb-4" aria-hidden="true" />
             <h2 className="text-2xl font-bold text-destructive-foreground">An Unexpected Error Occurred</h2>
             <p className="text-muted-foreground mt-2 mb-6">
                 Sorry about that. Please restart the game to continue your session. Your progress so far has been saved.
             </p>
             <Button onClick={this.props.onReset}>
+                <RefreshCcw className="w-4 h-4 mr-2" />
                 Restart Game
             </Button>
+             {process.env.NODE_ENV === 'development' && (
+                <pre className="mt-8 p-4 bg-slate-900 text-red-400 text-xs rounded w-full max-w-lg overflow-auto text-left">
+                    {this.state.error?.toString()}
+                </pre>
+             )}
         </div>
       );
     }

@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -108,7 +107,9 @@ export default function TrainingPage() {
           </div>
           <div className="flex-1 flex justify-end">
             <Button variant="ghost" size="icon">
-              <Settings />
+              <Link href="/settings">
+                <Settings />
+              </Link>
             </Button>
           </div>
         </div>

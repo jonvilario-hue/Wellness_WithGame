@@ -134,8 +134,10 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
                 });
             },
             
-            // This function is called when the user navigates away from the page
-            // to ensure that any buffered telemetry is saved.
+            // B2 OFFLINE RESILIENCE:
+            // This function runs on page hide/unload events. It attempts to synchronously
+            // write any trials that failed to save earlier (e.g., due to the browser's
+            // IDB being temporarily locked or unavailable) from an in-memory buffer.
             flushFailedWrites: async () => {
                 const buffered = get().failedWrites;
                 if (buffered.length === 0) return;
@@ -150,13 +152,16 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
                 }
             },
 
-            // This function is the primary entry point for logging a trial.
-            // It includes offline resilience by buffering failed writes.
+            // B2 OFFLINE RESILIENCE:
+            // This is the primary entry point for logging a trial. It includes offline
+            // resilience by wrapping the IndexedDB write in a try/catch block. If the
+            // write fails, the trial record is pushed to an in-memory buffer (`failedWrites`)
+            // for a later retry attempt, which is triggered by `flushFailedWrites`.
             logTrial: async (record) => {
                 const fullRecord: TrialRecord = {
                     ...record,
                     id: `${record.sessionId}-${record.trialIndex}`,
-                    seq: record.trialIndex, // Set the monotonic sequence number
+                    seq: record.trialIndex, // FIX A1: Ensure monotonic sequence number is assigned.
                     schemaVersion: 2,
                 };
                  // First, try to log the new record. This may trigger an eviction run.
