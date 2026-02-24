@@ -32,6 +32,7 @@ const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
     const trialStartTime = useRef(0);
     const answerRef = useRef<'higher' | 'lower'>('higher');
     const currentTrialIndex = useRef(0);
+    const sessionTrials = useRef<TrialResult[]>([]);
 
     const startNewTrial = useCallback(() => {
         const state = getAdaptiveState(GAME_ID, focus);
@@ -58,6 +59,7 @@ const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
         const sessionState = startSession(getAdaptiveState(GAME_ID, focus));
         updateAdaptiveState(GAME_ID, focus, sessionState);
         currentTrialIndex.current = 0;
+        sessionTrials.current = [];
         startNewTrial();
     }, [resumeContext, getAdaptiveState, updateAdaptiveState, focus, startNewTrial]);
     
@@ -83,11 +85,14 @@ const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
             correct: isCorrect,
             reactionTimeMs,
             telemetry: {
-                trialType: 'pitch',
+                trialType: 'pitch_discrimination',
                 discriminationGap: params?.pitchDelta,
                 baseFreq: 440,
+                userAnswer: userChoice,
+                correctAnswer: answerRef.current,
             }
         };
+        sessionTrials.current.push(trialResult);
 
         logTrial({
             module_id: GAME_ID,
@@ -115,7 +120,7 @@ const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
 
     if(gameState === 'finished') {
         const state = getAdaptiveState(GAME_ID, focus);
-        const finalState = endSession(state, state.recentTrials.slice(-currentTrialIndex.current));
+        const finalState = endSession(state, sessionTrials.current);
         updateAdaptiveState(GAME_ID, focus, finalState);
         return (
              <div className="text-center space-y-4">

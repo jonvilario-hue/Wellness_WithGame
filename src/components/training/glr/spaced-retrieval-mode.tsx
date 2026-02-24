@@ -77,6 +77,7 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
     const [userInput, setUserInput] = useState('');
     const [feedback, setFeedback] = useState<Record<string, 'correct' | 'incorrect'>>({});
     const [score, setScore] = useState(0);
+    const [distractorPerformance, setDistractorPerformance] = useState({ clicks: 0 });
 
     const trialStartTime = useRef(0);
     
@@ -146,7 +147,8 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
                 intervalStage: pair.intervalStage,
                 pairCount: (duePairs.length > 0 ? duePairs : newPairs).length,
                 distractorDuration_s: policyParams.distractorDuration,
-                encodingTime_s: 0, // Not tracked
+                distractorPerformance: distractorPerformance,
+                encodingTime_s: 0, // Not tracked, can be added
                 pairIndex: currentIndex,
                 cue: pair.word1,
                 expectedResponse: pair.word2,
