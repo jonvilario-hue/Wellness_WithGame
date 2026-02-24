@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -14,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useTrainingOverride } from '@/hooks/use-training-override';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AuditoryGoNoGo } from '@/components/training/gs/auditory-go-no-go';
+import { AuditoryOddball } from '@/components/training/gs/auditory-oddball';
 
 export default function TrainingPage() {
   const params = useParams();
@@ -30,8 +29,8 @@ export default function TrainingPage() {
 
   const effectiveFocus = override || globalDefaultFocus;
 
-  const GameComponent = effectiveFocus === 'music' ? AuditoryGoNoGo : (gameComponents[domainInfo.key] || (() => <p>Game not found</p>));
-  const gameTitle = effectiveFocus === 'music' ? "Auditory Go/No-Go" : (domainInfo.gameTitle || domainInfo.name);
+  const GameComponent = effectiveFocus === 'music' ? AuditoryOddball : (gameComponents[domainInfo.key] || (() => <p>Game not found</p>));
+  const gameTitle = effectiveFocus === 'music' ? "Auditory Oddball" : (domainInfo.gameTitle || domainInfo.name);
   const PageIcon = domainIcons[domainInfo.key];
 
   const supportedModes: { key: TrainingFocus; Icon: any; label: string; }[] = [
