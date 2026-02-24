@@ -26,7 +26,7 @@ import { usePageVisibility } from "@/hooks/use-page-visibility"; // Audit 3.6
 const GAME_ID: GameId = 'gwm_dynamic_sequence';
 const policy = difficultyPolicies[GAME_ID];
 
-// Original function was not deterministic
+// This function now uses a PRNG for deterministic generation
 const generateNeutralSequence = (length: number, charSet: string, prng: PRNG) => {
   let chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   if (charSet === 'alphanumeric') chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -102,31 +102,40 @@ export function DynamicSequenceTransformer() {
     const levelDef = policy.levelMap[loadedLevel] || policy.levelMap[Object.keys(policy.levelMap).pop() as any];
     const { mechanic_config } = levelDef;
     const content_config = levelDef.content_config[currentMode];
+    
+    // Stimulus Validation Gate
     if (!content_config || !content_config.params) {
-        console.error("Invalid content config for", currentMode);
-        return;
-    }
-    
-    let newTask = tasks.find(t => t.id === content_config.sub_variant) || tasks[0];
-    let newSequence: string | (string|number)[] = '';
-    const prng = prngRef.current;
-
-    if (currentMode === 'verbal') {
-        const verbalStim = generateVerbalSequence(loadedLevel, prng);
-        newSequence = verbalStim.sequence;
-        const possibleTasks = tasks.filter(t => t.id === verbalStim.transformationRule);
-        newTask = prng.shuffle(possibleTasks)[0] || tasks[0];
-        if (verbalStim.correctAnswer) {
-            correctSentenceRef.current = verbalStim.correctAnswer;
-        }
+        console.warn(`No valid content config for ${currentMode} at level ${loadedLevel}. Falling back to Tier 1 Neutral.`);
+        const fallbackLevelDef = policy.levelMap[1];
+        const fallbackContentConfig = fallbackLevelDef.content_config['neutral']!;
+        const prng = prngRef.current;
+        const newSequence = generateNeutralSequence(fallbackLevelDef.mechanic_config.sequenceLength, fallbackContentConfig.params.charSet, prng);
+        const newTask = prng.shuffle([...tasks].filter(t => t.id !== 'sentence_unscramble'))[0];
+        setSequence(newSequence);
+        setTask(newTask);
     } else {
-        newSequence = generateNeutralSequence(mechanic_config.sequenceLength, content_config.params.charSet, prng);
-        const availableTasks = tasks.filter(t => t.id !== 'sentence_unscramble');
-        newTask = prng.shuffle(availableTasks)[0];
+        let newTask = tasks.find(t => t.id === content_config.sub_variant) || tasks[0];
+        let newSequence: string | (string|number)[] = '';
+        const prng = prngRef.current;
+
+        if (currentMode === 'verbal') {
+            const verbalStim = generateVerbalSequence(loadedLevel, prng);
+            newSequence = verbalStim.sequence;
+            const possibleTasks = tasks.filter(t => t.id === verbalStim.transformationRule);
+            newTask = prng.shuffle(possibleTasks)[0] || tasks[0];
+            if (verbalStim.correctAnswer) {
+                correctSentenceRef.current = verbalStim.correctAnswer;
+            }
+        } else {
+            newSequence = generateNeutralSequence(mechanic_config.sequenceLength, content_config.params.charSet, prng);
+            const availableTasks = tasks.filter(t => t.id !== 'sentence_unscramble');
+            newTask = prng.shuffle(availableTasks)[0];
+        }
+        
+        setSequence(newSequence);
+        setTask(newTask);
     }
     
-    setSequence(newSequence);
-    setTask(newTask);
     setUserAnswer('');
     setFeedback('');
     pausedDurationRef.current = 0; // Reset paused duration for new trial
@@ -204,7 +213,7 @@ export function DynamicSequenceTransformer() {
         }
     };
     logTrial({
-      id: crypto.randomUUID(),
+      id: `${sessionId.current}-${currentTrialIndex.current}`,
       sessionId: sessionId.current,
       gameId: GAME_ID,
       trialIndex: currentTrialIndex.current,
@@ -216,6 +225,7 @@ export function DynamicSequenceTransformer() {
       responseType: isCorrect ? 'correct' : 'incorrect',
       stimulusParams: { sequence: seqStr, task: task.id },
       timestamp: Date.now(),
+      pausedDurationMs: pausedDurationRef.current,
       ...trialResult
     } as any);
     

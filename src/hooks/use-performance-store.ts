@@ -1,3 +1,4 @@
+
 'use client';
 
 import { create } from 'zustand';
@@ -13,6 +14,7 @@ type PerformanceState = {
     gameStates: Record<string, AdaptiveState>;
     globalTier: TierSelection;
     isHydrated: boolean;
+    failedWrites: TrialRecord[]; // In-memory buffer for failed writes
 };
 
 type PerformanceActions = {
@@ -33,6 +35,7 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
             gameStates: {},
             globalTier: 4,
             isHydrated: false,
+            failedWrites: [],
 
             hydrate: async () => {
                 const profiles = await idbStore.getAllProfiles();
@@ -93,7 +96,28 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
             },
 
             logTrial: async (record) => {
-                await idbStore.logTrial(record);
+                try {
+                    // Attempt to flush any buffered writes first
+                    const buffered = get().failedWrites;
+                    if (buffered.length > 0) {
+                        for (const bufferedRecord of buffered) {
+                            await idbStore.logTrial(bufferedRecord);
+                        }
+                        await idbStore.logTrial(record);
+                        set({ failedWrites: [] }); // Clear buffer on success
+                    } else {
+                        await idbStore.logTrial(record);
+                    }
+                } catch (error) {
+                    console.warn("IDB write failed. Buffering trial record.", error);
+                    set(state => {
+                        state.failedWrites.push(record);
+                        // Optional: Cap the buffer size
+                        if (state.failedWrites.length > 50) {
+                            state.failedWrites.shift(); // Drop the oldest
+                        }
+                    });
+                }
             },
 
             exportData: idbStore.exportAllData,
