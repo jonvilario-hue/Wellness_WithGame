@@ -106,6 +106,7 @@ const generatePuzzleForLevel = (level: number, focus: TrainingFocus) => {
             options: Array.from(options).sort((a,b) => a-b).map(o => ({type: 'probability_sample', value: o})),
             answer: { type: 'probability_sample', value: Math.round(populationRatio*100) },
             size: 1,
+            params,
         };
     }
     
@@ -175,7 +176,7 @@ const generatePuzzleForLevel = (level: number, focus: TrainingFocus) => {
     
     options.sort(() => Math.random() - 0.5);
     grid[missingIndex] = null;
-    return { type: focus, grid, missingIndex, answer, options, size };
+    return { type: focus, grid, missingIndex, answer, options, size, params };
 };
 
 export function PatternMatrix() {
@@ -239,9 +240,9 @@ export function PatternMatrix() {
             correct: isCorrect, 
             reactionTimeMs,
             telemetry: {
-                gridSize: puzzle.size,
-                level: adaptiveState.currentLevel,
-                ruleType: puzzle.type,
+                matrixSize: puzzle.size,
+                patternComplexity: puzzle.params.rule,
+                distractorCount: puzzle.options.length,
             }
         };
         setSessionTrials(prev => [...prev, trialResult]);

@@ -35,6 +35,7 @@ type SymbolProblem = {
     type: 'symbol';
     keyMap: { [key: string]: number };
     stimulus: string;
+    classificationRule: string;
 };
 
 type Problem = SymbolProblem | LexicalProblem;
@@ -102,7 +103,7 @@ export function RapidCodeMatch() {
     const symbolsInKey = Object.keys(currentKeyMap);
     const stimulus = symbolsInKey[Math.floor(Math.random() * symbolsInKey.length)];
     
-    return { type: 'symbol', keyMap: currentKeyMap, stimulus };
+    return { type: 'symbol', keyMap: currentKeyMap, stimulus, classificationRule: 'symbol_digit' };
   }, [symbolPool, problem]);
 
   const startNewTrial = useCallback((state: AdaptiveState) => {
@@ -149,14 +150,18 @@ export function RapidCodeMatch() {
     const { mechanic_config } = levelDef;
     
     let isCorrect = false;
+    let telemetry: Record<string, any> = {};
+
     if (problem.type === 'lexical') {
         isCorrect = problem.isReal === answer;
+        telemetry = { classificationRule: 'lexical_decision' };
     } else if(problem.type === 'symbol') {
         isCorrect = problem.keyMap[problem.stimulus] === answer;
+        telemetry = { classificationRule: problem.classificationRule, symbolsInKey: Object.keys(problem.keyMap).length };
     }
     isCorrect = isCorrect && reactionTimeMs < mechanic_config.responseWindowMs;
 
-    const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs };
+    const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs, telemetry };
     setSessionTrials(prev => [...prev, trialResult]);
     
     const newState = adjustDifficulty(trialResult, adaptiveState, policy);
@@ -224,10 +229,12 @@ export function RapidCodeMatch() {
     }
     if (gameState === 'finished') {
       const accuracy = sessionTrials.filter(t => t.correct).length / sessionTrials.length;
+      const score = sessionTrials.filter(t => t.correct).length;
       return (
         <div className="flex flex-col items-center gap-4">
           <CardTitle>Game Over!</CardTitle>
-          <p className="text-xl">Accuracy: {isNaN(accuracy) ? 'N/A' : (accuracy * 100).toFixed(0) + '%'}</p>
+          <p className="text-xl">Score: {score}</p>
+          <p>Accuracy: {isNaN(accuracy) ? 'N/A' : (accuracy * 100).toFixed(0) + '%'}</p>
           <Button onClick={() => setGameState('start')} size="lg">Play Again</Button>
         </div>
       );

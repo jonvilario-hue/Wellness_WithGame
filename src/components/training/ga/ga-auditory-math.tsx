@@ -101,8 +101,8 @@ export function GaAuditoryMath({ focus }: { focus: TrainingFocus }) {
         if (useToneFallback) {
             const basePitch = 250;
             const maxNum = Math.pow(10, params.digits) - 1;
-            const freq1 = basePitch + (puzzle.num1 / maxNum) * 500;
-            const freq2 = basePitch + (puzzle.num2 / maxNum) * 500;
+            const freq1 = basePitch + (puzzle.num1 / maxNum) * params.pitchDelta;
+            const freq2 = basePitch + (puzzle.num2 / maxNum) * params.pitchDelta;
             playTone(freq1, 0.5, () => setTimeout(() => playTone(freq2, 0.5), 500));
         } else {
             const utterance1 = new SpeechSynthesisUtterance(String(puzzle.num1));
@@ -137,7 +137,18 @@ export function GaAuditoryMath({ focus }: { focus: TrainingFocus }) {
     else if (userChoice === 'num1') isCorrect = puzzle.num1 > puzzle.num2;
     else isCorrect = puzzle.num2 > puzzle.num1;
     
-    const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs };
+    const levelDef = policy.levelMap[adaptiveState.currentLevel] || policy.levelMap[1];
+    const params = levelDef.content_config[focus]?.params;
+    const trialResult: TrialResult = {
+        correct: isCorrect,
+        reactionTimeMs,
+        telemetry: {
+            stimulusType: useToneFallback ? 'pitch' : 'speech',
+            digits: params?.digits,
+            speechRate: params?.speechRate,
+            pitchDelta: params?.pitchDelta,
+        }
+    };
     setSessionTrials(prev => [...prev, trialResult]);
     
     const newState = adjustDifficulty(trialResult, adaptiveState, policy);
@@ -171,9 +182,9 @@ export function GaAuditoryMath({ focus }: { focus: TrainingFocus }) {
       return (
         <div className="flex flex-col items-center gap-4 text-center">
           {useToneFallback && (
-            <Alert variant="destructive">
+            <Alert>
               <AlertTitle>Speech Synthesis Not Supported</AlertTitle>
-              <AlertDescription>Your browser doesn't support speech. The game will use tones as a fallback.</AlertDescription>
+              <AlertDescription>Your browser doesn't support speech. The game will use tones as a fallback to test auditory discrimination.</AlertDescription>
             </Alert>
           )}
           <Button onClick={startNewSession} size="lg">Start Session</Button>

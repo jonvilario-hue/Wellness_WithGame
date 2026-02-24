@@ -44,11 +44,13 @@ export const adjustDifficulty = (
 ): AdaptiveState => {
     const state: AdaptiveState = { ...currentState };
 
-    // 1. Record Trial
+    // 1. Record Trial with Telemetry
     state.recentTrials.push({
         timestamp: Date.now(),
         level: state.currentLevel,
-        ...trialResult,
+        correct: trialResult.correct,
+        reactionTimeMs: trialResult.reactionTimeMs,
+        telemetry: trialResult.telemetry || {},
     });
     if (state.recentTrials.length > policy.windowSize) {
         state.recentTrials.shift();

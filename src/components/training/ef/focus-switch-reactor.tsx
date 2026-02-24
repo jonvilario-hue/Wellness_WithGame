@@ -63,6 +63,7 @@ export function FocusSwitchReactor() {
   const currentTrialIndex = useRef(0);
   const ruleSwitchCounter = useRef(0);
   const ruleRef = useRef(rule);
+  const previousRuleRef = useRef(rule);
   
   const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
   const currentMode = isComponentLoaded ? (override || globalFocus) : 'neutral';
@@ -76,6 +77,7 @@ export function FocusSwitchReactor() {
   }, [isComponentLoaded, currentMode, getAdaptiveState]);
   
   useEffect(() => {
+    previousRuleRef.current = ruleRef.current;
     ruleRef.current = rule;
   }, [rule]);
 
@@ -151,6 +153,7 @@ export function FocusSwitchReactor() {
         telemetry: {
             inputMethod: source,
             rule: ruleRef.current,
+            switchOccurred: ruleRef.current !== previousRuleRef.current,
         }
     };
     setSessionTrials(prev => [...prev, trialResult]);
@@ -182,13 +185,27 @@ export function FocusSwitchReactor() {
     }
     
     let isCorrect = false;
+    let targetSide = 'left';
+
     if (currentMode === 'neutral') {
         const correctDir: Record<Position, ArrowDir> = { top: 'up', bottom: 'down', left: 'left', right: 'right' };
-        if (ruleRef.current === 'position') isCorrect = (answer === correctDir[stimulus.position!]);
-        else isCorrect = (answer === stimulus.arrow);
+        if (ruleRef.current === 'position') {
+            targetSide = correctDir[stimulus.position!] === 'up' || correctDir[stimulus.position!] === 'left' ? 'left' : 'right';
+            isCorrect = (answer === targetSide);
+        }
+        else {
+             targetSide = stimulus.arrow === 'up' || stimulus.arrow === 'left' ? 'left' : 'right';
+            isCorrect = (answer === targetSide);
+        }
     } else if (currentMode === 'math') {
-        if (ruleRef.current === 'parity') isCorrect = (answer === (stimulus.value! % 2 === 0 ? 'left' : 'right'));
-        else isCorrect = (answer === (stimulus.value! > 50 ? 'left' : 'right'));
+        if (ruleRef.current === 'parity') {
+            targetSide = stimulus.value! % 2 === 0 ? 'left' : 'right';
+            isCorrect = (answer === targetSide);
+        }
+        else {
+             targetSide = stimulus.value! > 50 ? 'left' : 'right';
+            isCorrect = (answer === targetSide);
+        }
     }
     
     processNextTurn(isCorrect, source);
@@ -197,10 +214,10 @@ export function FocusSwitchReactor() {
   // Keyboard input handler
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-        if(gameState !== 'running') return;
-        if (e.key === 'ArrowLeft' || e.key === 'a') {
+        if(e.repeat || gameState !== 'running') return;
+        if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') {
             handleAnswer('left', 'keyboard');
-        } else if (e.key === 'ArrowRight' || e.key === 'l') {
+        } else if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'l') {
             handleAnswer('right', 'keyboard');
         }
     };
@@ -270,7 +287,7 @@ export function FocusSwitchReactor() {
           );
         case 'running':
         case 'feedback':
-           const options = currentMode === 'neutral' ? ['up', 'down', 'left', 'right'] : ['left', 'right'];
+           const options = ['left', 'right'];
            return (
             <div className="flex flex-col items-center gap-4 w-full">
               <div className="flex justify-between w-full font-mono">
@@ -307,7 +324,7 @@ export function FocusSwitchReactor() {
                   const Icon = arrowMap[option as ArrowDir] || (() => <span className="text-2xl">{option}</span>);
                   return (
                       <Button key={option} onClick={() => handleAnswer(option, 'click')} disabled={gameState === 'feedback'} variant="secondary" size="lg" className="h-20">
-                          <Icon className={options.length === 4 ? "w-10 h-10" : ""} />
+                          <Icon className={options.length === 4 ? "w-10 h-10" : "w-10 h-10"} />
                       </Button>
                   )
                 })}

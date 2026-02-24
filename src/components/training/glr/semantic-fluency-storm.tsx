@@ -183,7 +183,15 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (result: { sc
 
         let isValid = (currentRule === "ASSOCIATE") || (currentRule === "RHYME" && submittedWord.slice(-2) === currentWord.slice(-2) && submittedWord !== currentWord) || (currentRule === "ANTONYM" && (generalAntonyms[currentWord] === submittedWord || generalAntonyms[submittedWord] === currentWord)) || (currentRule === "FIRST LETTER MATCH" && submittedWord[0] === currentWord[0]);
 
-        const trial: TrialResult = { correct: isValid, reactionTimeMs, telemetry: { rule: currentRule, word: currentWord } };
+        const trial: TrialResult = {
+            correct: isValid,
+            reactionTimeMs,
+            telemetry: {
+                mode: 'associative',
+                rule: currentRule,
+                word: currentWord
+            }
+        };
         setTrials(prev => [...prev, trial]);
         const newState = adjustDifficulty(trial, adaptiveState, glrPolicy);
         updateAdaptiveState(GLR_GAME_ID, focus, newState);
@@ -281,7 +289,15 @@ function CategorySwitchingMode({ onComplete, focus }: { onComplete: (result: { s
         trialStartTime.current = Date.now();
 
         const alreadySubmitted = isWordSubmitted(currentCategory, word);
-        const trial: TrialResult = { correct: !alreadySubmitted, reactionTimeMs, telemetry: { category: currentCategory, word }};
+        const trial: TrialResult = {
+            correct: !alreadySubmitted,
+            reactionTimeMs,
+            telemetry: {
+                mode: 'category',
+                category: currentCategory,
+                word
+            }
+        };
         setTrials(prev => [...prev, trial]);
         const adaptiveState = getAdaptiveState(GLR_GAME_ID, focus);
         const newState = adjustDifficulty(trial, adaptiveState, glrPolicy);

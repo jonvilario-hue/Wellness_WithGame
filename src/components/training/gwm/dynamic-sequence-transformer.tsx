@@ -167,6 +167,9 @@ export function DynamicSequenceTransformer() {
         const normalize = (str: string) => str.toUpperCase().replace(/[.,!?]/g, '');
         isCorrect = normalize(userAnswer.trim()) === normalize(correctAnswer);
     }
+    
+    const levelDef = policy.levelMap[adaptiveState.currentLevel] || policy.levelMap[1];
+    const content_config = levelDef.content_config[currentMode];
 
     const trialResult: TrialResult = { 
         correct: isCorrect, 
@@ -174,6 +177,7 @@ export function DynamicSequenceTransformer() {
         telemetry: {
             sequenceLength: sequence.length,
             transformRule: task.id,
+            sequenceType: content_config?.params.charSet,
         }
     };
     setSessionTrials(prev => [...prev, trialResult]);
