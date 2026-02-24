@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -99,6 +98,7 @@ export function VerbalInferenceBuilder() {
   
   const trialStartTime = useRef(0);
   const currentTrialIndex = useRef(0);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
   const currentMode = isComponentLoaded ? (override || globalFocus) : 'neutral';
@@ -108,40 +108,19 @@ export function VerbalInferenceBuilder() {
       setGameState('start');
     }
   }, [isComponentLoaded, currentMode]);
-  
-  const startNewTrial = useCallback(() => {
-    const state = getAdaptiveState(GAME_ID, currentMode);
-    const onRamp = state.uncertainty > 0.7;
-    const loadedLevel = onRamp
-      ? Math.max(state.levelFloor, state.currentLevel - 2)
-      : state.currentLevel;
-    
-    const newPuzzle = generatePuzzleForLevel(loadedLevel, currentMode);
-    setPuzzle(newPuzzle);
-    setSelectedAnswer(null);
-    setInlineFeedback({ message: '', type: '' });
-    setGameState('playing');
-    trialStartTime.current = Date.now();
-  }, [currentMode, getAdaptiveState]);
 
-  const startNewSession = useCallback(() => {
-    const state = getAdaptiveState(GAME_ID, currentMode);
-    const sessionState = startSession(state);
-    updateAdaptiveState(GAME_ID, currentMode, sessionState);
-    currentTrialIndex.current = 0;
-    startNewTrial();
-  }, [startNewTrial, updateAdaptiveState, currentMode, getAdaptiveState]);
-
-  const handleAnswer = (option: string) => {
+  const handleAnswer = useCallback((option: string | null) => {
     const state = getAdaptiveState(GAME_ID, currentMode);
     if (gameState !== 'playing' || !puzzle || !state) return;
-
+    
+    if (timerRef.current) clearTimeout(timerRef.current);
     setGameState('feedback');
-    setSelectedAnswer(option);
+    if(option) setSelectedAnswer(option);
+
     const reactionTimeMs = Date.now() - trialStartTime.current;
     const isCorrect = option === puzzle.answer;
 
-    const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs, telemetry: {} };
+    const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs, telemetry: { timedOut: option === null } };
     logTrial({
       module_id: GAME_ID,
       mode: currentMode,
@@ -166,7 +145,43 @@ export function VerbalInferenceBuilder() {
             startNewTrial();
         }
     }, 2500);
-  };
+  }, [gameState, puzzle, getAdaptiveState, currentMode, logTrial, updateAdaptiveState]);
+  
+  const startNewTrial = useCallback(() => {
+    const state = getAdaptiveState(GAME_ID, currentMode);
+    const onRamp = state.uncertainty > 0.7;
+    const loadedLevel = onRamp
+      ? Math.max(state.levelFloor, state.currentLevel - 2)
+      : state.currentLevel;
+    
+    const newPuzzle = generatePuzzleForLevel(loadedLevel, currentMode);
+    setPuzzle(newPuzzle);
+    setSelectedAnswer(null);
+    setInlineFeedback({ message: '', type: '' });
+    setGameState('playing');
+    trialStartTime.current = Date.now();
+  }, [currentMode, getAdaptiveState]);
+  
+  useEffect(() => {
+    if (gameState === 'playing') {
+      const state = getAdaptiveState(GAME_ID, currentMode);
+      const timeLimit = policy.levelMap[state.currentLevel]?.mechanic_config.timeLimit || 20000;
+      timerRef.current = setTimeout(() => {
+        handleAnswer(null);
+      }, timeLimit);
+    }
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [gameState, getAdaptiveState, currentMode, handleAnswer]);
+
+  const startNewSession = useCallback(() => {
+    const state = getAdaptiveState(GAME_ID, currentMode);
+    const sessionState = startSession(state);
+    updateAdaptiveState(GAME_ID, currentMode, sessionState);
+    currentTrialIndex.current = 0;
+    startNewTrial();
+  }, [startNewTrial, updateAdaptiveState, currentMode, getAdaptiveState]);
   
   const getButtonClass = (option: string) => {
     if (gameState !== 'feedback' || !puzzle) return "bg-background";

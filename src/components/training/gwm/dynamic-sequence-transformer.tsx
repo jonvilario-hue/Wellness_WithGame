@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -66,6 +65,7 @@ export function DynamicSequenceTransformer() {
   const correctSentenceRef = useRef('');
   const sessionId = useRef(crypto.randomUUID());
   const prngRef = useRef<PRNG>(new PRNG(sessionId.current));
+  const answerInputRef = useRef<HTMLInputElement>(null);
 
   const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
   const currentMode = isComponentLoaded ? (override || globalFocus) : 'neutral';
@@ -84,6 +84,14 @@ export function DynamicSequenceTransformer() {
       }
     }
   }, [isVisible, gameState]);
+
+  useEffect(() => {
+    if (gameState === 'answering') {
+      // Defer focus to allow for render and animations
+      setTimeout(() => answerInputRef.current?.focus(), 50);
+    }
+  }, [gameState]);
+
 
   useEffect(() => {
     if (isComponentLoaded) {
@@ -126,9 +134,11 @@ export function DynamicSequenceTransformer() {
       
       // Now, advance the MAIN PRNG as if the ORIGINAL generation had occurred to maintain determinism.
       // This is a 'dry run' of the intended generation path.
-      // This assumes the verbal path is the intended one if the config was missing. A more robust system
-      // might have a registry of generators.
-      generateVerbalSequence(loadedLevel, prng);
+      if (currentMode === 'verbal') {
+        generateVerbalSequence(loadedLevel, prng);
+      } else {
+        generateNeutralSequence(levelDef?.mechanic_config.sequenceLength || 5, 'alphanumeric', prng);
+      }
 
     } else {
         // --- Normal Generation Path ---
@@ -329,13 +339,13 @@ export function DynamicSequenceTransformer() {
             </div>
             <form onSubmit={handleSubmit} className="flex flex-col gap-4 items-center">
               <Input
+                ref={answerInputRef}
                 type="text"
                 value={userAnswer}
                 onChange={(e) => setUserAnswer(e.target.value)}
                 placeholder="Type your transformed answer"
                 className="text-center text-lg bg-gray-800 text-white border-teal-500/50"
                 disabled={gameState === 'feedback'}
-                autoFocus
               />
               <Button type="submit" disabled={gameState === 'feedback'} className="bg-cyan-500 hover:bg-cyan-400 text-black">Submit Answer</Button>
             </form>

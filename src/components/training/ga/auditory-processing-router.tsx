@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -189,6 +188,8 @@ const PhonemeDiscriminationModule = ({ focus, prng }: { focus: TrainingFocus, pr
     const trialStartTime = useRef(0);
     const currentTrialIndex = useRef(0);
     const sessionId = useRef<string>(prng.nextInt().toString());
+    const firstButtonRef = useRef<HTMLButtonElement>(null);
+
 
     useEffect(() => {
         if (isSupported) {
@@ -198,6 +199,12 @@ const PhonemeDiscriminationModule = ({ focus, prng }: { focus: TrainingFocus, pr
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isSupported]);
+
+    useEffect(() => {
+        if (gameState === 'playing' && firstButtonRef.current) {
+            firstButtonRef.current.focus();
+        }
+    }, [gameState, puzzle]);
     
     const startNewTrial = useCallback(() => {
         const state = getAdaptiveState(GAME_ID, focus);
@@ -293,8 +300,17 @@ const PhonemeDiscriminationModule = ({ focus, prng }: { focus: TrainingFocus, pr
                 )}
             </div>
             <div className="grid grid-cols-2 gap-4 w-full max-w-sm">
-                {puzzle.options.map(opt => (
-                    <Button key={opt} onClick={() => handleAnswer(opt)} disabled={gameState === 'feedback'} size="lg" className="h-24 text-4xl font-mono bg-violet-600 hover:bg-violet-500">{opt}</Button>
+                {puzzle.options.map((opt, i) => (
+                    <Button 
+                        key={opt}
+                        ref={i === 0 ? firstButtonRef : null} 
+                        onClick={() => handleAnswer(opt)} 
+                        disabled={gameState === 'feedback'} 
+                        size="lg" 
+                        className="h-24 text-4xl font-mono bg-violet-600 hover:bg-violet-500"
+                    >
+                        {opt}
+                    </Button>
                 ))}
             </div>
         </div>
