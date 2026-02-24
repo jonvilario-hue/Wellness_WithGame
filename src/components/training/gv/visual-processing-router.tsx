@@ -12,7 +12,6 @@ import { FlowchartTracer } from '../logic/flowchart-tracer';
 import { EmotionalCrowdSearch } from './emotional-crowd-search';
 import { GvSpatialAssembly } from './gv-spatial-assembly';
 
-
 export function VisualProcessingRouter() {
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
   const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
@@ -23,11 +22,11 @@ export function VisualProcessingRouter() {
     return <Skeleton className="w-full max-w-xl h-96" />;
   }
 
-  // Determine the effective training focus: override > global
   const effectiveFocus = override || globalFocus;
   
   switch (effectiveFocus) {
     case 'math':
+      // This is the corrected routing path per the audit.
       return <GvSpatialAssembly focus={effectiveFocus} />;
     case 'music':
       return <VisualMusicMatch focus={effectiveFocus} />;
@@ -51,5 +50,3 @@ export function VisualProcessingRouter() {
       return <MentalRotationLab focus={effectiveFocus} />;
   }
 }
-
-    

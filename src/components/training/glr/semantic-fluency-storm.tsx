@@ -10,37 +10,25 @@ import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { useToast } from "@/hooks/use-toast";
 import { useGlrStore, type SpacedPair } from "@/hooks/use-glr-store";
 import { Archive, Loader2 } from "lucide-react";
-import type { TrainingFocus } from "@/types";
+import type { TrainingFocus, AdaptiveState, TrialResult, GameId } from "@/types";
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
 import { generalCategories, mathCategories, musicCategories, verbalCategories, generalWordList, mathWordList, musicWordList, verbalWordList } from "@/data/verbal-content";
 import { GameStub } from "../game-stub";
 import { AlgorithmFluency } from "../logic/algorithm-fluency";
 import { SpacedRetrievalMode } from "./spaced-retrieval-mode";
+import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
+import { difficultyPolicies } from "@/data/difficulty-policies";
 
-/**
- * --- CORE MODE DESIGN DOCUMENTATION (from audit CORE-Glr-4) ---
- * The Glr (Long-Term Retrieval) factor has three primary facets:
- * 1. Category Fluency (retrieving items from a known semantic category).
- * 2. Associative Fluency (creating chains of related concepts).
- * 3. Spaced Retrieval (strengthening memory for specific items over time).
- * 
- * For a "Core" or "Neutral" mode to be psychometrically valid, it cannot rely on
- * pre-existing semantic or linguistic knowledge. Therefore, both Category Fluency and
- * Associative Fluency are invalid as Core tasks.
- * 
- * The ONLY valid Core Glr task is Spaced Retrieval of novel, abstract associations
- * (e.g., memorizing pairs of random symbols). This component's router logic
- * correctly defaults to `SpacedRetrievalMode` when the focus is 'neutral'.
- */
-
-const generalAntonyms: Record<string, string> = { "hot": "cold", "fast": "slow", "happy": "sad", "big": "small", "up": "down", "light": "dark", "day": "night", "rich": "poor", "old": "new", "true": "false" };
+const GLR_GAME_ID: GameId = 'glr_fluency_storm';
+const glrPolicy = difficultyPolicies[GLR_GAME_ID];
 
 export function SemanticFluencyStorm() {
     const [gameState, setGameState] = useState<'idle' | 'running' | 'finished'>('idle');
     const [currentMode, setCurrentMode] = useState<'associative' | 'spaced' | 'category' | null>(null);
     const [lastScore, setLastScore] = useState(0);
     const { getNextMode } = useGlrStore();
+    const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
 
     const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
     const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
@@ -54,8 +42,14 @@ export function SemanticFluencyStorm() {
         setGameState('running');
     };
 
-    const handleGameComplete = (score: number) => {
+    const handleGameComplete = (result: { score: number, trials: TrialResult[] }) => {
+        const { score, trials } = result;
         setLastScore(score);
+        
+        const adaptiveState = getAdaptiveState(GLR_GAME_ID, currentTrainingFocus);
+        const finalState = endSession(adaptiveState, trials);
+        updateAdaptiveState(GLR_GAME_ID, currentTrainingFocus, finalState);
+        
         setGameState('finished');
     };
 
@@ -75,10 +69,8 @@ export function SemanticFluencyStorm() {
     }
 
     if (currentTrainingFocus === 'eq') {
-        // This is the "Empathy Recall" game. It maps well to the category fluency mechanic.
-        return <CategorySwitchingMode onComplete={handleGameComplete} focus={currentTrainingFocus} />;
+        return <CategorySwitchingMode onComplete={handleGameComplete as any} focus={currentTrainingFocus} />;
     }
-
 
     const renderContent = () => {
         if (gameState === 'idle') {
@@ -101,11 +93,11 @@ export function SemanticFluencyStorm() {
         if (gameState === 'running') {
             switch (currentMode) {
                 case 'associative':
-                    return <AssociativeChainMode onComplete={handleGameComplete} focus={currentTrainingFocus} />;
+                    return <AssociativeChainMode onComplete={handleGameComplete as any} focus={currentTrainingFocus} />;
                 case 'spaced':
                     return <SpacedRetrievalMode onComplete={handleGameComplete} focus={currentTrainingFocus} />;
                 case 'category':
-                    return <CategorySwitchingMode onComplete={handleGameComplete} focus={currentTrainingFocus} />;
+                    return <CategorySwitchingMode onComplete={handleGameComplete as any} focus={currentTrainingFocus} />;
                 default:
                     return <Loader2 className="animate-spin" />;
             }
@@ -199,6 +191,8 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (score: numbe
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        const generalAntonyms: Record<string, string> = { "hot": "cold", "fast": "slow", "happy": "sad", "big": "small", "up": "down", "light": "dark", "day": "night", "rich": "poor", "old": "new", "true": "false" };
+
         const submittedWord = userInput.trim().toLowerCase();
         if (!submittedWord) return;
 
@@ -236,7 +230,6 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (score: numbe
     );
 }
 
-
 // --- MODE 3: CATEGORY SWITCHING SPRINT ---
 function CategorySwitchingMode({ onComplete, focus }: { onComplete: (score: number) => void, focus: TrainingFocus }) {
     const { logSubmittedWord, isWordSubmitted } = useGlrStore();
@@ -273,7 +266,7 @@ function CategorySwitchingMode({ onComplete, focus }: { onComplete: (score: numb
                     clearInterval(totalTimer);
                     const currentState = getAdaptiveState('glr_fluency_storm', focus);
                     const newLevel = Math.max(currentState.levelFloor, Math.min(currentState.levelCeiling, 4 + Math.min(6, Math.floor(score / 5))));
-                    updateAdaptiveState('glr_fluency_storm', focus, { ...currentState, currentLevel: newLevel, lastFocus: focus, sessionCount: currentState.sessionCount + 1, lastSessionAt: Date.now() });
+                    updateAdaptiveState(GLR_GAME_ID, focus, { ...currentState, currentLevel: newLevel, lastFocus: focus, sessionCount: currentState.sessionCount + 1, lastSessionAt: Date.now() });
                     onComplete(score);
                     return 0;
                 }
@@ -287,7 +280,6 @@ function CategorySwitchingMode({ onComplete, focus }: { onComplete: (score: numb
             clearInterval(totalTimer);
         }
     }, [switchCategory, onComplete, updateAdaptiveState, score, getAdaptiveState, focus]);
-
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();

@@ -5,13 +5,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { Volume2, Loader2, Equal } from 'lucide-react';
+import { Volume2, Loader2 } from 'lucide-react';
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
-import type { TrainingFocus } from "@/types";
+import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
+import { difficultyPolicies } from "@/data/difficulty-policies";
+import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-const TOTAL_TRIALS = 12;
+const GAME_ID: GameId = 'ga_auditory_lab';
+const policy = difficultyPolicies[GAME_ID];
 
 const useAudioEngine = () => {
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -27,6 +30,7 @@ const useAudioEngine = () => {
   const playTone = useCallback((freq: number, duration: number, onEnd?: () => void) => {
     const context = getAudioContext();
     if (!context) { onEnd?.(); return; }
+    context.resume();
     const time = context.currentTime;
     const osc = context.createOscillator();
     osc.type = 'sine';
@@ -40,76 +44,91 @@ const useAudioEngine = () => {
   return { playTone, getAudioContext };
 };
 
-const pitchMap: Record<number, number> = { 1: 300, 2: 450, 3: 600, 4: 750, 5: 900 };
+const generateNumber = (digits: number) => {
+  const min = Math.pow(10, digits - 1);
+  const max = Math.pow(10, digits) - 1;
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+};
 
-export function GaAuditoryMath({ onGameComplete = () => {} }: { focus: TrainingFocus; onGameComplete?: (result: any) => void }) {
+export function GaAuditoryMath({ focus }: { focus: TrainingFocus }) {
+  const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
   const { playTone, getAudioContext } = useAudioEngine();
+
   const [isSpeechSupported, setIsSpeechSupported] = useState(false);
-  const [usePitchFallback, setUsePitchFallback] = useState(false);
+  const [adaptiveState, setAdaptiveState] = useState<AdaptiveState | null>(null);
   const [gameState, setGameState] = useState<'loading' | 'start' | 'playing' | 'feedback' | 'finished'>('loading');
+  const [sessionTrials, setSessionTrials] = useState<TrialResult[]>([]);
+  
   const [puzzle, setPuzzle] = useState<{ num1: number, num2: number } | null>(null);
   const [feedback, setFeedback] = useState('');
-  const [responses, setResponses] = useState<any[]>([]);
-  const [currentTrialIndex, setCurrentTrialIndex] = useState(0);
+
   const trialStartTime = useRef(0);
-  const [instruction, setInstruction] = useState("Listen and compare the numbers.");
+  const currentTrialIndex = useRef(0);
+  const useToneFallback = !isSpeechSupported;
 
   useEffect(() => {
     const supported = typeof window !== 'undefined' && 'speechSynthesis' in window;
     setIsSpeechSupported(supported);
-    if (!supported) setUsePitchFallback(true);
+    const initialState = getAdaptiveState(GAME_ID, focus);
+    setAdaptiveState(initialState);
     setGameState('start');
-  }, []);
+  }, [focus, getAdaptiveState]);
+  
+  const startNewTrial = useCallback((state: AdaptiveState) => {
+    const levelDef = policy.levelMap[state.currentLevel] || policy.levelMap[1];
+    const params = levelDef.content_config[focus]?.params;
+    if (!params) return;
 
-  const startNewTrial = useCallback(() => {
-    let num1, num2;
-    const isPitchMode = currentTrialIndex >= 5 || usePitchFallback;
+    let num1 = generateNumber(params.digits);
+    let num2;
+    do {
+      num2 = generateNumber(params.digits);
+    } while (num1 === num2);
 
-    if (isPitchMode) {
-      setInstruction("Which TONE is higher in pitch?");
-      const numbers = Object.keys(pitchMap).map(Number);
-      num1 = numbers[Math.floor(Math.random() * numbers.length)];
-      do {
-        num2 = numbers[Math.floor(Math.random() * numbers.length)];
-      } while (num1 === num2);
-    } else {
-      setInstruction("Listen to the two numbers. Which is larger?");
-      num1 = Math.floor(Math.random() * 90) + 10; // 10-99
-      do {
-        num2 = Math.floor(Math.random() * 90) + 10;
-      } while (num1 === num2);
-    }
-    
     setPuzzle({ num1, num2 });
     setFeedback('');
     setGameState('playing');
     trialStartTime.current = Date.now();
-  }, [currentTrialIndex, usePitchFallback]);
-
+  }, [focus]);
+  
+  // Audio playback effect
   useEffect(() => {
-    if (gameState === 'playing' && puzzle) {
-        if (usePitchFallback || currentTrialIndex >= 5) {
-            playTone(pitchMap[puzzle.num1 as keyof typeof pitchMap], 0.5, () => setTimeout(() => playTone(pitchMap[puzzle.num2 as keyof typeof pitchMap], 0.5), 500));
+    if (gameState === 'playing' && puzzle && adaptiveState) {
+        const levelDef = policy.levelMap[adaptiveState.currentLevel] || policy.levelMap[1];
+        const params = levelDef.content_config[focus]?.params;
+        if (!params) return;
+
+        if (useToneFallback) {
+            const basePitch = 250;
+            const maxNum = Math.pow(10, params.digits) - 1;
+            const freq1 = basePitch + (puzzle.num1 / maxNum) * 500;
+            const freq2 = basePitch + (puzzle.num2 / maxNum) * 500;
+            playTone(freq1, 0.5, () => setTimeout(() => playTone(freq2, 0.5), 500));
         } else {
             const utterance1 = new SpeechSynthesisUtterance(String(puzzle.num1));
+            utterance1.rate = params.speechRate;
             utterance1.onend = () => setTimeout(() => {
                 const utterance2 = new SpeechSynthesisUtterance(String(puzzle.num2));
+                utterance2.rate = params.speechRate;
                 speechSynthesis.speak(utterance2);
             }, 500);
             speechSynthesis.speak(utterance1);
         }
     }
-  }, [gameState, puzzle, usePitchFallback, playTone, currentTrialIndex]);
+  }, [gameState, puzzle, adaptiveState, focus, useToneFallback, playTone]);
 
-  const startNewSession = () => {
+  const startNewSession = useCallback(() => {
+    if (!adaptiveState) return;
     getAudioContext()?.resume();
-    setCurrentTrialIndex(0);
-    setResponses([]);
-    startNewTrial();
-  };
+    const sessionState = startSession(adaptiveState);
+    setAdaptiveState(sessionState);
+    setSessionTrials([]);
+    currentTrialIndex.current = 0;
+    startNewTrial(sessionState);
+  }, [adaptiveState, startNewTrial, getAudioContext]);
 
   const handleAnswer = (userChoice: 'num1' | 'num2' | 'equal') => {
-    if (gameState !== 'playing' || !puzzle) return;
+    if (gameState !== 'playing' || !puzzle || !adaptiveState) return;
     setGameState('feedback');
     const reactionTimeMs = Date.now() - trialStartTime.current;
     
@@ -118,31 +137,40 @@ export function GaAuditoryMath({ onGameComplete = () => {} }: { focus: TrainingF
     else if (userChoice === 'num1') isCorrect = puzzle.num1 > puzzle.num2;
     else isCorrect = puzzle.num2 > puzzle.num1;
     
-    setResponses(prev => [...prev, { correct: isCorrect, rt: reactionTimeMs }]);
+    const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs };
+    setSessionTrials(prev => [...prev, trialResult]);
+    
+    const newState = adjustDifficulty(trialResult, adaptiveState, policy);
+    setAdaptiveState(newState);
+
     setFeedback(isCorrect ? getSuccessFeedback('Ga') : getFailureFeedback('Ga'));
     
     setTimeout(() => {
-      const nextTrialIndex = currentTrialIndex + 1;
-      if (nextTrialIndex >= TOTAL_TRIALS) {
+      currentTrialIndex.current++;
+      if (currentTrialIndex.current >= policy.sessionLength) {
         setGameState('finished');
-        const finalResponses = [...responses, { correct: isCorrect, rt: reactionTimeMs }];
-        const score = finalResponses.filter(r => r.correct).length;
-        const accuracy = score / finalResponses.length;
-        const avgResponseTimeMs = finalResponses.reduce((acc, r) => acc + r.rt, 0) / finalResponses.length;
-        onGameComplete({ gameId: 'ga_auditory_lab', mode: 'math', score, accuracy, trials: finalResponses, avgResponseTimeMs });
+        const finalState = endSession(newState, [...sessionTrials, trialResult]);
+        updateAdaptiveState(GAME_ID, focus, finalState);
       } else {
-        setCurrentTrialIndex(nextTrialIndex);
-        startNewTrial();
+        startNewTrial(newState);
       }
     }, 2000);
   };
   
+  const getInstruction = () => {
+    if (!adaptiveState) return "";
+    return useToneFallback
+        ? "Which TONE was higher in pitch?"
+        : "Listen to the two numbers. Which is larger?";
+  }
+
   const renderContent = () => {
-    if (gameState === 'loading') return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
+    if (gameState === 'loading' || !adaptiveState) return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
+    
     if (gameState === 'start') {
       return (
         <div className="flex flex-col items-center gap-4 text-center">
-          {!isSpeechSupported && (
+          {useToneFallback && (
             <Alert variant="destructive">
               <AlertTitle>Speech Synthesis Not Supported</AlertTitle>
               <AlertDescription>Your browser doesn't support speech. The game will use tones as a fallback.</AlertDescription>
@@ -152,25 +180,26 @@ export function GaAuditoryMath({ onGameComplete = () => {} }: { focus: TrainingF
         </div>
       );
     }
+    
     if (gameState === 'finished') {
-      const score = responses.filter(r => r.correct).length;
+      const score = sessionTrials.filter(r => r.correct).length;
+      const accuracy = score / sessionTrials.length;
       return (
         <div className="text-center space-y-4">
           <CardTitle>Session Complete!</CardTitle>
-          <p>Accuracy: {(score / TOTAL_TRIALS * 100).toFixed(0)}%</p>
+          <p>Accuracy: {(accuracy * 100).toFixed(0)}%</p>
           <Button onClick={startNewSession} size="lg">Play Again</Button>
         </div>
       );
     }
-    if (!puzzle) return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
 
     return (
       <div className="w-full flex flex-col items-center gap-6">
         <div className="w-full flex justify-between font-mono text-sm text-violet-200">
-          <span>Trial: {currentTrialIndex + 1} / {TOTAL_TRIALS}</span>
+          <span>Trial: {currentTrialIndex.current + 1} / {policy.sessionLength}</span>
         </div>
         <div className="w-full p-8 bg-violet-900/50 rounded-lg text-center min-h-[120px]">
-          <h3 className="text-lg font-semibold text-violet-200">{instruction}</h3>
+          <h3 className="text-lg font-semibold text-violet-200">{getInstruction()}</h3>
           <div className="flex justify-center items-center gap-8 mt-4">
             <Volume2 className="w-12 h-12 text-primary animate-pulse" />
           </div>
@@ -204,5 +233,3 @@ export function GaAuditoryMath({ onGameComplete = () => {} }: { focus: TrainingF
         </Card>
     );
 }
-
-    

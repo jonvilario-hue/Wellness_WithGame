@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,7 +10,7 @@ import { useTrainingOverride } from "@/hooks/use-training-override";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Loader2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Loader2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Keyboard } from 'lucide-react';
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
@@ -39,13 +40,10 @@ type NeutralRule = 'position' | 'arrow' | 'no_go';
 type MathRule = 'parity' | 'magnitude' | 'no_go';
 
 type Stimulus = {
-    // Neutral
     position?: Position;
     arrow?: ArrowDir;
-    // Math
     value?: number;
 };
-
 
 export function FocusSwitchReactor() {
   const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
@@ -60,7 +58,6 @@ export function FocusSwitchReactor() {
   const [rule, setRule] = useState<NeutralRule | MathRule>('position');
   const [stimulus, setStimulus] = useState<Partial<Stimulus>>({});
   const [inlineFeedback, setInlineFeedback] = useState({ message: '', type: '' });
-  const [shuffledOptions, setShuffledOptions] = useState<any[]>([]);
 
   const trialStartTime = useRef(0);
   const currentTrialIndex = useRef(0);
@@ -83,9 +80,6 @@ export function FocusSwitchReactor() {
   }, [rule]);
 
   const generateStimulus = useCallback(() => {
-    const state = adaptiveState;
-    if (!state) return;
-    
     if (currentMode === 'neutral') {
         const positions: Position[] = ['top', 'bottom', 'left', 'right'];
         const arrows: ArrowDir[] = ['up', 'down', 'left', 'right'];
@@ -96,43 +90,36 @@ export function FocusSwitchReactor() {
         const newValue = Math.floor(Math.random() * 99) + 1; // 1-99
         setStimulus({ value: newValue });
     }
-  }, [adaptiveState, currentMode]);
-
+  }, [currentMode]);
 
   const startNewTrial = useCallback((state: AdaptiveState) => {
     generateStimulus();
     
-    const onRamp = state.uncertainty > 0.7;
-    const loadedLevel = onRamp
-      ? Math.max(state.levelFloor, state.currentLevel - 2)
-      : state.currentLevel;
-    const levelDef = policy.levelMap[loadedLevel] || policy.levelMap[20];
+    const levelDef = policy.levelMap[state.currentLevel] || policy.levelMap[20];
     const { mechanic_config } = levelDef;
     
     let availableRules: any[] = [];
-    let options: any[] = [];
-
-    if (currentMode === 'neutral') {
-        availableRules = ['position', 'arrow'];
-        options = ['up', 'down', 'left', 'right'];
-    } else if (currentMode === 'math') {
-        availableRules = ['parity', 'magnitude'];
-        options = ['left', 'right'];
-    }
+    if (currentMode === 'neutral') availableRules = ['position', 'arrow'];
+    else if (currentMode === 'math') availableRules = ['parity', 'magnitude'];
     
     if (mechanic_config.noGo) availableRules.push('no_go');
 
     let newRule = ruleRef.current;
     
     ruleSwitchCounter.current++;
-    if (ruleSwitchCounter.current >= mechanic_config.switchInterval) { 
-      newRule = availableRules[Math.floor(Math.random() * availableRules.length)];
+    const switchProb = mechanic_config.switchProbability || 0;
+    const switchInterval = mechanic_config.switchInterval || 5;
+    
+    if (ruleSwitchCounter.current >= switchInterval || Math.random() < switchProb) { 
+      let tempRule = newRule;
+      while (tempRule === newRule) {
+        tempRule = availableRules[Math.floor(Math.random() * availableRules.length)];
+      }
+      newRule = tempRule;
       ruleSwitchCounter.current = 0;
     }
     setRule(newRule as any);
     
-    setShuffledOptions([...options].sort(() => Math.random() - 0.5));
-
     setInlineFeedback({ message: '', type: '' });
     setGameState('running');
     trialStartTime.current = Date.now();
@@ -176,47 +163,51 @@ export function FocusSwitchReactor() {
         } else {
             startNewTrial(newState);
         }
-    }, 2000);
+    }, 600); // Increased feedback duration
   }, [gameState, adaptiveState, sessionTrials, updateAdaptiveState, startNewTrial, currentMode]);
   
   const handleAnswer = useCallback((answer: any) => {
     if (gameState !== 'running' || !stimulus) return;
     
     if (rule === 'no_go') {
-      processNextTurn(false); // Penalty for responding on a no-go trial
+      processNextTurn(false);
       return;
     }
     
     let isCorrect = false;
     if (currentMode === 'neutral') {
         const correctDir: Record<Position, ArrowDir> = { top: 'up', bottom: 'down', left: 'left', right: 'right' };
-        if (rule === 'position') {
-            isCorrect = (answer === correctDir[stimulus.position!]);
-        } else { // rule is 'arrow'
-            isCorrect = (answer === stimulus.arrow);
-        }
+        if (rule === 'position') isCorrect = (answer === correctDir[stimulus.position!]);
+        else isCorrect = (answer === stimulus.arrow);
     } else if (currentMode === 'math') {
-        if (rule === 'parity') {
-            isCorrect = (answer === (stimulus.value! % 2 === 0 ? 'left' : 'right'));
-        } else { // rule is 'magnitude'
-            isCorrect = (answer === (stimulus.value! > 50 ? 'left' : 'right'));
-        }
+        if (rule === 'parity') isCorrect = (answer === (stimulus.value! % 2 === 0 ? 'left' : 'right'));
+        else isCorrect = (answer === (stimulus.value! > 50 ? 'left' : 'right'));
     }
     
     processNextTurn(isCorrect);
   }, [gameState, rule, processNextTurn, currentMode, stimulus]);
+
+  // Keyboard input handler
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+        if(gameState !== 'running') return;
+        if (e.key === 'ArrowLeft' || e.key === 'a') {
+            handleAnswer('left');
+        } else if (e.key === 'ArrowRight' || e.key === 'l') {
+            handleAnswer('right');
+        }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [gameState, handleAnswer]);
   
+  // No-Go timer
   useEffect(() => {
     let noGoTimer: NodeJS.Timeout;
     if (gameState === 'running' && rule === 'no_go') {
-        const onRamp = adaptiveState && adaptiveState.uncertainty > 0.7;
-        const loadedLevel = adaptiveState && (onRamp ? Math.max(adaptiveState.levelFloor, adaptiveState.currentLevel - 2) : adaptiveState.currentLevel);
-        const waitTime = loadedLevel ? (policy.levelMap[loadedLevel]?.mechanic_config.noGoWaitMs || 1500) : 1500;
-
+        const waitTime = adaptiveState ? (policy.levelMap[adaptiveState.currentLevel]?.mechanic_config.noGoWaitMs || 1500) : 1500;
         noGoTimer = setTimeout(() => {
-            if(ruleRef.current === 'no_go') {
-               processNextTurn(true);
-            }
+            if(ruleRef.current === 'no_go') processNextTurn(true);
         }, waitTime);
     }
     return () => clearTimeout(noGoTimer);
@@ -226,13 +217,12 @@ export function FocusSwitchReactor() {
       let text = '';
       if (currentMode === 'neutral') {
         if (rule === 'position') text = 'Respond to the SHAPE\'S LOCATION';
-        if (rule === 'arrow') text = 'Respond to the ARROW\'S DIRECTION';
+        else if (rule === 'arrow') text = 'Respond to the ARROW\'S DIRECTION';
       } else if (currentMode === 'math') {
         if (rule === 'parity') text = 'LEFT for EVEN, RIGHT for ODD';
-        if (rule === 'magnitude') text = 'LEFT for > 50, RIGHT for <= 50';
+        else if (rule === 'magnitude') text = 'LEFT for > 50, RIGHT for <= 50';
       }
       if (rule === 'no_go') text = "DON'T RESPOND";
-      
       return <span className="font-bold text-primary uppercase">{text}</span>;
   }
   
@@ -253,22 +243,27 @@ export function FocusSwitchReactor() {
           return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
         case 'start':
           return (
-            <div className="flex flex-col items-center gap-4">
+            <div className="flex flex-col items-center gap-4 text-center">
               <div className="font-mono text-lg">Level: {adaptiveState?.currentLevel}</div>
               <Button onClick={startNewSession} size="lg" disabled={!adaptiveState}>Start Session</Button>
+               <div className="flex items-center gap-2 text-muted-foreground mt-4">
+                  <Keyboard className="w-5 h-5"/>
+                  <p>Controls: Use (A / ←) and (L / →) keys</p>
+                </div>
             </div>
           );
         case 'finished':
-          const finalAccuracy = sessionTrials.filter(t => t.correct).length / sessionTrials.length;
+          const finalAccuracy = sessionTrials.length > 0 ? sessionTrials.filter(t => t.correct).length / sessionTrials.length : 0;
           return (
             <div className="flex flex-col items-center gap-4">
               <CardTitle>Session Complete!</CardTitle>
-              <p>Accuracy: {isNaN(finalAccuracy) ? 'N/A' : (finalAccuracy * 100).toFixed(0) + '%'}</p>
+              <p>Accuracy: {(finalAccuracy * 100).toFixed(0)}%</p>
               <Button onClick={() => setGameState('start')} size="lg">Play Again</Button>
             </div>
           );
         case 'running':
         case 'feedback':
+           const options = currentMode === 'neutral' ? ['up', 'down', 'left', 'right'] : ['left', 'right'];
            return (
             <div className="flex flex-col items-center gap-4 w-full">
               <div className="flex justify-between w-full font-mono">
@@ -300,12 +295,12 @@ export function FocusSwitchReactor() {
                   </p>
                 )}
               </div>
-              <div className="grid grid-cols-4 gap-4 w-full max-w-sm">
-                {(shuffledOptions as any[]).map((option) => {
-                  const Icon = arrowMap[option as ArrowDir] || (() => <div className="w-10 h-10" />);
+              <div className={cn("grid gap-4 w-full max-w-sm", options.length === 4 ? "grid-cols-4" : "grid-cols-2")}>
+                {options.map((option) => {
+                  const Icon = arrowMap[option as ArrowDir] || (() => <span className="text-2xl">{option}</span>);
                   return (
                       <Button key={option} onClick={() => handleAnswer(option)} disabled={gameState === 'feedback'} variant="secondary" size="lg" className="h-20">
-                          {currentMode === 'neutral' ? <Icon className="w-10 h-10" /> : <span className="text-2xl">{option}</span>}
+                          <Icon className={options.length === 4 ? "w-10 h-10" : ""} />
                       </Button>
                   )
                 })}
