@@ -55,13 +55,18 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
                 const defaultState = getDefaultState(gameId, tierForNewGame);
                 const finalState = { ...defaultState, lastFocus: focus };
                 
-                // Optimistically update in-memory state, and write to DB in the background.
-                // This keeps the getter synchronous for UI components.
-                set(state => {
-                    state.gameStates[key] = finalState;
-                });
-                idbStore.setProfile(key, finalState);
+                // Defer state update to after the current render cycle to avoid "setState in render" errors.
+                setTimeout(() => {
+                    set(state => {
+                        // Re-check in case it was created by another concurrent process
+                        if (!state.gameStates[key]) {
+                            state.gameStates[key] = finalState;
+                            idbStore.setProfile(key, finalState);
+                        }
+                    });
+                }, 0);
 
+                // Return the newly created state for the current render.
                 return finalState;
             },
 
