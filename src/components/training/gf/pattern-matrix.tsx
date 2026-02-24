@@ -332,6 +332,9 @@ export function PatternMatrix() {
     }
 
     const renderContent = () => {
+         if (!isComponentLoaded) {
+            return <Loader2 className="h-12 w-12 animate-spin text-blue-400" />;
+        }
          switch (gameState) {
             case 'loading':
                 return <Loader2 className="h-12 w-12 animate-spin text-blue-400" />;
@@ -459,7 +462,7 @@ export function PatternMatrix() {
             <span className="p-2 bg-blue-500/10 rounded-md"><domainIcons.Gf className="w-6 h-6 text-blue-400" /></span>
             Pattern Matrix
         </CardTitle>
-        <CardDescription className="text-center text-blue-300/70">Identify the logical rule and find the missing piece.</CardDescription>
+        <CardDescription className="text-center text-blue-300/70">Identify the logical rule and find the missing piece. Wired headphones recommended for audio tasks.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-6 min-h-[500px] justify-center">
         {renderContent()}

@@ -326,6 +326,9 @@ export function FocusSwitchReactor() {
   }
 
   const renderContent = () => {
+      if (!isComponentLoaded) {
+          return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
+      }
       const state = getAdaptiveState(GAME_ID, currentMode);
       switch (gameState) {
         case 'loading':
@@ -418,7 +421,7 @@ export function FocusSwitchReactor() {
            <span className="p-2 bg-rose-500/10 rounded-md"><domainIcons.EF className="w-6 h-6 text-rose-400" /></span>
            Focus Switch Reactor
         </CardTitle>
-        <CardDescription className="text-rose-300/70">Inhibition & Task-Switching Challenge. Pay attention to the rule!</CardDescription>
+        <CardDescription className="text-rose-300/70">Inhibition & Task-Switching Challenge. Pay attention to the rule! Wired headphones recommended.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-6 min-h-[500px] justify-center">
         {renderContent()}

@@ -315,7 +315,7 @@ export function DynamicSequenceTransformer() {
             <span className="p-2 bg-cyan-500/10 rounded-md"><domainIcons.Gwm className="w-6 h-6 text-cyan-400" /></span>
             Dynamic Sequence
         </CardTitle>
-        <CardDescription className="text-cyan-400/70">Memorize the sequence, then transform it as instructed.</CardDescription>
+        <CardDescription className="text-cyan-400/70">Memorize the sequence, then transform it as instructed. Wired headphones recommended.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-6 min-h-[250px] justify-center">
         {renderContent()}

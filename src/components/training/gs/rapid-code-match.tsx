@@ -236,7 +236,7 @@ export function RapidCodeMatch() {
   }
 
   const renderContent = () => {
-    if (gameState === 'loading' || !isComponentLoaded) {
+    if (!isComponentLoaded) {
       return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
     }
     const state = getAdaptiveState(GAME_ID, currentMode);
@@ -367,7 +367,7 @@ export function RapidCodeMatch() {
             <span className="p-2 bg-orange-500/10 rounded-md"><domainIcons.Gs className="w-6 h-6 text-orange-400" /></span>
             Rapid Code Match
         </CardTitle>
-        <CardDescription className="text-red-400/70">Match the symbol to the correct digit using the key as fast as you can. The key changes periodically!</CardDescription>
+        <CardDescription className="text-red-400/70">Match the symbol to its number as fast as you can. The key changes periodically! Wired headphones recommended for audio tasks.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-6 min-h-[500px] justify-center">
         {renderContent()}

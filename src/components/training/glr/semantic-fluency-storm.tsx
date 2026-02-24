@@ -114,7 +114,7 @@ export function SemanticFluencyStorm() {
                     <span className="p-2 bg-emerald-500/10 rounded-md"><domainIcons.Glr className="w-6 h-6 text-emerald-400" /></span>
                     Retrieval Trainer
                 </CardTitle>
-                <CardDescription className="text-emerald-300/70">Strengthen your brain's ability to find and use stored information.</CardDescription>
+                <CardDescription className="text-emerald-300/70">Strengthen your brain's ability to find and use stored information. Some modes use audio; wired headphones are recommended.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center justify-center gap-6">
                 {renderContent()}
