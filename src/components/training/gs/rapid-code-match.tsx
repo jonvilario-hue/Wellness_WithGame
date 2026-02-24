@@ -17,6 +17,7 @@ import { realWords, pseudowords } from "@/data/verbal-content";
 import { GameStub } from "../game-stub";
 import { GateSpeed } from '../logic/gate-speed';
 import { domainIcons } from "@/components/icons";
+import { useAudioEngine } from "@/hooks/use-audio-engine";
 
 const GAME_ID: GameId = 'gs_rapid_code';
 const policy = difficultyPolicies[GAME_ID];
@@ -35,44 +36,11 @@ type Problem = {
     isSame?: boolean;
 };
 
-const useAudioEngine = () => {
-    const audioContextRef = useRef<AudioContext | null>(null);
-    const getAudioContext = useCallback(() => {
-        if (typeof window !== 'undefined' && !audioContextRef.current) {
-            audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-        }
-        return audioContextRef.current;
-    }, []);
-
-    const playRhythm = useCallback((onEnd?: () => void) => {
-        const context = getAudioContext();
-        if (!context) return;
-        const now = context.currentTime;
-        playTone(440, 0.1, now);
-        playTone(440, 0.1, now + 0.2);
-        playTone(440, 0.1, now + 0.4);
-        if(onEnd) setTimeout(onEnd, 600);
-    }, [getAudioContext]);
-    
-    const playTone = (freq: number, dur: number, time: number) => {
-         const context = getAudioContext();
-        if (!context) return;
-        const osc = context.createOscillator();
-        osc.frequency.setValueAtTime(freq, time);
-        osc.connect(context.destination);
-        osc.start(time);
-        osc.stop(time + dur);
-    }
-
-    return { playRhythm };
-};
-
-
 export function RapidCodeMatch() {
   const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
   const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
-  const { playRhythm } = useAudioEngine();
+  const { playSequence, resumeContext, isAudioReady } = useAudioEngine();
 
   const [gameState, setGameState] = useState<'loading' | 'start' | 'running' | 'feedback' | 'finished'>('loading');
 
@@ -142,27 +110,26 @@ export function RapidCodeMatch() {
       const newProblem = generateProblem(loadedLevel);
       setProblem(newProblem);
       if(newProblem.type === 'rhythm') {
-          playRhythm(() => setTimeout(() => {
-              if (newProblem.isSame) {
-                  playRhythm();
-              } else {
-                  // Play a slightly different rhythm
-              }
-          }, 500));
+          const baseRhythm = [60, 0, 60, 0]; // quarter, rest, quarter, rest
+          const secondRhythm = newProblem.isSame ? baseRhythm : [60, 60, 0, 0]; // two eighths, rest
+          playSequence(baseRhythm, 0.25, () => {
+              setTimeout(() => playSequence(secondRhythm, 0.25), 500);
+          });
       }
       
       setGameState('running');
       trialStartTime.current = Date.now();
-  }, [currentMode, generateProblem, getAdaptiveState, playRhythm]);
+  }, [currentMode, generateProblem, getAdaptiveState, playSequence]);
 
   const startNewSession = useCallback(() => {
+    resumeContext();
     const sessionState = startSession(getAdaptiveState(GAME_ID, currentMode));
     updateAdaptiveState(GAME_ID, currentMode, sessionState);
     currentTrialIndex.current = 0;
     keyChangeCounter.current = 0;
     mistakes.current = 0;
     startNewTrial();
-  }, [startNewTrial, updateAdaptiveState, currentMode, getAdaptiveState]);
+  }, [startNewTrial, resumeContext, updateAdaptiveState, currentMode, getAdaptiveState]);
 
   useEffect(() => {
     if (isComponentLoaded) {
@@ -272,8 +239,17 @@ export function RapidCodeMatch() {
     if (gameState === 'loading' || !isComponentLoaded) {
       return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
     }
+    const state = getAdaptiveState(GAME_ID, currentMode);
+
     if (gameState === 'start') {
-        const state = getAdaptiveState(GAME_ID, currentMode);
+        if (currentMode === 'music' && !isAudioReady) {
+             return (
+                <div className="flex flex-col items-center gap-4 text-center">
+                    <p className="text-muted-foreground">Audio required for this mode.</p>
+                    <Button onClick={startNewSession} size="lg" className="bg-orange-600 hover:bg-orange-500 text-white">Tap to Enable Audio & Start</Button>
+                </div>
+            )
+        }
         return (
             <div className="flex flex-col items-center gap-4">
               <div className="font-mono text-lg text-orange-300">Level: {state?.currentLevel}</div>

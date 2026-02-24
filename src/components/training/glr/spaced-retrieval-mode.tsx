@@ -12,10 +12,17 @@ import { mathWordList, musicWordList, generalWordList, verbalWordList } from "@/
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import { useAudioEngine } from "@/hooks/use-audio-engine";
+import { Music2, Brain } from "lucide-react";
 
 const GLR_GAME_ID: GameId = 'glr_fluency_storm';
 const glrPolicy = difficultyPolicies[GLR_GAME_ID];
 
+const icons: Record<string, React.ElementType> = {
+    "harmony": Music2,
+    "rhythm": Brain,
+    "melody": Music2,
+    "tempo": Brain,
+};
 
 function ActiveDistractor({ duration, onComplete }: { duration: number, onComplete: () => void }) {
     const [timeLeft, setTimeLeft] = useState(duration);
@@ -83,15 +90,18 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
         if (!state) return;
 
         const pairsToReview = getDueReviewPairs();
-        if (pairsToReview.length > 0) {
+        if (pairsToReview.length > 0 && focus !== 'music') {
             setDuePairs(pairsToReview);
             setPhase('recall');
         } else {
             const wordList1 = (focus === 'math') ? mathWordList : (focus === 'music') ? musicWordList : (focus === 'verbal') ? verbalWordList : generalWordList;
+            let wordList2 = generalWordList;
+            if(focus === 'music') wordList2 = Object.keys(icons);
+
             const generated = Array.from({ length: policyParams.pairs }).map(() => {
                 const word1 = wordList1[Math.floor(Math.random() * wordList1.length)];
-                let word2 = generalWordList[Math.floor(Math.random() * generalWordList.length)];
-                while(word1 === word2) word2 = generalWordList[Math.floor(Math.random() * generalWordList.length)];
+                let word2 = wordList2[Math.floor(Math.random() * wordList2.length)];
+                while(word1 === word2) word2 = wordList2[Math.floor(Math.random() * wordList2.length)];
                 return { word1, word2 };
             });
             setNewPairs(generated);
@@ -171,6 +181,8 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
     }
     
     const pairToShow = (phase === 'recall' ? (duePairs.length > 0 ? duePairs : newPairs) : newPairs)[currentIndex];
+    
+    const Icon = focus === 'music' && pairToShow ? icons[pairToShow.word2] : null;
 
     return (
         <div className="w-full flex flex-col items-center gap-4">
@@ -178,7 +190,11 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
             {phase === 'learn' && pairToShow && (
                  <div className="text-center p-8 bg-muted rounded-lg animate-in fade-in">
                     <p className="text-muted-foreground">Memorize this pair:</p>
-                    <p className="text-4xl font-bold">{pairToShow.word1} - {pairToShow.word2}</p>
+                    <div className="text-4xl font-bold flex items-center gap-4">
+                        <span>{pairToShow.word1}</span>
+                        <span>-</span>
+                        {Icon ? <Icon className="w-10 h-10" /> : <span>{pairToShow.word2}</span>}
+                    </div>
                     <p className="text-sm font-mono mt-4">Pair {currentIndex + 1} of {newPairs.length}</p>
                     <Button onClick={handleNext} className="mt-4 bg-emerald-600 hover:bg-emerald-500 text-white">Next</Button>
                 </div>
@@ -188,12 +204,12 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
                     <p className="text-muted-foreground">What was paired with:</p>
                     <p className="text-5xl font-bold">{pairToShow.word1}</p>
                     {feedback[pairToShow.word1] ? (
-                        <div className={cn("text-2xl font-bold", feedback[pairToShow.word1] === 'correct' ? "text-green-500" : "text-destructive")}>
-                            {feedback[pairToShow.word1] === 'correct' ? "Correct!" : `The answer was: ${pairToShow.word2}`}
+                        <div className="text-2xl font-bold flex items-center justify-center gap-2">
+                            {feedback[pairToShow.word1] === 'correct' ? <span className="text-green-500">Correct!</span> : <span className="text-destructive">Incorrect. It was {Icon ? <Icon className="w-8 h-8 inline-block"/> : pairToShow.word2}</span>}
                         </div>
                     ) : (
                         <form onSubmit={handleRecallSubmit} className="flex gap-2 justify-center">
-                            <Input value={userInput} onChange={e => setUserInput(e.target.value)} autoFocus placeholder="Type the word" className="text-center"/>
+                            <Input value={userInput} onChange={e => setUserInput(e.target.value)} autoFocus placeholder="Type the word/icon name" className="text-center"/>
                             <Button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white">Submit</Button>
                         </form>
                     )}

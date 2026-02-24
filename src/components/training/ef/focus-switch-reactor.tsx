@@ -16,6 +16,7 @@ import { GameStub } from "../game-stub";
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
 import { domainIcons } from "@/components/icons";
+import { useAudioEngine } from "@/hooks/use-audio-engine";
 
 
 const GAME_ID: GameId = 'ef_focus_switch';
@@ -51,50 +52,11 @@ type Stimulus = {
     rhythm?: number; // 0 for even, 1 for uneven
 };
 
-const useAudioEngine = () => {
-    const audioContextRef = useRef<AudioContext | null>(null);
-    const getAudioContext = useCallback(() => {
-        if (typeof window !== 'undefined' && !audioContextRef.current) {
-            audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-        }
-        return audioContextRef.current;
-    }, []);
-
-    const playTone = useCallback((freq: number, duration: number, onEnd?: () => void) => {
-        const context = getAudioContext();
-        if (!context) return;
-        context.resume();
-        const osc = context.createOscillator();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, context.currentTime);
-        osc.connect(context.destination);
-        osc.start();
-        osc.stop(context.currentTime + duration);
-        if(onEnd) setTimeout(onEnd, duration * 1000);
-    }, [getAudioContext]);
-    
-    const playRhythm = useCallback((isEven: boolean, onEnd?: () => void) => {
-        const context = getAudioContext();
-        if (!context) return;
-        const now = context.currentTime;
-        if(isEven) {
-            playTone(440, 0.2);
-            setTimeout(() => playTone(440, 0.2), 250);
-        } else {
-            playTone(440, 0.3);
-            setTimeout(() => playTone(440, 0.1), 375);
-        }
-        if(onEnd) setTimeout(onEnd, 500);
-    }, [playTone]);
-
-    return { playTone, playRhythm };
-};
-
 export function FocusSwitchReactor() {
   const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
   const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
-  const { playTone, playRhythm } = useAudioEngine();
+  const { playTone, playSequence, resumeContext, isAudioReady } = useAudioEngine();
 
   const [gameState, setGameState] = useState<'loading' | 'start' | 'running' | 'feedback' | 'finished'>('loading');
   
@@ -174,15 +136,16 @@ export function FocusSwitchReactor() {
   }, [generateStimulus, currentMode]);
   
   useEffect(() => {
-      if(gameState === 'running' && stimulus.pitch && currentMode === 'music') {
+      if(gameState === 'running' && stimulus.pitch && currentMode === 'music' && ruleRef.current === 'pitch_direction') {
           playTone(440 * Math.pow(2, (stimulus.pitch - 69) / 12), 0.5);
       }
-      if(gameState === 'running' && stimulus.rhythm !== undefined && currentMode === 'music') {
-          playRhythm(stimulus.rhythm === 0);
+      if(gameState === 'running' && stimulus.rhythm !== undefined && currentMode === 'music' && ruleRef.current === 'rhythm_evenness') {
+          playSequence(stimulus.rhythm === 0 ? [60, 60] : [60, 0, 60], 0.2);
       }
-  }, [gameState, stimulus, currentMode, playTone, playRhythm]);
+  }, [gameState, stimulus, currentMode, playTone, playSequence]);
 
   const startNewSession = useCallback(() => {
+    resumeContext();
     const state = getAdaptiveState(GAME_ID, currentMode);
     const sessionState = startSession(state);
     updateAdaptiveState(GAME_ID, currentMode, sessionState);
@@ -190,7 +153,7 @@ export function FocusSwitchReactor() {
     ruleSwitchCounter.current = 0;
     setScore(0);
     startNewTrial(sessionState);
-  }, [startNewTrial, updateAdaptiveState, currentMode, getAdaptiveState]);
+  }, [startNewTrial, resumeContext, updateAdaptiveState, currentMode, getAdaptiveState]);
 
   const processNextTurn = useCallback((correct: boolean, source: 'click' | 'keyboard' | 'timeout', responseSide?: 'left' | 'right') => {
     const state = getAdaptiveState(GAME_ID, currentMode);
@@ -368,6 +331,14 @@ export function FocusSwitchReactor() {
         case 'loading':
           return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
         case 'start':
+            if (currentMode === 'music' && !isAudioReady) {
+                return (
+                    <div className="flex flex-col items-center gap-4 text-center">
+                        <p className="text-muted-foreground">Audio required for this mode.</p>
+                        <Button onClick={startNewSession} size="lg" className="bg-rose-600 hover:bg-rose-500 text-white">Tap to Enable Audio & Start</Button>
+                    </div>
+                )
+            }
           return (
             <div className="flex flex-col items-center gap-4 text-center">
               <div className="font-mono text-lg text-rose-300">Level: {state?.currentLevel}</div>
@@ -407,7 +378,7 @@ export function FocusSwitchReactor() {
                             {stimulus.value}
                         </div>
                     )}
-                    {currentMode === 'music' && stimulus.pitch !== undefined && (
+                    {currentMode === 'music' && (
                         <div className="text-7xl font-bold text-primary flex items-center gap-2">
                            <Music />
                         </div>

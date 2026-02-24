@@ -9,7 +9,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
 import { cn } from "@/lib/utils";
-import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
+import { adjustDifficulty, startSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
 import { useTrainingFocus } from "@/hooks/use-training-focus";

@@ -67,12 +67,14 @@ const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
         const isCorrect = userChoice === answerRef.current;
         const reactionTimeMs = Date.now() - trialStartTime.current;
         const state = getAdaptiveState(GAME_ID, focus);
+        const levelDef = policy.levelMap[state.currentLevel] || policy.levelMap[1];
+        const params = levelDef.content_config[focus]?.params;
 
         const trialResult: TrialResult = {
             correct: isCorrect,
             reactionTimeMs,
             telemetry: {
-                pitchDeltaCents: state.currentLevel,
+                pitchDeltaCents: params?.pitchDelta,
                 baseFreq: 440,
             }
         };

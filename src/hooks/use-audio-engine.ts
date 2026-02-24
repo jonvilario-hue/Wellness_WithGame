@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useRef, useCallback, useEffect, useState } from 'react';
+import { useRef, useCallback, useState } from 'react';
 
 // Singleton instance of the AudioContext
 let audioContextInstance: AudioContext | null = null;
