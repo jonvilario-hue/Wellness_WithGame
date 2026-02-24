@@ -3,14 +3,17 @@ import type { TrialRecord, AdaptiveState } from '@/types';
 import type { SessionRecord, SessionSummary, LatencyInfo, ProfileRecord } from '@/types/local-store';
 
 const DB_NAME = 'cognitune-local';
-const DB_VERSION = 2; // Version incremented due to schema change
+const DB_VERSION = 2;
 
 let db: IDBDatabase | null = null;
+
+// Audit 3.5: Add a constant for the trial log cap
+const MAX_TRIALS_IN_DB = 10000;
 
 const openDB = (): Promise<IDBDatabase> => {
   return new Promise((resolve, reject) => {
     if (typeof window === 'undefined') {
-        reject(new Error('IndexedDB cannot be accessed in a server-side environment.'));
+        // Guard against server-side execution
         return;
     }
 
@@ -23,11 +26,15 @@ const openDB = (): Promise<IDBDatabase> => {
     request.onupgradeneeded = (event) => {
       const dbInstance = (event.target as IDBOpenDBRequest).result;
       if (!dbInstance.objectStoreNames.contains('sessions')) {
-        dbInstance.createObjectStore('sessions', { keyPath: 'sessionId' });
+        const sessionStore = dbInstance.createObjectStore('sessions', { keyPath: 'sessionId' });
+        sessionStore.createIndex('gameId', 'gameId', { unique: false });
+        sessionStore.createIndex('startTimestamp', 'startTimestamp', { unique: false });
       }
       if (!dbInstance.objectStoreNames.contains('trials')) {
         const trialStore = dbInstance.createObjectStore('trials', { keyPath: 'id' });
         trialStore.createIndex('sessionId', 'sessionId', { unique: false });
+        trialStore.createIndex('gameId', 'gameId', { unique: false });
+        trialStore.createIndex('timestamp', 'timestamp', { unique: false });
       }
       if (dbInstance.objectStoreNames.contains('profiles')) {
           dbInstance.deleteObjectStore('profiles');
@@ -41,6 +48,7 @@ const openDB = (): Promise<IDBDatabase> => {
     };
 
     request.onerror = (event) => {
+      console.error('IndexedDB error:', (event.target as IDBOpenDBRequest).error);
       reject('IndexedDB error: ' + (event.target as IDBOpenDBRequest).error);
     };
   });
@@ -55,53 +63,28 @@ const promisifyRequest = <T>(request: IDBRequest<T>): Promise<T> => {
   });
 };
 
-export const startSession = async (sessionMeta: { gameId: string; mode: string; deviceInfo: LatencyInfo; startTimestamp: number }): Promise<string> => {
-  const db = await openDB();
-  const sessionId = crypto.randomUUID();
-  const session: SessionRecord = { ...sessionMeta, sessionId };
-
-  const tx = db.transaction('sessions', 'readwrite');
-  const store = tx.objectStore('sessions');
-  await promisifyRequest(store.add(session));
-  return sessionId;
-};
 
 export const logTrial = async (trial: TrialRecord): Promise<void> => {
   const db = await openDB();
-  const tx = db.transaction('trials', 'readwrite');
+  const tx = db.transaction(['trials'], 'readwrite');
   const store = tx.objectStore('trials');
+  
   await promisifyRequest(store.add(trial));
-};
+  
+  // Audit 3.5: Implement LRU eviction logic
+  const countReq = store.count();
+  const count = await promisifyRequest(countReq);
 
-export const endSession = async (sessionId: string, summary: SessionSummary): Promise<void> => {
-    const db = await openDB();
-    const tx = db.transaction('sessions', 'readwrite');
-    const store = tx.objectStore('sessions');
-    const session = await promisifyRequest(store.get(sessionId));
-    if (session) {
-        const updatedSession = { ...session, endTimestamp: Date.now(), summary };
-        await promisifyRequest(store.put(updatedSession));
+  if (count > MAX_TRIALS_IN_DB) {
+    const trialsToDelete = count - MAX_TRIALS_IN_DB;
+    let cursor = await promisifyRequest(store.index('timestamp').openCursor(null, 'next'));
+    for (let i = 0; i < trialsToDelete && cursor; i++) {
+      store.delete(cursor.primaryKey);
+      cursor = await promisifyRequest(cursor.continue());
     }
+  }
 };
 
-export const getTrials = async (sessionId: string): Promise<TrialRecord[]> => {
-    const db = await openDB();
-    const tx = db.transaction('trials', 'readonly');
-    const store = tx.objectStore('trials');
-    const index = store.index('sessionId');
-    return await promisifyRequest(index.getAll(sessionId));
-};
-
-export const getRecentSessions = async (gameId: string, count: number): Promise<SessionRecord[]> => {
-    const db = await openDB();
-    const tx = db.transaction('sessions', 'readonly');
-    const store = tx.objectStore('sessions');
-    const allSessions = await promisifyRequest(store.getAll());
-    return allSessions
-        .filter(s => s.gameId === gameId)
-        .sort((a, b) => b.startTimestamp - a.startTimestamp)
-        .slice(0, count);
-};
 
 export const getProfile = async (id: string): Promise<AdaptiveState | null> => {
   const db = await openDB();
@@ -127,39 +110,89 @@ export const getAllProfiles = async (): Promise<ProfileRecord[]> => {
 
 export const exportAllData = async (): Promise<string> => {
   const db = await openDB();
-  const sessions = await promisifyRequest(db.transaction('sessions').objectStore('sessions').getAll());
-  const trials = await promisifyRequest(db.transaction('trials').objectStore('trials').getAll());
   const profiles = await promisifyRequest(db.transaction('profiles').objectStore('profiles').getAll());
-  return JSON.stringify({ sessions, trials, profiles }, null, 2);
+  const trials = await promisifyRequest(db.transaction('trials').objectStore('trials').getAll());
+  // The 'sessions' store doesn't seem to be used, but we'll include it for completeness if it exists.
+  let sessions = [];
+  if (db.objectStoreNames.contains('sessions')) {
+    sessions = await promisifyRequest(db.transaction('sessions').objectStore('sessions').getAll());
+  }
+  return JSON.stringify({ profiles, trials, sessions }, null, 2);
 };
 
 export const importData = async (json: string): Promise<void> => {
   const db = await openDB();
   const data = JSON.parse(json);
 
-  if (data.sessions) {
-    const tx = db.transaction('sessions', 'readwrite');
-    for (const session of data.sessions) {
-      tx.objectStore('sessions').put(session);
-    }
-  }
-  if (data.trials) {
-    const tx = db.transaction('trials', 'readwrite');
-    for (const trial of data.trials) {
-      tx.objectStore('trials').put(trial);
-    }
-  }
   if (data.profiles) {
     const tx = db.transaction('profiles', 'readwrite');
     for (const profile of data.profiles) {
       tx.objectStore('profiles').put(profile);
     }
+    await new Promise(resolve => tx.oncomplete = resolve);
+  }
+   if (data.trials) {
+    const tx = db.transaction('trials', 'readwrite');
+    for (const trial of data.trials) {
+      tx.objectStore('trials').put(trial);
+    }
+    await new Promise(resolve => tx.oncomplete = resolve);
+  }
+   if (data.sessions) {
+    const tx = db.transaction('sessions', 'readwrite');
+    for (const session of data.sessions) {
+      tx.objectStore('sessions').put(session);
+    }
+    await new Promise(resolve => tx.oncomplete = resolve);
   }
 };
 
 export const clearAllData = async (): Promise<void> => {
   const db = await openDB();
-  await promisifyRequest(db.transaction('sessions', 'readwrite').objectStore('sessions').clear());
+  if (db.objectStoreNames.contains('sessions')) {
+    await promisifyRequest(db.transaction('sessions', 'readwrite').objectStore('sessions').clear());
+  }
   await promisifyRequest(db.transaction('trials', 'readwrite').objectStore('trials').clear());
   await promisifyRequest(db.transaction('profiles', 'readwrite').objectStore('profiles').clear());
 };
+
+
+// Audit 3.5: Add development-only storage simulation function
+export const simulateStorageLoad = async (sessionCount: number, trialsPerSession: number) => {
+    if (process.env.NODE_ENV !== 'development') return;
+
+    console.log(`Simulating load: ${sessionCount} sessions, ${trialsPerSession} trials each...`);
+    const db = await openDB();
+    const tx = db.transaction('trials', 'readwrite');
+    const store = tx.objectStore('trials');
+
+    for (let i = 0; i < sessionCount * trialsPerSession; i++) {
+        const mockTrial: TrialRecord = {
+            id: `sim-${Date.now()}-${i}`,
+            sessionId: `sim-session-${Math.floor(i / trialsPerSession)}`,
+            gameId: 'gf_pattern_matrix',
+            trialIndex: i % trialsPerSession,
+            correct: Math.random() > 0.5,
+            rtMs: 500 + Math.random() * 1000,
+            timestamp: Date.now() - (sessionCount * trialsPerSession - i) * 2000,
+            difficultyLevel: 1,
+            stimulusParams: {},
+            stimulusOnsetTs: 0,
+            responseTs: 0,
+            responseType: 'n/a',
+        };
+        store.add(mockTrial);
+        if (i % 1000 === 0) {
+           const count = await promisifyRequest(store.count());
+           console.log(`... ${i} trials written, current store count: ${count}`);
+        }
+    }
+    
+    await new Promise(resolve => tx.oncomplete = resolve);
+    const finalCount = await promisifyRequest(db.transaction('trials', 'readonly').objectStore('trials').count());
+    console.log(`Load simulation complete. Final store count: ${finalCount}`);
+};
+
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+    (window as any).simulateStorageLoad = simulateStorageLoad;
+}

@@ -1,3 +1,4 @@
+
 'use client';
 
 // This file is the single source of truth for all shared types in the application.
@@ -20,7 +21,6 @@ export type GameId =
 export interface TrialRecord {
   id: string; // UUID for the trial
   sessionId: string;
-  userId?: string;
   gameId: GameId;
   trialIndex: number;
   condition?: string;
@@ -33,6 +33,7 @@ export interface TrialRecord {
   difficultyLevel: number;
   deviceInfo?: any;
   timestamp: number;
+  pausedDurationMs?: number; // Audit 3.6
 }
 
 
@@ -44,7 +45,6 @@ export interface TrialResult {
   correct: boolean;
   reactionTimeMs: number;
   telemetry: Record<string, any>; // Flexible object for module-specific data
-  // ADDED: For high-precision RT calculation
   stimulusOnsetTs?: number; 
   responseTs?: number;
 }
@@ -52,7 +52,7 @@ export interface TrialResult {
 export interface AdaptiveState {
   gameId: GameId;
   lastFocus: TrainingFocus;
-  tier: TierSelection; // Allow "Automatic" tier
+  tier: TierSelection; 
   levelFloor: number;
   levelCeiling: number;
   currentLevel: number;
@@ -69,27 +69,20 @@ export interface AdaptiveState {
 
 
 // --- Universal Difficulty Policy Schema ---
-
-// Defines parameters for the "container" of the task
 export type MechanicConfig = {
     [key: string]: any;
 };
-
-// Defines parameters for the "content" of the task
 export type ContentParams = {
     [key: string]: any;
 };
-
 export type ContentConfig = {
-    sub_variant?: string; // e.g., 'lexical_decision' or 'homophone_hunter' for Gs
+    sub_variant?: string; 
     params?: ContentParams;
 };
-
 export type LevelDefinition = {
     mechanic_config: MechanicConfig;
     content_config: Partial<Record<TrainingFocus, ContentConfig>>;
 };
-
 export interface DifficultyPolicy {
   gameId: GameId;
   sessionLength: number;

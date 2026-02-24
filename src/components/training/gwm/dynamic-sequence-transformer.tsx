@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,19 +20,21 @@ import { domainIcons } from "@/components/icons";
 import { useAudioEngine } from "@/hooks/use-audio-engine";
 import { ComplexSpanTask } from "./ComplexSpanTask";
 import { generateVerbalSequence, applyVerbalTransformation } from "@/lib/verbal-stimulus-factory";
-
+import { PRNG } from "@/lib/rng"; // Audit 3.1
+import { usePageVisibility } from "@/hooks/use-page-visibility"; // Audit 3.6
 
 const GAME_ID: GameId = 'gwm_dynamic_sequence';
 const policy = difficultyPolicies[GAME_ID];
 
-const generateSequence = (length: number, charSet: string) => {
+// Original function was not deterministic
+const generateNeutralSequence = (length: number, charSet: string, prng: PRNG) => {
   let chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   if (charSet === 'alphanumeric') chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   if (charSet === 'numeric') chars = '0123456789';
   
   let result = '';
   for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
+    result += chars.charAt(prng.nextIntRange(0, chars.length));
   }
   return result;
 };
@@ -50,7 +53,7 @@ export function DynamicSequenceTransformer() {
   const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
   const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
-  const { playSequence, resumeContext, isAudioReady, getAudioContextTime } = useAudioEngine();
+  const { playSequence, resumeContext } = useAudioEngine();
 
   const [gameState, setGameState] = useState<'loading' | 'start' | 'memorizing' | 'answering' | 'feedback' | 'finished'>('loading');
   
@@ -63,9 +66,26 @@ export function DynamicSequenceTransformer() {
   const currentTrialIndex = useRef(0);
   const correctSentenceRef = useRef('');
   const sessionId = useRef(crypto.randomUUID());
+  const prngRef = useRef<PRNG>(new PRNG(sessionId.current));
 
   const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
   const currentMode = isComponentLoaded ? (override || globalFocus) : 'neutral';
+
+  // Audit 3.6: Page visibility hook
+  const isVisible = usePageVisibility();
+  const pauseTimeRef = useRef<number | null>(null);
+  const pausedDurationRef = useRef(0);
+
+  useEffect(() => {
+    if (gameState === 'answering' || gameState === 'memorizing') {
+      if (!isVisible) {
+        pauseTimeRef.current = Date.now();
+      } else if (pauseTimeRef.current) {
+        pausedDurationRef.current += Date.now() - pauseTimeRef.current;
+        pauseTimeRef.current = null;
+      }
+    }
+  }, [isVisible, gameState]);
 
   useEffect(() => {
     if (isComponentLoaded) {
@@ -89,38 +109,37 @@ export function DynamicSequenceTransformer() {
     
     let newTask = tasks.find(t => t.id === content_config.sub_variant) || tasks[0];
     let newSequence: string | (string|number)[] = '';
+    const prng = prngRef.current;
 
     if (currentMode === 'verbal') {
-        const verbalStim = generateVerbalSequence(loadedLevel);
+        const verbalStim = generateVerbalSequence(loadedLevel, prng);
         newSequence = verbalStim.sequence;
-        newTask = tasks.find(t => t.id === verbalStim.transformationRule) || tasks[0];
+        const possibleTasks = tasks.filter(t => t.id === verbalStim.transformationRule);
+        newTask = prng.shuffle(possibleTasks)[0] || tasks[0];
         if (verbalStim.correctAnswer) {
             correctSentenceRef.current = verbalStim.correctAnswer;
         }
     } else {
-        newSequence = generateSequence(mechanic_config.sequenceLength, content_config.params.charSet);
+        newSequence = generateNeutralSequence(mechanic_config.sequenceLength, content_config.params.charSet, prng);
         const availableTasks = tasks.filter(t => t.id !== 'sentence_unscramble');
-        newTask = availableTasks[Math.floor(Math.random() * availableTasks.length)];
+        newTask = prng.shuffle(availableTasks)[0];
     }
     
     setSequence(newSequence);
     setTask(newTask);
     setUserAnswer('');
     setFeedback('');
+    pausedDurationRef.current = 0; // Reset paused duration for new trial
     setGameState('memorizing');
     
     const displayTime = currentMode === 'verbal' ? mechanic_config.visualDisplayTimeMs || 800 : mechanic_config.displayTimeMs || 1500;
 
     setTimeout(() => {
       setGameState('answering');
-      if (getAudioContextTime) {
-        trialStartTime.current = getAudioContextTime() || Date.now();
-      } else {
-        trialStartTime.current = Date.now();
-      }
+      trialStartTime.current = Date.now();
     }, displayTime);
     
-  }, [currentMode, getAudioContextTime]);
+  }, [currentMode]);
 
   const startNewSession = useCallback(() => {
     resumeContext();
@@ -129,6 +148,7 @@ export function DynamicSequenceTransformer() {
     updateAdaptiveState(GAME_ID, currentMode, sessionState);
     currentTrialIndex.current = 0;
     sessionId.current = crypto.randomUUID();
+    prngRef.current = new PRNG(sessionId.current); // Re-seed for the new session
     startNewTrial(sessionState);
   }, [startNewTrial, resumeContext, updateAdaptiveState, currentMode, getAdaptiveState]);
   
@@ -160,13 +180,13 @@ export function DynamicSequenceTransformer() {
     if (gameState !== 'answering' || !state) return;
     
     setGameState('feedback');
-    const levelPlayed = state.currentLevel;
-    const responseTs = (getAudioContextTime && getAudioContextTime()) || Date.now();
-    const reactionTimeMs = responseTs - trialStartTime.current;
+    const responseTs = Date.now();
+    const reactionTimeMs = responseTs - trialStartTime.current - pausedDurationRef.current;
     
-    const normalize = (str: string) => str.toUpperCase().replace(/[.,!?]/g, '').trim();
+    const normalize = (str: string) => str.toUpperCase().replace(/[.,!?\s]/g, '').trim();
     const isCorrect = normalize(userAnswer) === normalize(correctAnswer);
     
+    const levelPlayed = state.currentLevel;
     const levelDef = policy.levelMap[levelPlayed] || policy.levelMap[1];
     const content_config = levelDef.content_config[currentMode];
     const seqStr = Array.isArray(sequence) ? sequence.join(',') : sequence;
@@ -180,13 +200,12 @@ export function DynamicSequenceTransformer() {
             userSequence: userAnswer.trim().toUpperCase(),
             correctSequence: correctAnswer.toUpperCase(),
             sequenceType: content_config?.params.charSet,
-            scaleType: 'pentatonic' // Placeholder
+            pausedDurationMs: pausedDurationRef.current
         }
     };
     logTrial({
       id: crypto.randomUUID(),
       sessionId: sessionId.current,
-      userId: 'local-user',
       gameId: GAME_ID,
       trialIndex: currentTrialIndex.current,
       difficultyLevel: levelPlayed,
@@ -214,7 +233,7 @@ export function DynamicSequenceTransformer() {
         }
     }, 2500);
 
-  }, [gameState, userAnswer, correctAnswer, getAdaptiveState, updateAdaptiveState, startNewTrial, task.id, currentMode, sequence, logTrial, getAudioContextTime]);
+  }, [gameState, userAnswer, correctAnswer, getAdaptiveState, updateAdaptiveState, startNewTrial, task.id, currentMode, sequence, logTrial]);
   
   if (currentMode === 'spatial') {
     return <GameStub 

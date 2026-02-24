@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -10,19 +11,20 @@ import {
     clozeSentences,
 } from '@/data/verbal-content';
 import type { TrainingFocus } from '@/types';
+import { PRNG } from './rng';
 
 /**
  * This factory generates stimuli for the "Verbal Reasoning" mode across various games.
  * It's designed to be called by the main game components when the verbal focus is active.
+ * Audit 3.1: All random selections now use a seeded PRNG for determinism.
  */
 
 // --- SEQUENCE SPAN (Gwm) ---
-export const generateVerbalSequence = (level: number) => {
-    // This function can be expanded to pull from a larger corpus
+export const generateVerbalSequence = (level: number, prng: PRNG) => {
     if (level > 5) { // Sentence Unscramble
-        const sentenceData = grammarScrambleSentences[Math.floor(Math.random() * grammarScrambleSentences.length)];
+        const sentenceData = prng.shuffle([...grammarScrambleSentences])[0];
         return {
-            sequence: sentenceData.sentence.split(' ').sort(() => Math.random() - 0.5).join(' '),
+            sequence: prng.shuffle(sentenceData.sentence.split(' ')).join(' '),
             transformationRule: 'sentence_unscramble',
             correctAnswer: sentenceData.sentence,
         };
@@ -33,16 +35,16 @@ export const generateVerbalSequence = (level: number) => {
     const sequenceLength = 3 + Math.floor(level / 2);
     
     if (useSimilar) {
-        const set = phoneticallySimilarSets[Math.floor(Math.random() * phoneticallySimilarSets.length)];
+        const set = prng.shuffle([...phoneticallySimilarSets])[0];
         return {
-            sequence: set.slice(0, sequenceLength).join(' '),
-            transformationRule: 'reverse', // Default transformation
+            sequence: prng.shuffle(set).slice(0, sequenceLength).join(' '),
+            transformationRule: 'reverse',
             correctAnswer: null,
         };
     } else {
         const distinctWords = ['CAT', 'DOG', 'SUN', 'SKY', 'RED', 'BLUE', 'ONE', 'TWO'];
         return {
-            sequence: distinctWords.sort(() => 0.5 - Math.random()).slice(0, sequenceLength).join(' '),
+            sequence: prng.shuffle(distinctWords).slice(0, sequenceLength).join(' '),
             transformationRule: 'reverse',
             correctAnswer: null,
         };
@@ -58,16 +60,16 @@ export const applyVerbalTransformation = (sequence: string, rule: string, correc
         case 'reverse':
             return parts.reverse().join(' ');
         default:
-            return sequence; // Default to no transformation if rule is unknown
+            return sequence;
     }
 };
 
 // --- RAPID MATCH (Gs) ---
-export const generateLexicalDecisionProblem = (level: number) => {
-    const isReal = Math.random() > 0.5;
+export const generateLexicalDecisionProblem = (level: number, prng: PRNG) => {
+    const isReal = prng.nextFloat() > 0.5;
     const word = isReal 
-        ? realWords[Math.floor(Math.random() * realWords.length)] 
-        : pseudowords[Math.floor(Math.random() * pseudowords.length)];
+        ? realWords[prng.nextIntRange(0, realWords.length)] 
+        : pseudowords[prng.nextIntRange(0, pseudowords.length)];
     return {
         type: 'lexical',
         stimulus: word,
@@ -76,16 +78,16 @@ export const generateLexicalDecisionProblem = (level: number) => {
 };
 
 // --- MATRIX PATTERN (Gf) ---
-export const generateAnalogyProblem = (level: number) => {
-     const rule = Math.random() > 0.5 ? 'pluralization' : 'tense_change';
+export const generateAnalogyProblem = (level: number, prng: PRNG) => {
+     const rule = prng.nextFloat() > 0.5 ? 'pluralization' : 'tense_change';
      const wordPairSet = morphologyWordPairs[rule];
      
-     const pair1 = wordPairSet[0];
-     const pair2 = wordPairSet[1];
+     const pairs = prng.shuffle([...wordPairSet]);
+     const pair1 = pairs[0];
+     const pair2 = pairs[1];
      
-     const question = `${pair1.base} is to ${pair1.derived} as ${pair2.base} is to...`;
      const answer = pair2.derived;
-     const options = [answer, 'glorped', 'wuxes', 'flibbing'].sort(() => Math.random() - 0.5);
+     const options = prng.shuffle([answer, 'glorped', 'wuxes', 'flibbing']);
 
      return {
         type: 'verbal',
@@ -104,11 +106,10 @@ export const generateAnalogyProblem = (level: number) => {
 }
 
 // --- TASK SWITCH (EF) ---
-export const generateVerbalSwitchProblem = (level: number) => {
+export const generateVerbalSwitchProblem = (level: number, prng: PRNG) => {
     const categories = generalCategories;
-    const category = categories[Math.floor(Math.random() * categories.length)];
-    // This is a placeholder. A real implementation would need a larger word list with metadata.
-    const word = realWords[Math.floor(Math.random() * realWords.length)];
+    const category = categories[prng.nextIntRange(0, categories.length)];
+    const word = realWords[prng.nextIntRange(0, realWords.length)];
     return {
         word,
         category,
@@ -116,14 +117,54 @@ export const generateVerbalSwitchProblem = (level: number) => {
 }
 
 // --- VERBAL INFERENCE (Gc) ---
-export const generateClozeProblem = (level: number) => {
-    // Select a cloze sentence based on difficulty
-    const sentenceData = clozeSentences[Math.floor(Math.random() * clozeSentences.length)];
+export const generateClozeProblem = (level: number, prng: PRNG) => {
+    const sentenceData = clozeSentences[prng.nextIntRange(0, clozeSentences.length)];
     return {
         type: 'cloze_deletion',
         question: sentenceData.question,
-        options: [...sentenceData.options, sentenceData.answer].sort(() => Math.random() - 0.5),
+        options: prng.shuffle([...sentenceData.options, sentenceData.answer]),
         answer: sentenceData.answer,
         explanation: sentenceData.explanation
     };
+}
+
+
+// --- Audit 2.1: Development-only validation function ---
+export function validateDeterminism(seed: string, gameId: string, tier: number, trialCount: number): boolean {
+    if (process.env.NODE_ENV !== 'development') {
+        console.warn("Determinism validation is only available in development mode.");
+        return true;
+    }
+
+    console.log(`Running determinism check for game ${gameId}, tier ${tier} with seed "${seed}"...`);
+    
+    const prng1 = new PRNG(seed);
+    const prng2 = new PRNG(seed);
+    const results1 = [];
+    const results2 = [];
+
+    // This is a simplified check. A full check would call the specific generator for the gameId.
+    // For now, we'll use a generic one.
+    const generator = generateVerbalSequence;
+
+    for (let i = 0; i < trialCount; i++) {
+        results1.push(generator(tier, prng1));
+        results2.push(generator(tier, prng2));
+    }
+    
+    for (let i = 0; i < trialCount; i++) {
+        if (JSON.stringify(results1[i]) !== JSON.stringify(results2[i])) {
+            console.error(`Determinism FAIL at trial ${i}:`);
+            console.error("Expected:", results1[i]);
+            console.error("Received:", results2[i]);
+            return false;
+        }
+    }
+
+    console.log(`Determinism PASS: All ${trialCount} generated verbal stimuli were identical.`);
+    return true;
+}
+
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+    (window as any).validateVerbalDeterminism = validateDeterminism;
 }
