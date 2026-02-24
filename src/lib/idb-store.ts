@@ -1,6 +1,7 @@
 
+
 import type { TrialRecord, AdaptiveState } from '@/types';
-import type { ProfileRecord } from '@/types/local-store';
+import type { ProfileRecord, SessionRecord, ReplayInputs } from '@/types/local-store';
 
 const DB_NAME = 'cognitune-local';
 const DB_VERSION = 2;
@@ -36,7 +37,6 @@ const openDB = (): Promise<IDBDatabase> => {
       if (!dbInstance.objectStoreNames.contains('trials')) {
         const trialStore = dbInstance.createObjectStore('trials', { keyPath: 'id' });
         trialStore.createIndex('sessionId', 'sessionId', { unique: false });
-        // Ensure the timestamp index exists for eviction logic
         if (!trialStore.indexNames.contains('timestamp')) {
             trialStore.createIndex('timestamp', 'timestamp', { unique: false });
         }
@@ -68,47 +68,58 @@ const promisifyRequest = <T>(request: IDBRequest<T>): Promise<T> => {
 };
 
 const runEviction = async (db: IDBDatabase) => {
-    const tx = db.transaction('trials', 'readwrite');
-    const store = tx.objectStore('trials');
-    const countReq = store.count();
-    const count = await promisifyRequest(countReq);
+    const tx = db.transaction(['trials', 'sessions'], 'readwrite');
+    const trialStore = tx.objectStore('trials');
+    const sessionStore = tx.objectStore('sessions');
+    
+    const trialCount = await promisifyRequest(trialStore.count());
 
-    if (count > EVICTION_CONFIG.maxTrials) {
-        // Use a cursor on the timestamp index to find the oldest records.
-        const index = store.index('timestamp');
-        let cursor = await promisifyRequest(index.openCursor());
-        const toDeleteCount = count - EVICTION_CONFIG.maxTrials;
-        console.log(`[Storage Eviction] Store count (${count}) exceeds max (${EVICTION_CONFIG.maxTrials}). Deleting oldest ${toDeleteCount > EVICTION_CONFIG.batchDeleteSize ? EVICTION_CONFIG.batchDeleteSize : toDeleteCount} trials.`);
-        
-        let deletedCount = 0;
-        const targetDeleteCount = Math.min(toDeleteCount, EVICTION_CONFIG.batchDeleteSize);
-
-        while (cursor && deletedCount < targetDeleteCount) {
-            // Since we're using an index, cursor.primaryKey refers to the main store's key
-            store.delete(cursor.primaryKey);
-            deletedCount++;
-            cursor = await promisifyRequest(cursor.continue());
-        }
+    if (trialCount <= EVICTION_CONFIG.maxTrials) {
+        return;
     }
+    
+    // 1. Get all session IDs that are still in-progress
+    const incompleteSessions = new Set<string>();
+    let sessionCursor = await promisifyRequest(sessionStore.openCursor());
+    while(sessionCursor) {
+        if (!sessionCursor.value.sessionComplete) {
+            incompleteSessions.add(sessionCursor.value.sessionId);
+        }
+        sessionCursor = await promisifyRequest(sessionCursor.continue());
+    }
+
+    // 2. Iterate through trials from oldest to newest and delete if they are not from an incomplete session
+    const toDeleteCount = trialCount - EVICTION_CONFIG.maxTrials;
+    console.log(`[Storage Eviction] Store count (${trialCount}) exceeds max (${EVICTION_CONFIG.maxTrials}). Deleting up to ${toDeleteCount} oldest trials.`);
+    
+    let deletedCount = 0;
+    // Open cursor on the primary key, which is assumed to be chronologically sortable (e.g., ULID or timestamp-based UUID)
+    let trialCursor = await promisifyRequest(trialStore.openCursor());
+
+    while (trialCursor && deletedCount < toDeleteCount) {
+        const trial = trialCursor.value as TrialRecord;
+        if (!incompleteSessions.has(trial.sessionId)) {
+            trialCursor.delete();
+            deletedCount++;
+        }
+        trialCursor = await promisifyRequest(trialCursor.continue());
+    }
+    
+    console.log(`[Storage Eviction] Deleted ${deletedCount} trial records.`);
 };
 
 export const logTrial = async (trial: TrialRecord): Promise<void> => {
   const db = await openDB();
   const tx = db.transaction(['trials'], 'readwrite');
   const store = tx.objectStore('trials');
-  
   await promisifyRequest(store.put(trial));
-  
+
   writeCounter++;
   if (writeCounter % EVICTION_CONFIG.checkInterval === 0) {
       runEviction(db).catch(e => console.error("Error during background eviction:", e));
   }
 };
 
-/**
- * Writes a batch of trial records in a single transaction without triggering eviction.
- * This is used for flushing the in-memory buffer of failed writes.
- */
 export const logTrialBatch = async (trials: TrialRecord[]): Promise<void> => {
     if (trials.length === 0) return;
     const db = await openDB();
@@ -122,6 +133,32 @@ export const logTrialBatch = async (trials: TrialRecord[]): Promise<void> => {
         tx.onerror = () => reject(tx.error);
     });
 };
+
+export const startOrUpdateSession = async (session: SessionRecord): Promise<void> => {
+    const db = await openDB();
+    const tx = db.transaction(['sessions'], 'readwrite');
+    const store = tx.objectStore('sessions');
+    await promisifyRequest(store.put(session));
+};
+
+export const completeSession = async (sessionId: string, endTime: number): Promise<void> => {
+    const db = await openDB();
+    const tx = db.transaction(['sessions'], 'readwrite');
+    const store = tx.objectStore('sessions');
+    const session = await promisifyRequest(store.get(sessionId));
+    if (session) {
+        session.endTimestamp = endTime;
+        session.sessionComplete = true;
+        await promisifyRequest(store.put(session));
+    }
+};
+
+export const extractReplayInputs = async (sessionId: string): Promise<ReplayInputs | null> => {
+    const db = await openDB();
+    const tx = db.transaction('sessions', 'readonly');
+    const session = await promisifyRequest(tx.objectStore('sessions').get(sessionId));
+    return session?.replayInputs || null;
+}
 
 export const getProfile = async (id: string): Promise<AdaptiveState | null> => {
   const db = await openDB();
@@ -149,11 +186,8 @@ export const exportAllData = async (): Promise<string> => {
   const db = await openDB();
   const profiles = await promisifyRequest(db.transaction('profiles').objectStore('profiles').getAll());
   const trials = await promisifyRequest(db.transaction('trials').objectStore('trials').getAll());
+  const sessions = await promisifyRequest(db.transaction('sessions').objectStore('sessions').getAll());
   
-  let sessions = [];
-  if (db.objectStoreNames.contains('sessions')) {
-    sessions = await promisifyRequest(db.transaction('sessions').objectStore('sessions').getAll());
-  }
   return JSON.stringify({ profiles, trials, sessions }, null, 2);
 };
 
@@ -165,28 +199,22 @@ export const importData = async (json: string): Promise<void> => {
   await Promise.all([
     promisifyRequest(clearTx.objectStore('profiles').clear()),
     promisifyRequest(clearTx.objectStore('trials').clear()),
-    clearTx.objectStoreNames.contains('sessions') ? promisifyRequest(clearTx.objectStore('sessions').clear()) : Promise.resolve(),
+    promisifyRequest(clearTx.objectStore('sessions').clear()),
   ]);
   
   if (data.profiles) {
     const tx = db.transaction('profiles', 'readwrite');
-    for (const profile of data.profiles) {
-      tx.objectStore('profiles').put(profile);
-    }
+    for (const profile of data.profiles) tx.objectStore('profiles').put(profile);
     await new Promise<void>(resolve => tx.oncomplete = () => resolve());
   }
    if (data.trials) {
     const tx = db.transaction('trials', 'readwrite');
-    for (const trial of data.trials) {
-      tx.objectStore('trials').put(trial);
-    }
+    for (const trial of data.trials) tx.objectStore('trials').put(trial);
     await new Promise<void>(resolve => tx.oncomplete = () => resolve());
   }
    if (data.sessions) {
     const tx = db.transaction('sessions', 'readwrite');
-    for (const session of data.sessions) {
-      tx.objectStore('sessions').put(session);
-    }
+    for (const session of data.sessions) tx.objectStore('sessions').put(session);
     await new Promise<void>(resolve => tx.oncomplete = () => resolve());
   }
 };
@@ -197,40 +225,6 @@ export const clearAllData = async (): Promise<void> => {
   await Promise.all([
     promisifyRequest(tx.objectStore('profiles').clear()),
     promisifyRequest(tx.objectStore('trials').clear()),
-    tx.objectStoreNames.contains('sessions') ? promisifyRequest(clearTx.objectStore('sessions').clear()) : Promise.resolve(),
+    promisifyRequest(tx.objectStore('sessions').clear()),
   ]);
 };
-
-// --- Development-only tools ---
-export async function simulateStorageLoad(sessionCount: number, trialsPerSession: number) {
-    if (process.env.NODE_ENV !== 'development') return;
-
-    console.log(`[VALIDATION] Simulating load: ${sessionCount} sessions, ${trialsPerSession} trials each...`);
-    const totalTrials = sessionCount * trialsPerSession;
-
-    for (let i = 0; i < totalTrials; i++) {
-        const mockTrial: TrialRecord = {
-            id: `sim-${Date.now()}-${i}`,
-            sessionId: `sim-session-${Math.floor(i / trialsPerSession)}`,
-            gameId: 'gf_pattern_matrix',
-            trialIndex: i % trialsPerSession,
-            correct: Math.random() > 0.5,
-            rtMs: 500 + Math.random() * 1000,
-            timestamp: Date.now() - (totalTrials - i) * 2000,
-            difficultyLevel: 1,
-            stimulusParams: {},
-            stimulusOnsetTs: 0,
-            responseTs: 0,
-            responseType: 'n/a',
-        };
-        await logTrial(mockTrial);
-        if (i > 0 && i % 1000 === 0) {
-           console.log(`... ${i} trials written.`);
-        }
-    }
-    console.log(`[VALIDATION] Load simulation complete. Check IndexedDB 'trials' store count.`);
-};
-
-if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-    (window as any).cognitune_simulateStorageLoad = simulateStorageLoad;
-}

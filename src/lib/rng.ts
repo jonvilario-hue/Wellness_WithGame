@@ -23,45 +23,24 @@ export class PRNG {
     return hash;
   }
 
-  /**
-   * Generates the next number in the sequence.
-   * @returns A raw integer from the sequence.
-   */
   public nextInt(): number {
     this.seed = (this.a * this.seed + this.c) % this.m;
     return this.seed;
   }
 
-  /**
-   * Generates a pseudo-random float between 0 (inclusive) and 1 (exclusive).
-   * This is a deterministic replacement for Math.random().
-   * @returns A float between 0 and 1.
-   */
   public nextFloat(): number {
     return this.nextInt() / this.m;
   }
 
-  /**
-   * Generates a pseudo-random integer within a specified range.
-   * @param min - The minimum value (inclusive).
-   * @param max - The maximum value (exclusive).
-   * @returns An integer in the range [min, max).
-   */
   public nextIntRange(min: number, max: number): number {
     return Math.floor(this.nextFloat() * (max - min)) + min;
   }
 
-  /**
-   * Shuffles an array in place using the Fisher-Yates algorithm and the seeded PRNG.
-   * This provides a deterministic shuffle.
-   * @param array - The array to be shuffled.
-   * @returns A new array with the shuffled elements.
-   */
   public shuffle<T>(array: T[]): T[] {
     let currentIndex = array.length;
     let randomIndex;
 
-    const newArray = [...array]; // Work on a copy
+    const newArray = [...array];
 
     while (currentIndex !== 0) {
       randomIndex = this.nextIntRange(0, currentIndex);
@@ -74,18 +53,10 @@ export class PRNG {
     return newArray;
   }
 
-  /**
-   * Returns the current internal state of the PRNG.
-   * @returns The current seed.
-   */
   public getState(): number {
     return this.seed;
   }
 
-  /**
-   * Sets the internal state of the PRNG.
-   * @param seed - The seed to restore.
-   */
   public setState(seed: number): void {
     this.seed = seed;
   }

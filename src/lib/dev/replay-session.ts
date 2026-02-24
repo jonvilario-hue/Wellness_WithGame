@@ -9,70 +9,55 @@ import { PRNG } from '../rng';
 import * as verbalFactory from '../verbal-stimulus-factory';
 import { difficultyPolicies } from '@/data/difficulty-policies';
 import type { TrialRecord, TrainingFocus, GameId } from '@/types';
+import type { ReplayInputs } from '@/types/local-store';
 
-type ReplayInput = {
-    seed: string;
-    gameId: GameId;
-    focus: TrainingFocus;
-    trials: TrialRecord[];
-};
-
-type Mismatch = {
-    trialIndex: number;
-    field: string;
-    expected: any;
-    generated: any;
-};
 
 const getStimulusGenerator = (gameId: GameId, focus: TrainingFocus) => {
-    if (focus === 'verbal') {
-        // In a real scenario, this would be a map of factories per game
-        switch(gameId) {
-            case 'gwm_dynamic_sequence': return verbalFactory.generateVerbalSequence;
-            case 'gs_rapid_code': return verbalFactory.generateLexicalDecisionProblem;
-            case 'gf_pattern_matrix': return verbalFactory.generateAnalogyProblem;
-            // ... add other verbal generators
-            default: return null;
+    // This mapping needs to be maintained as new games/modes are added.
+    const generatorMap: Partial<Record<GameId, Partial<Record<TrainingFocus, (level: number, prng: PRNG) => any>>>> = {
+        'gwm_dynamic_sequence': {
+            verbal: verbalFactory.generateVerbalSequence,
+        },
+        'gs_rapid_code': {
+            verbal: verbalFactory.generateLexicalDecisionProblem,
+        },
+        'gf_pattern_matrix': {
+            verbal: verbalFactory.generateAnalogyProblem,
         }
-    }
-    // Add logic for Math, Music, Neutral modes if needed
-    return null;
+    };
+    return generatorMap[gameId]?.[focus];
 }
 
-export async function replayAndValidateSession(sessionData: ReplayInput): Promise<{ valid: boolean, mismatches: Mismatch[] }> {
+export async function replayAndValidateSession(replayInputs: ReplayInput, recordedTrials: TrialRecord[]): Promise<{ valid: boolean, mismatches: any[] }> {
     if (process.env.NODE_ENV !== 'development') {
         console.warn("Replay validation is only available in development mode.");
         return { valid: true, mismatches: [] };
     }
 
-    console.log(`[REPLAY] Starting validation for session with seed "${sessionData.seed}"...`);
-    const mismatches: Mismatch[] = [];
-    const prng = new PRNG(sessionData.seed);
+    console.log(`[REPLAY] Starting validation for session with seed "${replayInputs.seed}"...`);
+    const mismatches: any[] = [];
+    const prng = new PRNG(replayInputs.seed);
 
-    for (let i = 0; i < sessionData.trials.length; i++) {
-        const recordedTrial = sessionData.trials[i];
-        const generator = getStimulusGenerator(sessionData.gameId, sessionData.focus);
+    for (let i = 0; i < recordedTrials.length; i++) {
+        const recordedTrial = recordedTrials[i];
+        const generator = getStimulusGenerator(replayInputs.gameId, replayInputs.focus);
 
         if (!generator) {
-            console.warn(`[REPLAY] No generator found for game ${sessionData.gameId} in focus ${sessionData.focus}. Skipping trial ${i}.`);
+            console.warn(`[REPLAY] No generator found for game ${replayInputs.gameId} in focus ${replayInputs.focus}. Skipping trial ${i}.`);
             continue;
         }
         
-        // This relies on the generator function being pure and only using the PRNG for randomness.
-        const regeneratedStimulus = generator(recordedTrial.difficultyLevel, prng);
+        const regeneratedStimulusParams = generator(recordedTrial.difficultyLevel, prng);
 
-        // NOTE: This is a simplified comparison. A real implementation would need to
-        // navigate the complex, game-specific structures of the stimulus objects.
-        // For this example, we'll compare a key field if it exists.
-        const expectedStimulus = recordedTrial.stimulusParams;
-        
-        // This is a naive comparison and would need to be much more robust
-        if (JSON.stringify(regeneratedStimulus) !== JSON.stringify(expectedStimulus)) {
+        // This comparison logic needs to be robust and game-specific.
+        // For now, we'll do a JSON stringify comparison which is brittle but sufficient for this test.
+        // A real implementation might use a game-specific comparator function.
+        if (JSON.stringify(regeneratedStimulusParams) !== JSON.stringify(recordedTrial.stimulusParams)) {
             mismatches.push({
                 trialIndex: i,
-                field: 'full_stimulus_object',
-                expected: expectedStimulus,
-                generated: regeneratedStimulus
+                field: 'stimulusParams',
+                expected: recordedTrial.stimulusParams,
+                generated: regeneratedStimulusParams,
             });
         }
     }
@@ -83,11 +68,10 @@ export async function replayAndValidateSession(sessionData: ReplayInput): Promis
         return { valid: false, mismatches };
     }
 
-    console.log(`[REPLAY] PASS: All ${sessionData.trials.length} trials were deterministically reproduced.`);
+    console.log(`[REPLAY] PASS: All ${recordedTrials.length} trials were deterministically reproduced.`);
     return { valid: true, mismatches: [] };
 }
 
 if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
     (window as any).cognitune_replaySession = replayAndValidateSession;
-    console.log("Replay validator `cognitune_replaySession(sessionData)` is available.");
 }

@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { create } from 'zustand';
@@ -13,7 +14,7 @@ type PerformanceState = {
     gameStates: Record<string, AdaptiveState>;
     globalTier: TierSelection;
     isHydrated: boolean;
-    failedWrites: TrialRecord[]; // In-memory buffer for failed writes
+    failedWrites: TrialRecord[];
 };
 
 type PerformanceActions = {
@@ -23,7 +24,7 @@ type PerformanceActions = {
     setGlobalTier: (tier: TierSelection) => void;
     hydrate: () => Promise<void>;
     logTrial: (record: TrialRecord) => Promise<void>;
-    flushFailedWrites: () => Promise<void>; // New action for flushing buffer
+    flushFailedWrites: () => Promise<void>;
     exportData: () => Promise<string>;
     importData: (json: string) => Promise<void>;
     clearAllData: () => Promise<void>;
@@ -46,6 +47,8 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
                         newGameStates[profile.id] = profile.state;
                     }
                     set({ gameStates: newGameStates, isHydrated: true });
+                    // On hydration, try to flush any writes that failed from the last session
+                    get().flushFailedWrites();
                 } catch (e) {
                     console.error("Hydration from IndexedDB failed. The app may be in an environment where IndexedDB is not available.", e);
                     set({ isHydrated: true });
@@ -105,31 +108,31 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
                 console.log(`[Storage] Flushing ${buffered.length} buffered trial records...`);
                 try {
                     await idbStore.logTrialBatch(buffered);
-                    set({ failedWrites: [] }); // Clear buffer on success
+                    set({ failedWrites: [] });
                     console.log(`[Storage] Flush successful.`);
                 } catch (error) {
                     console.error("[Storage] Critical: Failed to flush telemetry buffer. Data may be lost.", error);
-                    // Decide on a strategy: keep trying, or drop after N failures? For now, we keep them.
                 }
             },
 
             logTrial: async (record) => {
+                 // First, try to log the new record. This may trigger an eviction run.
                 try {
-                    // Try flushing any previously failed writes first.
-                    await get().flushFailedWrites();
-                    
-                    // Now, log the new record. This may trigger eviction based on the state BEFORE adding the buffer.
                     await idbStore.logTrial(record);
                 } catch (error) {
                     console.warn("[Storage] IDB write failed. Buffering trial record.", error);
                     set(state => {
                         state.failedWrites.push(record);
-                        // Safety cap to prevent unbounded memory usage
                         if (state.failedWrites.length > 500) {
                             console.warn(`[Storage] In-memory buffer full. Dropping oldest trial record.`);
                             state.failedWrites.shift(); 
                         }
                     });
+                }
+                // After the new record is handled, try flushing any older failed writes.
+                // This prevents a flush from triggering an eviction that deletes the record we just added.
+                if (get().failedWrites.length > 0) {
+                    await get().flushFailedWrites();
                 }
             },
 

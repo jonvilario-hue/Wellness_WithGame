@@ -1,4 +1,5 @@
 
+
 'use client';
 
 // This file is the single source of truth for all shared types in the application.
@@ -19,9 +20,10 @@ export type GameId =
 
 // --- Local Cache & Telemetry ---
 export interface TrialRecord {
-  id: string; // UUID for the trial
+  id: string; // UUID for the trial, e.g. `gwm-verbal-1672531200000-5`
   sessionId: string;
   gameId: GameId;
+  schemaVersion: 2; // For backward compatibility
   trialIndex: number;
   condition?: string;
   stimulusParams: Record<string, any>;
@@ -33,7 +35,9 @@ export interface TrialRecord {
   difficultyLevel: number;
   deviceInfo?: any;
   timestamp: number;
-  pausedDurationMs?: number; // Audit 3.6
+  pausedDurationMs?: number;
+  wasFallback?: boolean; // True if the stimulus was a fallback
+  legacy?: boolean; // True if this record was normalized from an older schema
 }
 
 
@@ -44,7 +48,7 @@ export type TierSelection = Tier | 4; // 4 represents "Automatic"
 export interface TrialResult {
   correct: boolean;
   reactionTimeMs: number;
-  telemetry: Record<string, any>; // Flexible object for module-specific data
+  telemetry: Record<string, any>;
   stimulusOnsetTs?: number; 
   responseTs?: number;
 }
