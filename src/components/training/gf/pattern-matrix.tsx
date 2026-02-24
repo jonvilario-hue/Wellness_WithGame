@@ -16,6 +16,7 @@ import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types"
 import { morphologyWordPairs } from "@/data/verbal-content";
 import { GameStub } from "../game-stub";
 import { RuleInductionEngine } from '../logic/rule-induction-engine';
+import { logTrialResult } from "@/lib/analytics";
 
 const GAME_ID: GameId = 'gf_pattern_matrix';
 const policy = difficultyPolicies[GAME_ID];
@@ -245,10 +246,12 @@ export function PatternMatrix() {
                 distractorCount: puzzle.options.length,
             }
         };
-        setSessionTrials(prev => [...prev, trialResult]);
+
+        logTrialResult(GAME_ID, adaptiveState.currentLevel, trialResult);
         
         const newState = adjustDifficulty(trialResult, adaptiveState, policy);
         setAdaptiveState(newState);
+        setSessionTrials(prev => [...prev, trialResult]);
 
         setFeedback(isCorrect ? getSuccessFeedback('Gf') : getFailureFeedback('Gf'));
 

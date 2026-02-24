@@ -23,7 +23,7 @@ export type TierSelection = Tier | 4; // 4 represents "Automatic"
 export interface TrialResult {
   correct: boolean;
   reactionTimeMs: number;
-  telemetry?: Record<string, any>;
+  telemetry: Record<string, any>; // Flexible object for module-specific data
 }
 
 export interface AdaptiveState {
