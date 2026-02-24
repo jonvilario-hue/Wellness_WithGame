@@ -323,5 +323,3 @@ export function DynamicSequenceTransformer() {
     </Card>
   );
 }
-
-    

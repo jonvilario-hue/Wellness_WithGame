@@ -46,7 +46,7 @@ export const useAudioEngine = () => {
         osc.frequency.setValueAtTime(freq, time);
         
         gainNode.gain.setValueAtTime(0, time);
-        gainNode.gain.linearRampToValueAtTime(1, time + 0.01); // 10ms attack
+        gainNode.gain.linearRampToValueAtTime(0.5, time + 0.01); // 10ms attack, lowered volume
         gainNode.gain.linearRampToValueAtTime(0, time + duration - 0.01); // 10ms release
 
         osc.connect(gainNode);
@@ -84,10 +84,10 @@ export const useAudioEngine = () => {
             osc.frequency.setValueAtTime(freq, time);
             
             gainNode.gain.setValueAtTime(0, time);
-            gainNode.gain.linearRampToValueAtTime(1, time + 0.01); // 10ms attack
+            gainNode.gain.linearRampToValueAtTime(0.5, time + 0.01); // 10ms attack, lowered volume
             const releaseTime = time + intervalSeconds - 0.02;
             if (releaseTime > time) {
-                gainNode.gain.setValueAtTime(1, releaseTime);
+                gainNode.gain.setValueAtTime(0.5, releaseTime);
                 gainNode.gain.linearRampToValueAtTime(0, time + intervalSeconds - 0.01);
             }
             

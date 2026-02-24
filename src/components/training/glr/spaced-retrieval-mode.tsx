@@ -90,7 +90,7 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
         if (!state) return;
 
         const pairsToReview = getDueReviewPairs();
-        if (pairsToReview.length > 0 && focus !== 'music') {
+        if (pairsToReview.length > 0) {
             setDuePairs(pairsToReview);
             setPhase('recall');
         } else {
