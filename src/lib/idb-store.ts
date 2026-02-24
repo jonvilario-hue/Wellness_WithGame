@@ -10,6 +10,7 @@ let db: IDBDatabase | null = null;
 const EVICTION_CONFIG = {
     maxTrials: 10000,
     checkInterval: 20, // Run eviction check every 20 writes
+    batchDeleteSize: 500, // Number of records to delete at a time
 };
 let writeCounter = 0;
 
@@ -35,7 +36,6 @@ const openDB = (): Promise<IDBDatabase> => {
       if (!dbInstance.objectStoreNames.contains('trials')) {
         const trialStore = dbInstance.createObjectStore('trials', { keyPath: 'id' });
         trialStore.createIndex('sessionId', 'sessionId', { unique: false });
-        trialStore.createIndex('gameId', 'gameId', { unique: false });
         trialStore.createIndex('timestamp', 'timestamp', { unique: false });
       }
       if (!dbInstance.objectStoreNames.contains('profiles')) {
@@ -73,9 +73,12 @@ const runEviction = async (db: IDBDatabase) => {
     if (count > EVICTION_CONFIG.maxTrials) {
         let cursor = await promisifyRequest(store.index('timestamp').openCursor());
         const toDelete = count - EVICTION_CONFIG.maxTrials;
-        console.log(`[Storage Eviction] Store count (${count}) exceeds max (${EVICTION_CONFIG.maxTrials}). Deleting ${toDelete} oldest trials.`);
-        for (let i = 0; i < toDelete && cursor; i++) {
+        console.log(`[Storage Eviction] Store count (${count}) exceeds max (${EVICTION_CONFIG.maxTrials}). Deleting oldest ${toDelete > EVICTION_CONFIG.batchDeleteSize ? EVICTION_CONFIG.batchDeleteSize : toDelete} trials.`);
+        
+        let deletedCount = 0;
+        while (cursor && deletedCount < EVICTION_CONFIG.batchDeleteSize) {
             store.delete(cursor.primaryKey);
+            deletedCount++;
             cursor = await promisifyRequest(cursor.continue());
         }
     }
@@ -86,7 +89,7 @@ export const logTrial = async (trial: TrialRecord): Promise<void> => {
   const tx = db.transaction(['trials'], 'readwrite');
   const store = tx.objectStore('trials');
   
-  await promisifyRequest(store.add(trial));
+  await promisifyRequest(store.put(trial)); // Use put instead of add to be idempotent
   
   writeCounter++;
   if (writeCounter % EVICTION_CONFIG.checkInterval === 0) {
@@ -171,3 +174,37 @@ export const clearAllData = async (): Promise<void> => {
     tx.objectStoreNames.contains('sessions') ? promisifyRequest(tx.objectStore('sessions').clear()) : Promise.resolve(),
   ]);
 };
+
+// --- Development-only tools ---
+export async function simulateStorageLoad(sessionCount: number, trialsPerSession: number) {
+    if (process.env.NODE_ENV !== 'development') return;
+
+    console.log(`[VALIDATION] Simulating load: ${sessionCount} sessions, ${trialsPerSession} trials each...`);
+    const totalTrials = sessionCount * trialsPerSession;
+
+    for (let i = 0; i < totalTrials; i++) {
+        const mockTrial: TrialRecord = {
+            id: `sim-${Date.now()}-${i}`,
+            sessionId: `sim-session-${Math.floor(i / trialsPerSession)}`,
+            gameId: 'gf_pattern_matrix',
+            trialIndex: i % trialsPerSession,
+            correct: Math.random() > 0.5,
+            rtMs: 500 + Math.random() * 1000,
+            timestamp: Date.now() - (totalTrials - i) * 2000,
+            difficultyLevel: 1,
+            stimulusParams: {},
+            stimulusOnsetTs: 0,
+            responseTs: 0,
+            responseType: 'n/a',
+        };
+        await logTrial(mockTrial);
+        if (i > 0 && i % 1000 === 0) {
+           console.log(`... ${i} trials written.`);
+        }
+    }
+    console.log(`[VALIDATION] Load simulation complete. Check IndexedDB 'trials' store count.`);
+};
+
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+    (window as any).cognitune_simulateStorageLoad = simulateStorageLoad;
+}

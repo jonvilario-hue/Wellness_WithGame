@@ -81,7 +81,7 @@ export class PRNG {
 /**
  * A session-scoped utility to sample items from a list of categories
  * in a shuffled round-robin fashion, ensuring all categories are visited
- * before any are repeated.
+ * before any are repeated. This is a selectable strategy for stimulus generation.
  */
 export class CategorySampler {
     private categories: string[];

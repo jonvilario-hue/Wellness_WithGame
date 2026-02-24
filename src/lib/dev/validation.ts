@@ -20,11 +20,9 @@ export function validateDeterminism(mode: 'verbal' | 'math', seed: string, trial
 
     console.log(`[VALIDATION] Running determinism check for mode: ${mode}, seed: "${seed}", trials: ${trialCount}`);
     
-    // In a real app, you would have a map of factories per mode.
-    // For this case, we'll hardcode the verbal factory for the check.
     if (mode !== 'verbal') {
         console.warn(`[VALIDATION] No stimulus factory registered for mode '${mode}'. Skipping.`);
-        return true; // Cannot fail if not implemented
+        return true; 
     }
 
     const prng1 = new PRNG(seed);
@@ -32,7 +30,6 @@ export function validateDeterminism(mode: 'verbal' | 'math', seed: string, trial
     const results1 = [];
     const results2 = [];
 
-    // This is a simplified check. A full check would call the game-specific generator.
     const generator = verbalFactory.generateVerbalSequence;
 
     for (let i = 0; i < trialCount; i++) {
@@ -50,6 +47,15 @@ export function validateDeterminism(mode: 'verbal' | 'math', seed: string, trial
     }
 
     console.log(`[VALIDATION] Determinism PASS: All ${trialCount} generated stimuli were identical for mode '${mode}'.`);
+    
+    const prng3 = new PRNG(seed + "-alt");
+    const result3 = generator(5, prng3);
+    if(JSON.stringify(results1[0]) === JSON.stringify(result3)) {
+        console.error(`[VALIDATION] Determinism FAIL: Different seeds produced identical output.`);
+        return false;
+    }
+    console.log(`[VALIDATION] Determinism PASS: Different seeds produced different stimuli.`);
+
     return true;
 }
 
