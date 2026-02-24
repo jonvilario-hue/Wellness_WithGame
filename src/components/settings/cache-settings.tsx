@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useRef, useState } from 'react';
@@ -17,39 +18,38 @@ import {
 } from '@/components/ui/alert-dialog';
 
 export function CacheSettings() {
-  const { trialLog, gameStates, clearLog, importLog } = usePerformanceStore();
+  const { exportData, importData, clearAllData } = usePerformanceStore();
   const fileRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState<{type: 'success' | 'error', msg: string} | null>(null);
 
-  const handleExport = () => {
-    const payload = {
-      exportedAt: new Date().toISOString(),
-      version: 1,
-      gameStates: gameStates,
-      trialLog: trialLog,
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `cognitive-crucible-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    setStatus({ type: 'success', msg: 'Cache exported successfully.' });
+  const handleExport = async () => {
+    try {
+        const json = await exportData();
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `cognitune-backup-${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        setStatus({ type: 'success', msg: 'Data exported successfully.' });
+    } catch (e) {
+        console.error(e);
+        setStatus({ type: 'error', msg: 'Failed to export data.' });
+    }
   };
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       try {
-        const data = JSON.parse(evt.target?.result as string);
-        if (!data.gameStates || !data.trialLog) throw new Error('Invalid format');
-        importLog({ gameStates: data.gameStates, trialLog: data.trialLog });
-        setStatus({ type: 'success', msg: `Imported ${data.trialLog.length} trials.` });
+        const json = evt.target?.result as string;
+        await importData(json);
+        setStatus({ type: 'success', msg: 'Data imported successfully.' });
       } catch {
         setStatus({ type: 'error', msg: 'Invalid backup file.' });
       }
@@ -60,31 +60,23 @@ export function CacheSettings() {
     }
   };
 
-  const handleClear = () => {
-    clearLog();
-    setStatus({ type: 'success', msg: 'Cache cleared and all levels reset.' });
+  const handleClear = async () => {
+    try {
+        await clearAllData();
+        setStatus({ type: 'success', msg: 'All local data has been cleared.' });
+    } catch (e) {
+        console.error(e);
+        setStatus({ type: 'error', msg: 'Failed to clear data.' });
+    }
   };
 
   return (
     <div className="w-full max-w-lg bg-background rounded-2xl border p-6 space-y-6">
         <div>
-          <h2 className="text-xl font-bold text-foreground">Data Cache Settings</h2>
+          <h2 className="text-xl font-bold text-foreground">Local Data Management</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            All trial data is stored locally on this device. Export to back up, import to restore, or clear to start fresh.
+            All your training data is stored securely on this device in your browser's IndexedDB. You can export it for backup or import it to another device.
           </p>
-        </div>
-
-        <div className="bg-muted/50 rounded-xl p-4 space-y-1">
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Cached trials</span>
-            <span className="font-mono text-foreground">{trialLog.length}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Modules with data</span>
-            <span className="font-mono text-foreground">
-              {new Set(trialLog.map((t) => t.module_id)).size} / 8
-            </span>
-          </div>
         </div>
 
         <div className="space-y-3">
@@ -93,7 +85,7 @@ export function CacheSettings() {
             className="w-full"
           >
             <Download className="w-4 h-4 mr-2" />
-            Export Cache as JSON
+            Export All Data
           </Button>
 
           <Button
@@ -113,14 +105,14 @@ export function CacheSettings() {
                     className="w-full"
                 >
                     <Trash2 className="w-4 h-4 mr-2" />
-                    Clear All Cached Data
+                    Clear All Data
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
                     <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                     <AlertDialogDescription>
-                        This action cannot be undone. This will permanently delete all your locally stored trial data and reset your progress levels for all games.
+                        This will permanently delete all training sessions, trial logs, and adaptive difficulty profiles from this browser. This action cannot be undone.
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

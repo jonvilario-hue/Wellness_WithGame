@@ -1,129 +1,135 @@
+
 'use client';
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
-import type { GameId, Tier, AdaptiveState, TrainingFocus, TierSelection, TrialRecord } from '@/types';
-import { getDefaultState } from '@/lib/adaptive-engine';
-import { DOMAIN_META } from '@/lib/domain-constants';
+import type { GameId, TrialRecord, TrainingFocus } from '@/types';
+import type { GameProfile, SessionSummary, LatencyInfo } from '@/types/local-store';
+import * as idbStore from '@/lib/idb-store';
+import * as aggregator from '@/lib/local-aggregator';
 
-const allDomainIds = Object.values(DOMAIN_META).map(meta => meta.id);
-
-// The key is now a composite: `${GameId}/${TrainingFocus}`
-export type GameStateKey = `${GameId}/${TrainingFocus}`;
-
-type PerformanceStateData = {
-  globalTier: TierSelection;
-  gameStates: Record<GameStateKey, AdaptiveState>;
-  trialLog: TrialRecord[];
+type PerformanceState = {
+    activeSessionId: string | null;
+    profiles: Record<string, GameProfile>;
 };
 
 type PerformanceActions = {
-  setGlobalTier: (tier: TierSelection) => void;
-  setGameTier: (gameId: GameId, focus: TrainingFocus, tier: Tier) => void;
-  getAdaptiveState: (gameId: GameId, focus: TrainingFocus) => AdaptiveState;
-  updateAdaptiveState: (gameId: GameId, focus: TrainingFocus, newState: AdaptiveState) => void;
-  resetGameToTierDefault: (gameId: GameId, focus: TrainingFocus) => void;
-  logTrial: (record: Omit<TrialRecord, 'id' | 'timestamp'>) => void;
-  clearLog: () => void;
-  importLog: (data: { gameStates: Record<GameStateKey, AdaptiveState>; trialLog: TrialRecord[] }) => void;
+    // Game Lifecycle
+    startSession: (gameId: GameId, mode: TrainingFocus, deviceInfo: LatencyInfo) => Promise<{ sessionId: string, difficulty: number }>;
+    logTrial: (record: Omit<TrialRecord, 'id' | 'sessionId' | 'timestamp'>) => Promise<void>;
+    endSession: () => Promise<void>;
+
+    // Data Management
+    exportData: () => Promise<string>;
+    importData: (json: string) => Promise<void>;
+    clearAllData: () => Promise<void>;
+    
+    // Profile access
+    getProfile: (gameId: GameId) => GameProfile | null;
 };
 
-const initialGameStates = (): Record<GameStateKey, AdaptiveState> => {
-  const state: Partial<Record<GameStateKey, AdaptiveState>> = {};
-  for (const domainId of allDomainIds) {
-    const key: GameStateKey = `${domainId}/neutral`;
-    state[key] = getDefaultState(domainId, 1);
-  }
-  return state as Record<GameStateKey, AdaptiveState>;
-};
+export const usePerformanceStore = create<PerformanceState & PerformanceActions>()(
+    persist(
+        immer((set, get) => ({
+            activeSessionId: null,
+            profiles: {},
 
-export const usePerformanceStore = create<PerformanceStateData & PerformanceActions>()(
-  persist(
-    immer((set, get) => ({
-      globalTier: 4,
-      gameStates: initialGameStates(),
-      trialLog: [],
-      
-      setGlobalTier: (tier) => {
-        set({ globalTier: tier });
-      },
+            startSession: async (gameId, mode, deviceInfo) => {
+                await idbStore.initDB();
+                const profile = await idbStore.getProfile(gameId) || {
+                    gameId,
+                    currentDifficulty: 1,
+                    rollingAccuracy: 0,
+                    rollingMeanRt: 0,
+                    lastPlayedTimestamp: 0,
+                    sessionsCompleted: 0
+                };
+                
+                set(state => { state.profiles[gameId] = profile; });
+                
+                const sessionId = await idbStore.startSession({
+                    gameId,
+                    mode,
+                    deviceInfo,
+                    startTimestamp: Date.now()
+                });
 
-      setGameTier: (gameId, focus, tier) => {
-        set((state) => {
-            const key: GameStateKey = `${gameId}/${focus}`;
-            state.gameStates[key] = getDefaultState(gameId, tier);
-        });
-      },
+                set({ activeSessionId: sessionId });
 
-      getAdaptiveState: (gameId, focus) => {
-        const key: GameStateKey = `${gameId}/${focus}`;
-        const gameStates = get().gameStates;
-        const existingState = gameStates[key];
+                return { sessionId, difficulty: profile.currentDifficulty };
+            },
 
-        if (existingState) {
-          return existingState;
+            logTrial: async (record) => {
+                const sessionId = get().activeSessionId;
+                if (!sessionId) {
+                    console.error("Cannot log trial: no active session.");
+                    return;
+                }
+                const trial: TrialRecord = {
+                    ...record,
+                    id: crypto.randomUUID(),
+                    sessionId,
+                    timestamp: Date.now(),
+                };
+                await idbStore.logTrial(trial);
+            },
+
+            endSession: async () => {
+                const sessionId = get().activeSessionId;
+                const profiles = get().profiles;
+
+                if (!sessionId) {
+                    console.error("Cannot end session: no active session.");
+                    return;
+                }
+
+                const trials = await idbStore.getTrials(sessionId);
+                const sessionRecord = await idbStore.getRecentSessions(trials[0]?.gameId, 1);
+                const gameId = sessionRecord[0]?.gameId;
+                
+                if (!gameId) {
+                     console.error("Could not find gameId for session.");
+                     set({ activeSessionId: null });
+                     return;
+                }
+
+                const currentProfile = profiles[gameId];
+                const summary = aggregator.computeSessionSummary(trials, currentProfile.currentDifficulty);
+                
+                await idbStore.endSession(sessionId, summary);
+
+                const recentSessions = await idbStore.getRecentSessions(gameId, 10);
+                const newProfile = aggregator.updateGameProfile(gameId, currentProfile, recentSessions, summary);
+
+                await idbStore.setProfile(newProfile);
+                set(state => {
+                    state.profiles[gameId] = newProfile;
+                    state.activeSessionId = null;
+                });
+            },
+            
+            getProfile: (gameId) => {
+                return get().profiles[gameId] || null;
+            },
+
+            exportData: idbStore.exportAllData,
+            importData: idbStore.importData,
+            clearAllData: async () => {
+                await idbStore.clearAllData();
+                set({ profiles: {}, activeSessionId: null });
+            },
+
+        })),
+        {
+            name: 'cognitune-performance-store-v1',
+            storage: createJSONStorage(() => localStorage),
+            partialize: (state) => ({ profiles: state.profiles }), // Only persist profiles, not session ID
         }
-
-        const neutralKey: GameStateKey = `${gameId}/neutral`;
-        const neutralState = gameStates[neutralKey] || getDefaultState(gameId, 1);
-        const newModeDefaultState = getDefaultState(gameId, neutralState.tier as Tier);
-        const seededLevel = Math.max(newModeDefaultState.levelFloor, neutralState.currentLevel - 3);
-        
-        const transientState: AdaptiveState = {
-            ...newModeDefaultState,
-            currentLevel: seededLevel,
-            lastFocus: focus,
-            uncertainty: 0.8, 
-        };
-
-        return transientState;
-      },
-
-      updateAdaptiveState: (gameId, focus, newState) => {
-        set(state => {
-            const key: GameStateKey = `${gameId}/${focus}`;
-            state.gameStates[key] = newState;
-        });
-      },
-      
-      resetGameToTierDefault: (gameId, focus) => {
-         set(state => {
-            const key: GameStateKey = `${gameId}/${focus}`;
-            const gameTier = state.gameStates[key]?.tier ?? state.globalTier;
-            const finalTier = gameTier === 4 ? 1 : gameTier;
-            state.gameStates[key] = getDefaultState(gameId, finalTier);
-         });
-      },
-
-      logTrial: (record) => {
-        const newRecord: TrialRecord = {
-          ...record,
-          id: crypto.randomUUID(),
-          timestamp: Date.now(),
-        };
-        set((state) => {
-          state.trialLog.push(newRecord);
-        });
-      },
-
-      clearLog: () => set({ trialLog: [], gameStates: initialGameStates() }),
-
-      importLog: (data) => {
-        if (data.gameStates && data.trialLog) {
-            const existingTrialIds = new Set(get().trialLog.map(t => t.id));
-            const newTrials = data.trialLog.filter(t => !existingTrialIds.has(t.id));
-
-            set({
-                gameStates: { ...get().gameStates, ...data.gameStates },
-                trialLog: [...get().trialLog, ...newTrials],
-            });
-        }
-      },
-    })),
-    {
-      name: 'chc-performance-cache-v3-final',
-      storage: createJSONStorage(() => localStorage),
-    }
-  )
+    )
 );
+
+// Initialize DB on load
+if (typeof window !== 'undefined') {
+    idbStore.initDB();
+}
