@@ -9,7 +9,7 @@ import type { TrainingFocus, AdaptiveState, TrialResult, GameId } from "@/types"
 import { useGlrStore, type SpacedPair } from "@/hooks/use-glr-store";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { mathWordList, musicWordList, generalWordList, verbalWordList } from "@/data/verbal-content";
-import { adjustDifficulty, startSession } from "@/lib/adaptive-engine";
+import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import { useAudioEngine } from "@/hooks/use-audio-engine";
 
@@ -203,6 +203,3 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
         </div>
     );
 }
-
-
-    

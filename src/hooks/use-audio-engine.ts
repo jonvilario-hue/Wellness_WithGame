@@ -70,7 +70,7 @@ export const useAudioEngine = () => {
         
     }, [context]);
     
-    const playSequence = useCallback((notes: (string | number)[], intervalMs: number, onEnd?: () => void) => {
+    const playSequence = useCallback((notes: (string | number)[], intervalSeconds: number, onEnd?: () => void) => {
         if (!context) { onEnd?.(); return; }
         
         let time = context.currentTime + 0.1; // Small delay to ensure scheduling
@@ -84,25 +84,27 @@ export const useAudioEngine = () => {
             osc.frequency.setValueAtTime(freq, time);
             
             gainNode.gain.setValueAtTime(0, time);
-            gainNode.gain.linearRampToValueAtTime(1, time + 0.01);
-            gainNode.gain.linearRampToValueAtTime(0, time + intervalMs - 0.01);
-
+            gainNode.gain.linearRampToValueAtTime(1, time + 0.01); // 10ms attack
+            const releaseTime = time + intervalSeconds - 0.02;
+            if (releaseTime > time) {
+                gainNode.gain.setValueAtTime(1, releaseTime);
+                gainNode.gain.linearRampToValueAtTime(0, time + intervalSeconds - 0.01);
+            }
+            
             osc.connect(gainNode);
             gainNode.connect(context.destination);
             
             osc.start(time);
-            osc.stop(time + intervalMs);
+            osc.stop(time + intervalSeconds);
 
-            time += intervalMs;
+            time += intervalSeconds;
         });
 
         if (onEnd) {
-            const totalDuration = (time - context.currentTime) * 1000;
+            const totalDuration = (time - (context.currentTime + 0.1) + 0.1) * 1000;
             setTimeout(onEnd, totalDuration);
         }
     }, [context]);
 
     return { playTone, playSequence, resumeContext, isAudioReady };
 };
-
-    

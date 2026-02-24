@@ -80,7 +80,7 @@ const getNextInSequence = <T,>(val: T, collection: T[]) => {
 };
 
 const generatePuzzleForLevel = (level: number, focus: GameVariant) => {
-    const levelDef = policy.levelMap[level] || policy.levelMap[20];
+    const levelDef = policy.levelMap[level] || policy.levelMap[Object.keys(policy.levelMap).pop() as any];
     const { mechanic_config, content_config } = levelDef;
     const size = mechanic_config.gridSize === "3x3" ? 3 : 2;
     
@@ -245,7 +245,7 @@ export function PatternMatrix() {
      useEffect(() => {
         if (gameState === 'playing' && puzzle && puzzle.type === 'music') {
             const allNotes = puzzle.grid.filter(Boolean).map((p: any) => p.notes[0]);
-            playSequence(allNotes, 0.25);
+            playSequence(allNotes, 0.3);
         }
     }, [gameState, puzzle, playSequence]);
 
@@ -466,5 +466,3 @@ export function PatternMatrix() {
     </Card>
   );
 }
-
-    
