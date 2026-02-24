@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,9 +12,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Loader2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight } from 'lucide-react';
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
-import type { AdaptiveState, TrialResult, GameId } from "@/types";
+import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
 import { GameStub } from "../game-stub";
-import { RuleSwitcher } from '../logic/rule-switcher';
 
 const GAME_ID: GameId = 'ef_focus_switch';
 const policy = difficultyPolicies[GAME_ID];
@@ -38,25 +36,14 @@ const arrowMap: Record<ArrowDir, React.ElementType> = {
 };
 
 type NeutralRule = 'position' | 'arrow' | 'no_go';
-
-// Other modes remain unchanged
-type MathRule = 'parity' | 'magnitude' | 'digit_sum' | 'no_go';
-type MusicRule = 'pitch_direction' | 'rhythm_evenness' | 'harmony_quality' | 'timbre_family' | 'no_go';
-type VerbalRule = 'rhyme' | 'category' | 'no_go';
+type MathRule = 'parity' | 'magnitude' | 'no_go';
 
 type Stimulus = {
     // Neutral
     position?: Position;
     arrow?: ArrowDir;
-    // Other modes
-    word?: string;
-    color?: string;
+    // Math
     value?: number;
-    pitch?: number;
-    rhythm?: number[];
-    harmony?: string;
-    timbre?: string;
-    category?: 'animal' | 'object';
 };
 
 
@@ -70,8 +57,8 @@ export function FocusSwitchReactor() {
   const [sessionTrials, setSessionTrials] = useState<TrialResult[]>([]);
   
   const [score, setScore] = useState(0);
-  const [rule, setRule] = useState<NeutralRule | MathRule | MusicRule | VerbalRule>('position');
-  const [stimulus, setStimulus] = useState<Partial<Stimulus>>({ position: 'top', arrow: 'up' });
+  const [rule, setRule] = useState<NeutralRule | MathRule>('position');
+  const [stimulus, setStimulus] = useState<Partial<Stimulus>>({});
   const [inlineFeedback, setInlineFeedback] = useState({ message: '', type: '' });
   const [shuffledOptions, setShuffledOptions] = useState<any[]>([]);
 
@@ -99,16 +86,16 @@ export function FocusSwitchReactor() {
     const state = adaptiveState;
     if (!state) return;
     
-    // Non-neutral modes remain unchanged...
-    
     if (currentMode === 'neutral') {
         const positions: Position[] = ['top', 'bottom', 'left', 'right'];
         const arrows: ArrowDir[] = ['up', 'down', 'left', 'right'];
         const newPosition = positions[Math.floor(Math.random() * positions.length)];
         const newArrow = arrows[Math.floor(Math.random() * arrows.length)];
         setStimulus({ position: newPosition, arrow: newArrow });
+    } else if (currentMode === 'math') {
+        const newValue = Math.floor(Math.random() * 99) + 1; // 1-99
+        setStimulus({ value: newValue });
     }
-    // Other mode stimulus generation logic would go here
   }, [adaptiveState, currentMode]);
 
 
@@ -122,8 +109,18 @@ export function FocusSwitchReactor() {
     const levelDef = policy.levelMap[loadedLevel] || policy.levelMap[20];
     const { mechanic_config } = levelDef;
     
-    let availableRules: any[] = ['position', 'arrow'];
-    if(mechanic_config.noGo) availableRules.push('no_go');
+    let availableRules: any[] = [];
+    let options: any[] = [];
+
+    if (currentMode === 'neutral') {
+        availableRules = ['position', 'arrow'];
+        options = ['up', 'down', 'left', 'right'];
+    } else if (currentMode === 'math') {
+        availableRules = ['parity', 'magnitude'];
+        options = ['left', 'right'];
+    }
+    
+    if (mechanic_config.noGo) availableRules.push('no_go');
 
     let newRule = ruleRef.current;
     
@@ -133,12 +130,6 @@ export function FocusSwitchReactor() {
       ruleSwitchCounter.current = 0;
     }
     setRule(newRule as any);
-
-    let options: any[] = [];
-    if(currentMode === 'neutral') {
-        options = ['up', 'down', 'left', 'right'];
-    }
-    // other modes' options...
     
     setShuffledOptions([...options].sort(() => Math.random() - 0.5));
 
@@ -188,7 +179,7 @@ export function FocusSwitchReactor() {
     }, 2000);
   }, [gameState, adaptiveState, sessionTrials, updateAdaptiveState, startNewTrial, currentMode]);
   
-  const handleAnswer = useCallback((answer: ArrowDir) => {
+  const handleAnswer = useCallback((answer: any) => {
     if (gameState !== 'running' || !stimulus) return;
     
     if (rule === 'no_go') {
@@ -204,8 +195,13 @@ export function FocusSwitchReactor() {
         } else { // rule is 'arrow'
             isCorrect = (answer === stimulus.arrow);
         }
-    } 
-    // other modes' answer logic...
+    } else if (currentMode === 'math') {
+        if (rule === 'parity') {
+            isCorrect = (answer === (stimulus.value! % 2 === 0 ? 'left' : 'right'));
+        } else { // rule is 'magnitude'
+            isCorrect = (answer === (stimulus.value! > 50 ? 'left' : 'right'));
+        }
+    }
     
     processNextTurn(isCorrect);
   }, [gameState, rule, processNextTurn, currentMode, stimulus]);
@@ -228,19 +224,23 @@ export function FocusSwitchReactor() {
 
   const getRuleText = () => {
       let text = '';
-      if (rule === 'position') text = 'Respond to the SHAPE\'S LOCATION';
-      if (rule === 'arrow') text = 'Respond to the ARROW\'S DIRECTION';
-      // other mode rules...
+      if (currentMode === 'neutral') {
+        if (rule === 'position') text = 'Respond to the SHAPE\'S LOCATION';
+        if (rule === 'arrow') text = 'Respond to the ARROW\'S DIRECTION';
+      } else if (currentMode === 'math') {
+        if (rule === 'parity') text = 'LEFT for EVEN, RIGHT for ODD';
+        if (rule === 'magnitude') text = 'LEFT for > 50, RIGHT for <= 50';
+      }
       if (rule === 'no_go') text = "DON'T RESPOND";
       
       return <span className="font-bold text-primary uppercase">{text}</span>;
   }
   
-  if (currentMode !== 'neutral') { // Stub out other modes for now
+  if (currentMode !== 'neutral' && currentMode !== 'math') {
      return <GameStub 
       name="Focus Switch Reactor"
       chcFactor="Executive Function (EF)"
-      description="This game has different variants for Math, Music, Verbal, Spatial, EQ and Logic modes."
+      description="This game has different variants for Music, Verbal, Spatial, EQ and Logic modes."
       techStack={['DOM']}
       complexity="Medium"
       fallbackPlan="N/A"
@@ -275,14 +275,21 @@ export function FocusSwitchReactor() {
                 <span>Trial: {currentTrialIndex.current + 1} / {policy.sessionLength}</span>
                 <span>Score: {score}</span>
               </div>
-              <div className={cn("p-8 bg-muted rounded-lg w-full h-48 flex", stimulus.position ? positionClasses[stimulus.position] : 'items-center justify-center')}>
-                {stimulus.arrow && (
-                    <div className="w-20 h-20 bg-background rounded-md flex items-center justify-center">
-                        {React.createElement(arrowMap[stimulus.arrow], { className: "w-16 h-16 text-primary" })}
-                    </div>
-                )}
+              <div className="relative p-8 bg-muted rounded-lg w-full h-48 flex items-center justify-center">
+                  <div className={cn("absolute inset-0 flex", stimulus.position ? positionClasses[stimulus.position] : 'items-center justify-center')}>
+                    {currentMode === 'neutral' && stimulus.arrow && (
+                        <div className="w-20 h-20 bg-background rounded-md flex items-center justify-center">
+                            {React.createElement(arrowMap[stimulus.arrow], { className: "w-16 h-16 text-primary" })}
+                        </div>
+                    )}
+                    {currentMode === 'math' && stimulus.value !== undefined && (
+                        <div className="text-7xl font-bold text-primary">
+                            {stimulus.value}
+                        </div>
+                    )}
+                  </div>
               </div>
-              <p className="text-xl mb-4">Rule: {getRuleText()}</p>
+              <p className="text-xl mb-4 h-12 flex items-center text-center">Rule: {getRuleText()}</p>
                <div className="h-6 text-sm font-semibold">
                 {inlineFeedback.message && (
                   <p className={cn(
@@ -294,11 +301,11 @@ export function FocusSwitchReactor() {
                 )}
               </div>
               <div className="grid grid-cols-4 gap-4 w-full max-w-sm">
-                {(shuffledOptions as ArrowDir[]).map((dir) => {
-                  const Icon = arrowMap[dir];
+                {(shuffledOptions as any[]).map((option) => {
+                  const Icon = arrowMap[option as ArrowDir] || (() => <div className="w-10 h-10" />);
                   return (
-                      <Button key={dir} onClick={() => handleAnswer(dir)} disabled={gameState === 'feedback'} variant="secondary" size="lg" className="h-20">
-                        <Icon className="w-10 h-10" />
+                      <Button key={option} onClick={() => handleAnswer(option)} disabled={gameState === 'feedback'} variant="secondary" size="lg" className="h-20">
+                          {currentMode === 'neutral' ? <Icon className="w-10 h-10" /> : <span className="text-2xl">{option}</span>}
                       </Button>
                   )
                 })}
@@ -309,10 +316,10 @@ export function FocusSwitchReactor() {
   }
 
   return (
-    <Card className="w-full max-w-2xl text-center">
+    <Card className="w-full max-w-2xl text-center bg-black border-gray-700 text-white">
       <CardHeader>
         <CardTitle>(EF) Focus Switch Reactor</CardTitle>
-        <CardDescription>Inhibition & Task-Switching Challenge. Pay attention to the rule!</CardDescription>
+        <CardDescription className="text-gray-400">Inhibition & Task-Switching Challenge. Pay attention to the rule!</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-6 min-h-[500px] justify-center">
         {renderContent()}

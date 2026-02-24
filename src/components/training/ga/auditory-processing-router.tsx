@@ -16,6 +16,7 @@ import { useTrainingOverride } from "@/hooks/use-training-override";
 import { GameStub } from "../game-stub";
 import { AuditoryDebugger } from "../logic/auditory-debugger";
 import { GaAbstractAuditoryTasks } from "./ga-abstract-auditory-tasks";
+import { GaAuditoryMath } from "./ga-auditory-math";
 
 
 const GAME_ID: GameId = 'ga_auditory_lab';
@@ -223,6 +224,10 @@ export function AuditoryProcessingRouter() {
     if (currentMode === 'neutral') {
         return <GaAbstractAuditoryTasks focus={currentMode} />;
     }
+
+    if (currentMode === 'math') {
+        return <GaAuditoryMath focus={currentMode} />;
+    }
     
     if (currentMode === 'spatial') {
         return <GameStub 
@@ -303,10 +308,10 @@ export function AuditoryProcessingRouter() {
     };
 
     return (
-        <Card className="w-full max-w-2xl">
+        <Card className="w-full max-w-2xl bg-violet-900/80 border-violet-500/30 backdrop-blur-sm text-violet-100">
             <CardHeader className="text-center">
-                <CardTitle className="flex items-center justify-center gap-2"><MessageSquare />(Ga) Auditory Processing Lab</CardTitle>
-                <CardDescription>A rotating lab of exercises to sharpen your brain's ability to analyze and distinguish sounds.</CardDescription>
+                <CardTitle className="flex items-center justify-center gap-2 text-violet-300"><MessageSquare />(Ga) Auditory Processing Lab</CardTitle>
+                <CardDescription className="text-violet-300/70">A rotating lab of exercises to sharpen your brain's ability to analyze and distinguish sounds.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center justify-center gap-6 min-h-[350px]">
                 {renderContent()}

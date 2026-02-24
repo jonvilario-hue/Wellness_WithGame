@@ -384,13 +384,13 @@ export function PatternMatrix() {
     }
 
   return (
-    <Card className="w-full max-w-md">
+    <Card className="w-full max-w-md bg-slate-900 border-blue-500/20 text-slate-100">
       <CardHeader>
-        <CardTitle className="flex items-center justify-center gap-2">
+        <CardTitle className="flex items-center justify-center gap-2 text-blue-300">
             <BrainCircuit />
             (Gf) Pattern Matrix
         </CardTitle>
-        <CardDescription className="text-center">Identify the logical rule and find the missing piece.</CardDescription>
+        <CardDescription className="text-center text-blue-300/70">Identify the logical rule and find the missing piece.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-6 min-h-[500px] justify-center">
         {renderContent()}

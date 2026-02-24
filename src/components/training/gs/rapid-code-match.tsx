@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -299,10 +298,10 @@ export function RapidCodeMatch() {
   };
   
   return (
-    <Card className="w-full max-w-2xl text-center">
+    <Card className="w-full max-w-2xl text-center bg-red-900/10 border-red-500/20 text-red-100">
       <CardHeader>
-        <CardTitle>(Gs) Rapid Code Match</CardTitle>
-        <CardDescription>Match the symbol to the correct digit using the key as fast as you can. The key changes periodically!</CardDescription>
+        <CardTitle className="text-red-300">(Gs) Rapid Code Match</CardTitle>
+        <CardDescription className="text-red-300/70">Match the symbol to the correct digit using the key as fast as you can. The key changes periodically!</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-6 min-h-[500px] justify-center">
         {renderContent()}

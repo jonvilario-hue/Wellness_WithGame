@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,7 +32,17 @@ type Puzzle = {
 };
 
 const generatePuzzleForLevel = (level: number): Puzzle => {
-    const params = policy.levelMap[level]?.math || policy.levelMap[1].math;
+    const policyForLevel = policy.levelMap[level];
+    if (!policyForLevel || !policyForLevel.content_config['math']?.params) {
+        // Fallback to a default level if the specified level is not found
+        const defaultParams = policy.levelMap[1].content_config['math']!.params;
+        return generatePuzzleFromParams(defaultParams);
+    }
+    const params = policyForLevel.content_config['math']!.params;
+    return generatePuzzleFromParams(params);
+};
+
+const generatePuzzleFromParams = (params: any): Puzzle => {
     const numShapesInPlay = params.shapeCount;
     const maxWeight = params.maxWeight;
 
@@ -82,7 +91,8 @@ const generatePuzzleForLevel = (level: number): Puzzle => {
     }
 
     return { leftSide, rightSide, questionShape, answer, options: Array.from(options).sort(() => Math.random() - 0.5) };
-};
+}
+
 
 const ShapeDisplay = ({ shape, size = 'text-5xl' }: { shape: Shape, size?: string }) => (
     <span className={cn(shape.color, size, 'font-bold')}>{shape.symbol}</span>
@@ -225,13 +235,13 @@ export function BalancePuzzle({ focus }: { focus: TrainingFocus }) {
     };
 
     return (
-        <Card className="w-full max-w-xl">
+        <Card className="w-full max-w-xl bg-gray-900 border-green-500/20 text-green-100">
             <CardHeader className="text-center">
-                <CardTitle className="flex items-center justify-center gap-2">
+                <CardTitle className="flex items-center justify-center gap-2 text-green-300">
                     <Scale />
                     (Gv) Balance Puzzle
                 </CardTitle>
-                <CardDescription>Deduce the value of the shape using the balanced scales. This puzzle helps you reason about quantity using spatial logic.</CardDescription>
+                <CardDescription className="text-green-300/70">Deduce the value of the shape using the balanced scales. This puzzle helps you reason about quantity using spatial logic.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center gap-6 min-h-[450px] justify-center">
                 {renderContent()}

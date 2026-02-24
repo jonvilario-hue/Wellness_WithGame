@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -113,13 +112,13 @@ export function SemanticFluencyStorm() {
     };
 
     return (
-        <Card className="w-full max-w-2xl bg-background text-foreground min-h-[500px]">
+        <Card className="w-full max-w-2xl bg-green-900/10 border-green-500/20 min-h-[500px]">
             <CardHeader className="text-center">
-                <CardTitle className="flex items-center justify-center gap-2">
+                <CardTitle className="flex items-center justify-center gap-2 text-green-400">
                     <Archive />
                     (Glr) Retrieval Trainer
                 </CardTitle>
-                <CardDescription>Strengthen your brain's ability to find and use stored information.</CardDescription>
+                <CardDescription className="text-green-400/70">Strengthen your brain's ability to find and use stored information.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center justify-center gap-6">
                 {renderContent()}
@@ -324,5 +323,3 @@ function CategorySwitchingMode({ onComplete, focus }: { onComplete: (score: numb
         </div>
     );
 }
-
-    

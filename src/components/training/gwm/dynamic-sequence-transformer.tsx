@@ -266,13 +266,13 @@ export function DynamicSequenceTransformer() {
   };
 
   return (
-    <Card className="w-full max-w-2xl text-center">
+    <Card className="w-full max-w-2xl text-center bg-cyan-900/10 border-cyan-500/20">
       <CardHeader>
-        <CardTitle className="flex items-center justify-center gap-2">
+        <CardTitle className="flex items-center justify-center gap-2 text-cyan-400">
             <MemoryStick />
             (Gwm) Dynamic Sequence
         </CardTitle>
-        <CardDescription>Memorize the sequence, then transform it as instructed.</CardDescription>
+        <CardDescription className="text-cyan-400/70">Memorize the sequence, then transform it as instructed.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-6 min-h-[250px] justify-center">
         {renderContent()}

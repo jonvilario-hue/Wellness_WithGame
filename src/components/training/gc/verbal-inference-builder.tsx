@@ -18,6 +18,8 @@ import { GcSpatialLexicon } from "./gc-spatial-lexicon";
 import { RegulationArchitect } from "./regulation-architect";
 import { LogicLibrary } from '../logic/logic-library';
 import { GcNovelConceptLearner } from "./gc-novel-concept-learner";
+import { GcMathConcepts } from "./gc-math-concepts";
+
 
 const GAME_ID: GameId = 'gc_verbal_inference';
 const policy = difficultyPolicies[GAME_ID];
@@ -161,10 +163,10 @@ export function VerbalInferenceBuilder() {
   };
   
   const getButtonClass = (option: string) => {
-    if (gameState !== 'feedback' || !puzzle) return "secondary";
+    if (gameState !== 'feedback' || !puzzle) return "bg-background";
     if (option === puzzle.answer) return "bg-green-600 hover:bg-green-700 text-white";
     if (option === selectedAnswer) return "bg-destructive hover:bg-destructive/90 text-destructive-foreground";
-    return "secondary";
+    return "bg-background";
   }
 
   // --- ROUTER LOGIC ---
@@ -174,6 +176,10 @@ export function VerbalInferenceBuilder() {
   
   if (currentMode === 'neutral') {
     return <GcNovelConceptLearner focus={currentMode} />;
+  }
+
+  if (currentMode === 'math') {
+    return <GcMathConcepts focus={currentMode} />;
   }
 
   if (currentMode === 'spatial') {
@@ -229,6 +235,7 @@ export function VerbalInferenceBuilder() {
               onClick={() => handleAnswer(option)}
               disabled={gameState === 'feedback'}
               size="lg"
+              variant="outline"
               className={cn("h-auto py-3 whitespace-normal transition-all duration-300", getButtonClass(option))}
             >
               {option}
@@ -254,13 +261,13 @@ export function VerbalInferenceBuilder() {
   };
 
   return (
-    <Card className="w-full max-w-2xl">
+    <Card className="w-full max-w-2xl bg-amber-900/10 border-amber-500/20 text-foreground">
       <CardHeader>
-        <CardTitle className="flex items-center justify-center gap-2">
+        <CardTitle className="flex items-center justify-center gap-2 text-amber-500">
             <BookOpenText />
             (Gc) Verbal Inference
         </CardTitle>
-        <CardDescription className="text-center">
+        <CardDescription className="text-center text-amber-500/80">
             Deduce the meaning or relationship from the context provided.
         </CardDescription>
       </CardHeader>
