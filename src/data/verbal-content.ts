@@ -121,5 +121,3 @@ export const verbalWordList = ["metaphor", "irony", "syntax", "phoneme", "morphe
 
 export const realWords = Array.from(validationWordList);
 export const pseudowords = ["flib", "glorp", "wux", "blicket", "zorp", "dax"];
-
-    

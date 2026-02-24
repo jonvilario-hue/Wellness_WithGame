@@ -44,6 +44,3 @@ export function VisualProcessingRouter() {
       return <MentalRotationLab focus={effectiveFocus} />;
   }
 }
-
-    
-    

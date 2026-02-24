@@ -122,7 +122,11 @@ export function DynamicSequenceTransformer() {
 
     setTimeout(() => {
       setGameState('answering');
-      trialStartTime.current = getAudioContextTime();
+      if (getAudioContextTime) {
+        trialStartTime.current = getAudioContextTime();
+      } else {
+        trialStartTime.current = Date.now();
+      }
     }, displayTime);
     
   }, [currentMode, getAudioContextTime]);
@@ -164,8 +168,8 @@ export function DynamicSequenceTransformer() {
     
     setGameState('feedback');
     const levelPlayed = state.currentLevel;
-    const responseTs = getAudioContextTime();
-    const reactionTimeMs = (responseTs - trialStartTime.current) * 1000;
+    const responseTs = getAudioContextTime() || Date.now();
+    const reactionTimeMs = responseTs - trialStartTime.current;
     
     let isCorrect = userAnswer.trim().toUpperCase() === correctAnswer.toUpperCase();
     if (task.id === 'sentence_unscramble') {
@@ -231,7 +235,6 @@ export function DynamicSequenceTransformer() {
     return <StateMachineTracer />;
   }
 
-  // --- ROUTER LOGIC ---
   if (currentMode === 'music') {
     return <ComplexSpanTask />;
   }
