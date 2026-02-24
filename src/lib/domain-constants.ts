@@ -36,7 +36,7 @@ export const DOMAIN_META: Record<
   Gc: {
     name: '(Gc) Crystallized Intelligence',
     description: 'Use learned knowledge',
-    gameTitle: 'Verbal Inference',
+    gameTitle: 'Verbal Inference Builder',
     id: 'gc_verbal_inference',
     icon: BookOpenText,
     color: 'bg-purple-500/10 text-purple-500',
@@ -68,7 +68,7 @@ export const DOMAIN_META: Record<
   Ga: {
     name: '(Ga) Auditory Processing',
     description: 'Analyze and distinguish sounds',
-    gameTitle: 'Auditory Lab',
+    gameTitle: 'Auditory Processing Lab',
     id: 'ga_auditory_lab',
     icon: Ear,
     color: 'bg-pink-500/10 text-pink-500',
@@ -99,11 +99,7 @@ export const chcDomains = Object.entries(DOMAIN_META).map(([key, value]) => ({
 
 // Centralized map of incompatibilities between training modes and CHC domains.
 // This is the single source of truth for the locking mechanism.
+// As per the latest requirement, all games must be playable in all modes, so this map is now empty.
 export const MODE_INCOMPATIBILITY_MAP: Partial<
   Record<TrainingFocus, Partial<Record<CHCDomain, string>>>
-> = {
-  neutral: {
-    Gc: "Gc measures stored knowledge (e.g., vocabulary). Core mode is an abstract baseline that intentionally excludes prior knowledge, making a Gc assessment impossible. Please select a knowledge-based mode like Verbal or Math.",
-    Ga: "The Ga game requires musical/auditory context that Core mode's abstract symbols cannot provide.",
-  },
-};
+> = {};
