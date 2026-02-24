@@ -46,7 +46,7 @@ type Stimulus = {
 };
 
 export function FocusSwitchReactor() {
-  const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
+  const store = usePerformanceStore.getState();
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
   const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
 
@@ -69,11 +69,10 @@ export function FocusSwitchReactor() {
   
   useEffect(() => {
     if (isComponentLoaded) {
-      const initialState = getAdaptiveState(GAME_ID, currentMode);
-      setAdaptiveState(initialState);
+      setAdaptiveState(store.getAdaptiveState(GAME_ID, currentMode));
       setGameState('start');
     }
-  }, [isComponentLoaded, currentMode, getAdaptiveState]);
+  }, [isComponentLoaded, currentMode, store]);
   
   useEffect(() => {
     previousRuleRef.current = ruleRef.current;
@@ -129,17 +128,19 @@ export function FocusSwitchReactor() {
   const startNewSession = useCallback(() => {
     if (!adaptiveState) return;
     const sessionState = startSession(adaptiveState);
+    store.updateAdaptiveState(GAME_ID, currentMode, sessionState);
     setAdaptiveState(sessionState);
     currentTrialIndex.current = 0;
     ruleSwitchCounter.current = 0;
     setScore(0);
     startNewTrial(sessionState);
-  }, [adaptiveState, startNewTrial]);
+  }, [adaptiveState, startNewTrial, store, currentMode]);
 
   const processNextTurn = useCallback((correct: boolean, source: 'click' | 'keyboard' | 'timeout', responseSide?: 'left' | 'right') => {
     if (gameState !== 'running' || !adaptiveState) return;
 
     setGameState('feedback');
+    const levelPlayed = adaptiveState.currentLevel;
     const reactionTimeMs = Date.now() - trialStartTime.current;
     if (correct) {
         setScore(prev => prev + 1);
@@ -173,16 +174,17 @@ export function FocusSwitchReactor() {
         }
     };
     
-    logTrial({
+    store.logTrial({
       userId: 'local_user', // Placeholder
       module_id: GAME_ID,
-      currentLevel: adaptiveState.currentLevel,
+      currentLevel: levelPlayed,
       isCorrect: correct,
       responseTime_ms: reactionTimeMs,
       meta: trialResult.telemetry
     });
     
     const newState = adjustDifficulty(trialResult, adaptiveState, policy);
+    store.updateAdaptiveState(GAME_ID, currentMode, newState);
     setAdaptiveState(newState);
 
     const feedbackMessage = correct ? getSuccessFeedback('EF') : getFailureFeedback('EF');
@@ -192,13 +194,11 @@ export function FocusSwitchReactor() {
         currentTrialIndex.current++;
         if(currentTrialIndex.current >= policy.sessionLength) {
             setGameState('finished');
-            const finalState = endSession(newState, []);
-            updateAdaptiveState(GAME_ID, currentMode, finalState);
         } else {
             startNewTrial(newState);
         }
     }, 600); // Increased feedback duration
-  }, [gameState, adaptiveState, updateAdaptiveState, startNewTrial, currentMode, stimulus, logTrial]);
+  }, [gameState, adaptiveState, store, currentMode, startNewTrial, stimulus]);
   
   const handleAnswer = useCallback((answer: 'left' | 'right', source: 'click' | 'keyboard') => {
     if (gameState !== 'running' || !stimulus) return;
