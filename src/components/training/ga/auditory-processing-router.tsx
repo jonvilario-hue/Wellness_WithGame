@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,82 +18,16 @@ import { GameStub } from "../game-stub";
 import { AuditoryDebugger } from "../logic/auditory-debugger";
 import { domainIcons } from "@/components/icons";
 import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
+import { useAudioEngine } from "@/hooks/use-audio-engine";
 
 
 const GAME_ID: GameId = 'ga_auditory_lab';
 const policy = difficultyPolicies[GAME_ID];
 
-// --- Core Audio Engine (used by non-Core modes) ---
-const useAudioEngine = () => {
-    const audioContextRef = useRef<AudioContext | null>(null);
-    const primaryGainRef = useRef<GainNode | null>(null);
-
-    const getAudioContext = useCallback(() => {
-        if (typeof window !== 'undefined' && !audioContextRef.current) {
-            try {
-                const context = new (window.AudioContext || (window as any).webkitAudioContext)();
-                audioContextRef.current = context;
-                const gainNode = context.createGain();
-                gainNode.connect(context.destination);
-                primaryGainRef.current = gainNode;
-            } catch (e) {
-                console.error("Web Audio API is not supported in this browser.", e);
-            }
-        }
-        return audioContextRef.current;
-    }, []);
-
-    const resumeContext = useCallback(async () => {
-        const context = getAudioContext();
-        if (context && context.state === 'suspended') {
-            await context.resume().catch(e => console.error("Could not resume audio context", e));
-        }
-    }, [getAudioContext]);
-    
-    const setVolume = useCallback((volume: number) => {
-        const context = getAudioContext();
-        if (primaryGainRef.current && context) {
-            primaryGainRef.current.gain.setValueAtTime(volume, context.currentTime);
-        }
-    }, [getAudioContext]);
-
-     const playTone = useCallback(({ freq, duration, startTime, type = 'sine'}: { freq: number, duration: number, startTime: number, type?: OscillatorType}) => {
-        const context = getAudioContext();
-        if (!context || !primaryGainRef.current) return;
-
-        const osc = context.createOscillator();
-        const gain = context.createGain();
-        osc.type = type;
-        osc.frequency.setValueAtTime(freq, startTime);
-        osc.connect(gain);
-        gain.connect(primaryGainRef.current);
-
-        const rampTime = 0.01; // 10ms ramp to prevent clicks
-        gain.gain.setValueAtTime(0, startTime);
-        gain.gain.linearRampToValueAtTime(1, startTime + rampTime);
-        gain.gain.setValueAtTime(1, startTime + duration - rampTime);
-        gain.gain.linearRampToValueAtTime(0, startTime + duration);
-
-        osc.start(startTime);
-        osc.stop(startTime + duration);
-    }, [getAudioContext]);
-    
-    useEffect(() => {
-        const context = getAudioContext();
-        return () => {
-            if (context && context.state !== 'closed') {
-                context.close().catch(e => console.error("Could not close audio context", e));
-            }
-        };
-    }, [getAudioContext]);
-
-
-    return { getAudioContext, resumeContext, setVolume, playTone };
-};
 
 const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
-    const { playTone, resumeContext, getAudioContext } = useAudioEngine();
-    const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore.getState();
+    const { playTone } = useAudioEngine();
+    const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
 
     const [gameState, setGameState] = useState<'playing' | 'feedback' | 'finished'>('playing');
     const [feedback, setFeedback] = useState<string>('');
@@ -101,10 +36,6 @@ const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
     const currentTrialIndex = useRef(0);
 
     const startNewTrial = useCallback(() => {
-        const audioContext = getAudioContext();
-        if (!audioContext) return;
-        resumeContext();
-        
         const state = getAdaptiveState(GAME_ID, focus);
         const levelDef = policy.levelMap[state.currentLevel] || policy.levelMap[1];
         const params = levelDef.content_config[focus]?.params;
@@ -118,11 +49,11 @@ const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
         answerRef.current = isHigher ? 'higher' : 'lower';
         const secondFreq = isHigher ? baseFreq * Math.pow(2, params.pitchDelta / 1200) : baseFreq / Math.pow(2, params.pitchDelta / 1200);
 
-        const now = audioContext.currentTime;
-        playTone({ freq: baseFreq, duration: 0.3, startTime: now });
-        playTone({ freq: secondFreq, duration: 0.3, startTime: now + 0.5 });
+        playTone(baseFreq, 0.3);
+        setTimeout(() => playTone(secondFreq, 0.3), 500);
+
         trialStartTime.current = Date.now();
-    }, [playTone, resumeContext, getAudioContext, getAdaptiveState, focus]);
+    }, [playTone, getAdaptiveState, focus]);
 
     useEffect(() => {
         startNewTrial();
@@ -170,6 +101,9 @@ const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
     };
 
     if(gameState === 'finished') {
+        const state = getAdaptiveState(GAME_ID, focus);
+        const finalState = endSession(state, state.recentTrials.slice(-currentTrialIndex.current));
+        updateAdaptiveState(GAME_ID, focus, finalState);
         return (
              <div className="text-center space-y-4">
                 <CardTitle>Session Complete!</CardTitle>
@@ -213,10 +147,9 @@ const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
 
 // --- Main Lab Component ---
 export function AuditoryProcessingRouter() {
-    const { setVolume, resumeContext } = useAudioEngine();
+    const { resumeContext, isAudioReady } = useAudioEngine();
     
-    const [gameState, setGameState] = useState<'idle' | 'headphoneCheck' | 'calibration' | 'running'>('idle');
-    const [volume, setLocalVolume] = useState(0.5);
+    const [gameState, setGameState] = useState<'idle' | 'headphoneCheck' | 'running'>('idle');
     
     const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
     const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
@@ -229,7 +162,6 @@ export function AuditoryProcessingRouter() {
     };
 
     const startTraining = () => {
-        setVolume(volume);
         setGameState('running');
     };
     
@@ -254,6 +186,14 @@ export function AuditoryProcessingRouter() {
 
         switch (gameState) {
             case 'idle':
+                if (!isAudioReady) {
+                     return (
+                        <div className="flex flex-col items-center gap-4 text-center">
+                            <p className="text-muted-foreground">Audio required for this mode.</p>
+                            <Button onClick={startSessionFlow} size="lg" className="bg-violet-600 hover:bg-violet-500 text-white">Tap to Enable Audio & Start</Button>
+                        </div>
+                    )
+                }
                 return <Button onClick={startSessionFlow} size="lg" className="bg-violet-600 hover:bg-violet-500 text-white">Auditory Processing Lab</Button>;
             
             case 'headphoneCheck':
@@ -266,22 +206,9 @@ export function AuditoryProcessingRouter() {
                                     For accurate training, please use headphones. Results without headphones may be unreliable.
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
-                            <AlertDialogAction onClick={() => setGameState('calibration')}>I am using headphones</AlertDialogAction>
+                            <AlertDialogAction onClick={() => setGameState('running')}>I am using headphones</AlertDialogAction>
                         </AlertDialogContent>
                     </AlertDialog>
-                );
-            
-            case 'calibration':
-                return (
-                    <div className="w-full max-w-sm text-center space-y-4">
-                        <CardTitle>Volume Calibration</CardTitle>
-                        <p>Adjust to a comfortable level.</p>
-                        <div className="flex items-center gap-4">
-                            <Volume2 />
-                            <Slider value={[volume * 100]} onValueChange={([v]) => setLocalVolume(v/100)} />
-                        </div>
-                        <Button onClick={startTraining} className="bg-violet-600 hover:bg-violet-500 text-white">Start Training</Button>
-                    </div>
                 );
 
             case 'running':
@@ -307,3 +234,5 @@ export function AuditoryProcessingRouter() {
         </Card>
     );
 }
+
+    

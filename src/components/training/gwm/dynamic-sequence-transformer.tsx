@@ -18,41 +18,11 @@ import { phoneticallySimilarSets, grammarScrambleSentences } from "@/data/verbal
 import { GameStub } from "../game-stub";
 import { StateMachineTracer } from "../logic/state-machine-tracer";
 import { domainIcons } from "@/components/icons";
+import { useAudioEngine } from "@/hooks/use-audio-engine";
+
 
 const GAME_ID: GameId = 'gwm_dynamic_sequence';
 const policy = difficultyPolicies[GAME_ID];
-
-const useAudioEngine = () => {
-    const audioContextRef = useRef<AudioContext | null>(null);
-    const getAudioContext = useCallback(() => {
-        if (typeof window !== 'undefined' && !audioContextRef.current) {
-            audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-        }
-        return audioContextRef.current;
-    }, []);
-
-    const playSequence = useCallback((notes: (string | number)[], onEnd?: () => void) => {
-        const context = getAudioContext();
-        if (!context) return;
-        context.resume();
-        const now = context.currentTime;
-        let time = now;
-        notes.forEach(note => {
-            const osc = context.createOscillator();
-            osc.type = 'sine';
-            const freq = typeof note === 'number' ? 440 * Math.pow(2, (note - 69) / 12) : 440;
-            osc.frequency.setValueAtTime(freq, time);
-            osc.connect(context.destination);
-            osc.start(time);
-            osc.stop(time + 0.2);
-            time += 0.3;
-        });
-        if(onEnd) setTimeout(onEnd, (time - now) * 1000);
-    }, [getAudioContext]);
-
-    return { playSequence };
-};
-
 
 const generateSequence = (length: number, charSet: string) => {
   let chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -100,7 +70,7 @@ export function DynamicSequenceTransformer() {
   const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
   const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
-  const { playSequence } = useAudioEngine();
+  const { playSequence, resumeContext, isAudioReady } = useAudioEngine();
 
   const [gameState, setGameState] = useState<'loading' | 'start' | 'memorizing' | 'answering' | 'feedback' | 'finished'>('loading');
   
@@ -156,7 +126,7 @@ export function DynamicSequenceTransformer() {
     const displayTime = currentMode === 'verbal' ? mechanic_config.visualDisplayTimeMs || 800 : mechanic_config.displayTimeMs || 1500;
 
     if (currentMode === 'music' && Array.isArray(newSequence)) {
-        playSequence(newSequence as number[], () => {
+        playSequence(newSequence as number[], 0.3, () => {
              setGameState('answering');
              trialStartTime.current = Date.now();
         });
@@ -169,12 +139,13 @@ export function DynamicSequenceTransformer() {
   }, [currentMode, playSequence]);
 
   const startNewSession = useCallback(() => {
+    resumeContext();
     const state = getAdaptiveState(GAME_ID, currentMode);
     const sessionState = startSession(state);
     updateAdaptiveState(GAME_ID, currentMode, sessionState);
     currentTrialIndex.current = 0;
     startNewTrial(sessionState);
-  }, [startNewTrial, updateAdaptiveState, currentMode, getAdaptiveState]);
+  }, [startNewTrial, resumeContext, updateAdaptiveState, currentMode, getAdaptiveState]);
   
   const correctAnswer = useMemo(() => {
     if (!sequence || !task) return '';
@@ -274,6 +245,14 @@ export function DynamicSequenceTransformer() {
     const state = getAdaptiveState(GAME_ID, currentMode);
     switch (gameState) {
       case 'start':
+        if (currentMode === 'music' && !isAudioReady) {
+            return (
+                <div className="flex flex-col items-center gap-4 text-center">
+                    <p className="text-muted-foreground">Audio required for this mode.</p>
+                    <Button onClick={startNewSession} size="lg" className="bg-cyan-600 hover:bg-cyan-500 text-white">Tap to Enable Audio & Start</Button>
+                </div>
+            )
+        }
         return (
           <div className="flex flex-col items-center gap-4">
             <div className="font-mono text-lg text-cyan-300">Level: {state?.currentLevel}</div>
@@ -344,3 +323,5 @@ export function DynamicSequenceTransformer() {
     </Card>
   );
 }
+
+    

@@ -1,0 +1,108 @@
+
+'use client';
+
+import { useRef, useCallback, useEffect, useState } from 'react';
+
+// Singleton instance of the AudioContext
+let audioContextInstance: AudioContext | null = null;
+const getAudioContext = () => {
+    if (typeof window !== 'undefined' && !audioContextInstance) {
+        try {
+            audioContextInstance = new (window.AudioContext || (window as any).webkitAudioContext)();
+        } catch (e) {
+            console.error("Web Audio API is not supported in this browser.", e);
+        }
+    }
+    return audioContextInstance;
+};
+
+
+export const useAudioEngine = () => {
+    const context = getAudioContext();
+    const [isAudioReady, setIsAudioReady] = useState(context ? context.state === 'running' : false);
+    
+    const resumeContext = useCallback(async () => {
+        if (context && context.state === 'suspended') {
+            try {
+                await context.resume();
+                setIsAudioReady(true);
+            } catch (e) {
+                console.error("Could not resume audio context", e);
+                setIsAudioReady(false);
+            }
+        } else if (context && context.state === 'running') {
+            setIsAudioReady(true);
+        }
+    }, [context]);
+
+    const playTone = useCallback((freq: number, duration: number, onEnd?: () => void) => {
+        if (!context) { onEnd?.(); return; }
+        
+        const time = context.currentTime;
+        const osc = context.createOscillator();
+        const gainNode = context.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, time);
+        
+        gainNode.gain.setValueAtTime(0, time);
+        gainNode.gain.linearRampToValueAtTime(1, time + 0.01); // 10ms attack
+        gainNode.gain.linearRampToValueAtTime(0, time + duration - 0.01); // 10ms release
+
+        osc.connect(gainNode);
+        gainNode.connect(context.destination);
+        
+        osc.start(time);
+        osc.stop(time + duration);
+
+        if (onEnd) {
+             const endTimer = setTimeout(() => {
+                if (osc.context.state !== "closed") {
+                    osc.disconnect();
+                }
+                gainNode.disconnect();
+                onEnd();
+            }, duration * 1000);
+            
+            // Clean up the timer if component unmounts
+            return () => clearTimeout(endTimer);
+        }
+        
+    }, [context]);
+    
+    const playSequence = useCallback((notes: (string | number)[], intervalMs: number, onEnd?: () => void) => {
+        if (!context) { onEnd?.(); return; }
+        
+        let time = context.currentTime + 0.1; // Small delay to ensure scheduling
+        
+        notes.forEach(note => {
+            const freq = typeof note === 'number' ? 440 * Math.pow(2, (note - 69) / 12) : 440;
+            const osc = context.createOscillator();
+            const gainNode = context.createGain();
+
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, time);
+            
+            gainNode.gain.setValueAtTime(0, time);
+            gainNode.gain.linearRampToValueAtTime(1, time + 0.01);
+            gainNode.gain.linearRampToValueAtTime(0, time + intervalMs - 0.01);
+
+            osc.connect(gainNode);
+            gainNode.connect(context.destination);
+            
+            osc.start(time);
+            osc.stop(time + intervalMs);
+
+            time += intervalMs;
+        });
+
+        if (onEnd) {
+            const totalDuration = (time - context.currentTime) * 1000;
+            setTimeout(onEnd, totalDuration);
+        }
+    }, [context]);
+
+    return { playTone, playSequence, resumeContext, isAudioReady };
+};
+
+    

@@ -17,42 +17,13 @@ import { morphologyWordPairs } from "@/data/verbal-content";
 import { GameStub } from "../game-stub";
 import { RuleInductionEngine } from '../logic/rule-induction-engine';
 import { domainIcons } from "@/components/icons";
+import { useAudioEngine } from "@/hooks/use-audio-engine";
+
 
 const GAME_ID: GameId = 'gf_pattern_matrix';
 const policy = difficultyPolicies[GAME_ID];
 
 type GameVariant = 'neutral' | 'math' | 'probability' | 'verbal' | 'music';
-
-const useAudioEngine = () => {
-    const audioContextRef = useRef<AudioContext | null>(null);
-    const getAudioContext = useCallback(() => {
-        if (typeof window !== 'undefined' && !audioContextRef.current) {
-            audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-        }
-        return audioContextRef.current;
-    }, []);
-
-    const playSequence = useCallback((notes: number[], onEnd?: () => void) => {
-        const context = getAudioContext();
-        if (!context) return;
-        context.resume();
-        const now = context.currentTime;
-        let time = now;
-        notes.forEach(midiNote => {
-            const osc = context.createOscillator();
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(440 * Math.pow(2, (midiNote - 69) / 12), time);
-            osc.connect(context.destination);
-            osc.start(time);
-            osc.stop(time + 0.2);
-            time += 0.25;
-        });
-        if(onEnd) setTimeout(onEnd, (time - now) * 1000);
-    }, [getAudioContext]);
-
-    return { playSequence };
-};
-
 
 // --- Display Components ---
 const ElementComponent = ({ element }: { element: any }) => {
@@ -237,7 +208,7 @@ export function PatternMatrix() {
     const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
     const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
     const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
-    const { playSequence } = useAudioEngine();
+    const { playSequence, resumeContext, isAudioReady } = useAudioEngine();
 
     const [gameState, setGameState] = useState<'loading' | 'start' | 'playing' | 'feedback' | 'finished'>('loading');
     
@@ -274,16 +245,17 @@ export function PatternMatrix() {
      useEffect(() => {
         if (gameState === 'playing' && puzzle && puzzle.type === 'music') {
             const allNotes = puzzle.grid.filter(Boolean).map((p: any) => p.notes[0]);
-            playSequence(allNotes);
+            playSequence(allNotes, 0.25);
         }
     }, [gameState, puzzle, playSequence]);
 
     const startNewSession = useCallback(() => {
+        if(currentMode === 'music') resumeContext();
         const sessionState = startSession(getAdaptiveState(GAME_ID, currentMode));
         updateAdaptiveState(GAME_ID, currentMode, sessionState);
         currentTrialIndex.current = 0;
         startNewTrial();
-    }, [startNewTrial, updateAdaptiveState, currentMode, getAdaptiveState]);
+    }, [startNewTrial, resumeContext, updateAdaptiveState, currentMode, getAdaptiveState]);
 
     const handleSelectOption = (option: any) => {
         if (gameState !== 'playing' || !puzzle) return;
@@ -311,7 +283,7 @@ export function PatternMatrix() {
         logTrial({
             module_id: GAME_ID,
             mode: currentMode,
-            currentLevel: levelPlayed,
+            levelPlayed,
             isCorrect,
             responseTime_ms: reactionTimeMs,
             meta: trialResult.telemetry
@@ -363,9 +335,18 @@ export function PatternMatrix() {
             case 'loading':
                 return <Loader2 className="h-12 w-12 animate-spin text-blue-400" />;
             case 'start':
+                const state = getAdaptiveState(GAME_ID, currentMode);
+                if (currentMode === 'music' && !isAudioReady) {
+                    return (
+                        <div className="flex flex-col items-center gap-4 text-center">
+                            <p className="text-muted-foreground">Audio required for this mode.</p>
+                            <Button onClick={startNewSession} size="lg" className="bg-blue-600 hover:bg-blue-500 text-white">Tap to Enable Audio & Start</Button>
+                        </div>
+                    )
+                }
                 return (
                     <div className="flex flex-col items-center gap-4">
-                        <div className="font-mono text-lg">Level: {getAdaptiveState(GAME_ID, currentMode)?.currentLevel}</div>
+                        <div className="font-mono text-lg">Level: {state?.currentLevel}</div>
                         <Button onClick={startNewSession} size="lg" className="bg-blue-600 hover:bg-blue-500 text-white">Pattern Matrix</Button>
                     </div>
                 );
@@ -485,3 +466,5 @@ export function PatternMatrix() {
     </Card>
   );
 }
+
+    

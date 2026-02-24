@@ -11,6 +11,7 @@ import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { mathWordList, musicWordList, generalWordList, verbalWordList } from "@/data/verbal-content";
 import { adjustDifficulty, startSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
+import { useAudioEngine } from "@/hooks/use-audio-engine";
 
 const GLR_GAME_ID: GameId = 'glr_fluency_storm';
 const glrPolicy = difficultyPolicies[GLR_GAME_ID];
@@ -59,6 +60,7 @@ function ActiveDistractor({ duration, onComplete }: { duration: number, onComple
 export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result: { score: number, trials: TrialResult[] }) => void, focus: TrainingFocus }) {
     const { addSpacedPairs, getDueReviewPairs, updatePairOnResult } = useGlrStore();
     const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
+    const { playSequence } = useAudioEngine();
     
     const [phase, setPhase] = useState<'review' | 'learn' | 'distract' | 'recall' | 'finished'>('review');
     const [sessionTrials, setSessionTrials] = useState<TrialResult[]>([]);
@@ -183,7 +185,7 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
             )}
             {(phase === 'recall') && pairToShow && (
                 <div className="w-full text-center space-y-4">
-                    <p className="text-muted-foreground">What word was paired with:</p>
+                    <p className="text-muted-foreground">What was paired with:</p>
                     <p className="text-5xl font-bold">{pairToShow.word1}</p>
                     {feedback[pairToShow.word1] ? (
                         <div className={cn("text-2xl font-bold", feedback[pairToShow.word1] === 'correct' ? "text-green-500" : "text-destructive")}>
@@ -202,3 +204,5 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
     );
 }
 
+
+    
