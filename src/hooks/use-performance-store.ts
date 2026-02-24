@@ -38,6 +38,7 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
 
             hydrate: async () => {
                 try {
+                    await idbStore.initDB();
                     const profiles = await idbStore.getAllProfiles();
                     const newGameStates: Record<string, AdaptiveState> = {};
                     for (const profile of profiles) {
@@ -62,7 +63,6 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
                 const defaultState = getDefaultState(gameId, tierForNewGame);
                 const finalState = { ...defaultState, lastFocus: focus };
                 
-                // Defer state update to after the current render cycle to avoid "setState in render" errors.
                 setTimeout(() => {
                     set(state => {
                         if (!state.gameStates[key]) {
@@ -99,14 +99,15 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
 
             logTrial: async (record) => {
                 try {
+                    // Log the new record FIRST. This may trigger eviction based on the state BEFORE adding the buffer.
+                    await idbStore.logTrial(record);
+
+                    // Now, flush the buffer.
                     const buffered = get().failedWrites;
                     if (buffered.length > 0) {
-                        for (const bufferedRecord of buffered) {
-                            await idbStore.logTrial(bufferedRecord);
-                        }
+                        await idbStore.logTrialBatch(buffered);
                         set({ failedWrites: [] });
                     }
-                    await idbStore.logTrial(record);
                 } catch (error) {
                     console.warn("[Fault Tolerance] IDB write failed. Buffering trial record.", error);
                     set(state => {

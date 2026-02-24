@@ -71,7 +71,9 @@ const runEviction = async (db: IDBDatabase) => {
     const count = await promisifyRequest(countReq);
 
     if (count > EVICTION_CONFIG.maxTrials) {
-        let cursor = await promisifyRequest(store.index('timestamp').openCursor());
+        // Use a cursor on the primary key ('id'), assuming it's a chronologically sortable string.
+        // This is more reliable than a timestamp for canonical ordering.
+        let cursor = await promisifyRequest(store.openCursor());
         const toDelete = count - EVICTION_CONFIG.maxTrials;
         console.log(`[Storage Eviction] Store count (${count}) exceeds max (${EVICTION_CONFIG.maxTrials}). Deleting oldest ${toDelete > EVICTION_CONFIG.batchDeleteSize ? EVICTION_CONFIG.batchDeleteSize : toDelete} trials.`);
         
@@ -96,6 +98,27 @@ export const logTrial = async (trial: TrialRecord): Promise<void> => {
       runEviction(db).catch(e => console.error("Error during background eviction:", e));
   }
 };
+
+/**
+ * Writes a batch of trial records in a single transaction without triggering eviction.
+ * This is used for flushing the in-memory buffer of failed writes.
+ */
+export const logTrialBatch = async (trials: TrialRecord[]): Promise<void> => {
+    if (trials.length === 0) return;
+    const db = await openDB();
+    const tx = db.transaction(['trials'], 'readwrite');
+    const store = tx.objectStore('trials');
+    for (const trial of trials) {
+        store.put(trial);
+    }
+    // `tx.done` is a property on IDBTransaction in some libraries, but standard is `oncomplete`.
+    // Promisifying the transaction itself is the most robust way.
+    return new Promise((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+    });
+};
+
 
 export const getProfile = async (id: string): Promise<AdaptiveState | null> => {
   const db = await openDB();
