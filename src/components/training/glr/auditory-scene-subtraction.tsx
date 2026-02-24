@@ -6,102 +6,165 @@ import { Button } from "@/components/ui/button";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { useAudioEngine } from "@/hooks/use-audio-engine";
-import { Loader2, Ear } from "lucide-react";
+import { Loader2, Ear, Headphones } from "lucide-react";
 import { adjustDifficulty, startSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
-import type { AdaptiveState, TrialResult, GameId } from "@/types";
+import type { AdaptiveState, TrialResult, GameId, TrialRecord } from "@/types";
 import { domainIcons } from "@/components/icons";
 import { cn } from "@/lib/utils";
 
-const GAME_ID: GameId = 'ga_auditory_lab'; // This is a Ga task
+const GAME_ID: GameId = 'glr_fluency_storm'; // This is a Glr task with Ga/Gwm/EF components
 const policy = difficultyPolicies[GAME_ID];
 
+const instrumentTimbres: Record<string, OscillatorType> = {
+    drums: 'sine', // Placeholder, real drums are complex noise
+    bass: 'triangle',
+    piano: 'square',
+    flute: 'sine',
+    guitar: 'sawtooth',
+};
+
 type Trial = {
-    reference_scene_instruments: string[];
-    comparison_scene_instruments: string[];
+    reference_scene_timbres: OscillatorType[];
+    comparison_scene_timbres: OscillatorType[];
+    reference_scene_names: string[];
     correct_answer: string;
 };
 
 export function AuditorySceneSubtraction() {
     const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
-    const { playSimultaneous, stopAll, resumeContext, isAudioReady, audioContext } = useAudioEngine();
+    const { playSimultaneous, stopAll, resumeContext, isAudioReady, getAudioContextTime, getLatencyInfo } = useAudioEngine();
 
-    const [gameState, setGameState] = useState<'loading' | 'start' | 'running' | 'feedback' | 'finished'>('loading');
+    const [gameState, setGameState] = useState<'loading' | 'tutorial' | 'playing' | 'feedback' | 'finished'>('loading');
     const [trial, setTrial] = useState<Trial | null>(null);
     const [feedback, setFeedback] = useState('');
+    const [tutorialStep, setTutorialStep] = useState(0);
 
     const trialCount = useRef(0);
     const sessionTrials = useRef<TrialResult[]>([]);
-    const trialStartTime = useRef(0);
+    const stimulusOnsetTs = useRef(0);
+    const sessionId = useRef(crypto.randomUUID());
+    const deviceInfo = useRef<any>(null);
     
     const startNewTrial = useCallback(() => {
-        if (trialCount.current >= 10) {
+        if (!isAudioReady) return;
+        const isTutorial = gameState === 'tutorial';
+
+        if (!isTutorial && trialCount.current >= policy.sessionLength) {
             setGameState('finished');
             return;
         }
 
         const state = getAdaptiveState(GAME_ID, 'music');
-        const levelParams = policy.levelMap[state.currentLevel]?.content_config['music']?.params || policy.levelMap[1].content_config['music']!.params;
-        const { layer_count } = levelParams;
+        const level = isTutorial ? 1 : state.currentLevel;
+        const levelParams = policy.levelMap[level]?.content_config['music']?.params;
+        if (!levelParams) return;
+
+        const { layer_count, timbres } = levelParams;
         
-        const instruments = ['drums', 'bass', 'piano', 'flute', 'guitar'];
-        const reference_scene_instruments = instruments.slice(0, layer_count);
+        const reference_scene_names = timbres.slice(0, layer_count);
+        const reference_scene_timbres = reference_scene_names.map((name: string) => instrumentTimbres[name] || 'sine');
         const missing_instrument_index = Math.floor(Math.random() * layer_count);
-        const correct_answer = reference_scene_instruments[missing_instrument_index];
-        const comparison_scene_instruments = reference_scene_instruments.filter((_, i) => i !== missing_instrument_index);
+        const correct_answer = reference_scene_names[missing_instrument_index];
+        const comparison_scene_timbres = reference_scene_timbres.filter((_, i) => i !== missing_instrument_index);
 
-        setTrial({ reference_scene_instruments, comparison_scene_instruments, correct_answer });
+        setTrial({ reference_scene_timbres, comparison_scene_timbres, reference_scene_names, correct_answer });
         
-        if (audioContext) {
-            playSimultaneous(reference_scene_instruments, 3000);
-            trialStartTime.current = audioContext.currentTime + 3.5; // Start time is when comparison plays
+        playSimultaneous(reference_scene_timbres, 3000);
+        
+        setTimeout(() => {
+            stopAll();
             setTimeout(() => {
-                stopAll();
-                setTimeout(() => {
-                    playSimultaneous(comparison_scene_instruments, 3000);
-                }, 500)
-            }, 3000);
-        }
+                const comparisonHandles = playSimultaneous(comparison_scene_timbres, 3000);
+                if (comparisonHandles.length > 0) {
+                     stimulusOnsetTs.current = comparisonHandles[0].scheduledOnset;
+                }
+            }, 500)
+        }, 3000);
+        
+        if (isTutorial) setTutorialStep(s => s + 1);
+        else trialCount.current++;
+        setGameState('playing');
+        setFeedback('');
 
-        trialCount.current++;
-        setGameState('running');
-    }, [getAdaptiveState, playSimultaneous, stopAll, audioContext]);
+    }, [getAdaptiveState, playSimultaneous, stopAll, isAudioReady, gameState]);
 
-    const startNewSession = useCallback(() => {
+    const startNewSession = useCallback((isTutorial: boolean) => {
         resumeContext();
+        const info = getLatencyInfo();
+        deviceInfo.current = info;
+
         const sessionState = startSession(getAdaptiveState(GAME_ID, 'music'));
         updateAdaptiveState(GAME_ID, 'music', sessionState);
         trialCount.current = 0;
         sessionTrials.current = [];
-        startNewTrial();
-    }, [resumeContext, getAdaptiveState, updateAdaptiveState, startNewTrial]);
+        sessionId.current = crypto.randomUUID();
+        setTutorialStep(0);
+        
+        if (isTutorial) {
+            setGameState('tutorial');
+            startNewTrial();
+        } else {
+            setGameState('playing');
+            startNewTrial();
+        }
+    }, [resumeContext, getLatencyInfo, getAdaptiveState, updateAdaptiveState, startNewTrial]);
+
+    useEffect(() => {
+         if(gameState === 'tutorial' && tutorialStep >= 3) {
+             stopAll();
+             setTimeout(() => startNewSession(false), 1000); // Start scored session after tutorial
+         }
+    }, [gameState, tutorialStep, startNewSession, stopAll]);
+
 
     const handleResponse = (response: string) => {
-        if (!trial || !audioContext) return;
+        if (!trial) return;
         stopAll();
-        const reactionTimeMs = (audioContext.currentTime - trialStartTime.current) * 1000;
+        const responseTs = getAudioContextTime();
+        const reactionTimeMs = (responseTs - stimulusOnsetTs.current) * 1000;
         const isCorrect = response === trial.correct_answer;
+        
+        if (gameState === 'tutorial') {
+             setFeedback(isCorrect ? 'Correct!' : `Incorrect. The missing instrument was ${trial.correct_answer}.`);
+             setTimeout(startNewTrial, 2000);
+             return;
+        }
         
         const state = getAdaptiveState(GAME_ID, 'music');
         const trialResult: TrialResult = { 
             correct: isCorrect, 
             reactionTimeMs, 
             telemetry: {
-                trialType: 'scene_subtraction',
-                layer_count: trial.reference_scene_instruments.length,
-                correctAnswer: trial.correct_answer,
-                userResponse: response,
+                layer_count: trial.reference_scene_timbres.length,
+                layers: trial.reference_scene_names,
+                removed_layer: trial.correct_answer,
+                timbre_similarity_level: state.currentLevel, // Placeholder
+                player_choice: response,
             }
         };
         sessionTrials.current.push(trialResult);
+
         logTrial({
-            module_id: GAME_ID,
-            mode: 'music',
-            levelPlayed: state.currentLevel,
-            isCorrect,
-            responseTime_ms: reactionTimeMs,
-            meta: trialResult.telemetry
-        });
+            sessionId: sessionId.current!,
+            userId: 'local-user',
+            gameId: GAME_ID,
+            trialIndex: trialCount.current,
+            difficultyLevel: state.currentLevel,
+            condition: 'scene_subtraction',
+            stimulusParams: {
+                layers: trial.reference_scene_names,
+                removed: trial.correct_answer,
+            },
+            stimulusOnsetTs: stimulusOnsetTs.current,
+            responseTs,
+            rtMs: reactionTimeMs,
+            correct: isCorrect,
+            responseType: isCorrect ? 'hit' : 'error',
+            deviceInfo: deviceInfo.current,
+            meta: trialResult.telemetry,
+        } as any);
+
         const newState = adjustDifficulty(trialResult, state, policy);
         updateAdaptiveState(GAME_ID, 'music', newState);
 
@@ -111,43 +174,43 @@ export function AuditorySceneSubtraction() {
     };
     
     useEffect(() => {
-        if(isAudioReady) setGameState('start');
-    }, [isAudioReady]);
+        if(isAudioReady && gameState === 'loading') {
+            startNewSession(true);
+        }
+    }, [isAudioReady, gameState, startNewSession]);
 
     const renderContent = () => {
-        if (gameState === 'loading' || (gameState === 'start' && !isAudioReady)) {
+        if (gameState === 'loading' && !isAudioReady) {
             return <Button onClick={resumeContext} size="lg">Tap to Enable Audio</Button>
-        }
-        if (gameState === 'start') {
-            return <Button onClick={startNewSession} size="lg">Start Auditory Scene Subtraction</Button>
         }
         if (gameState === 'finished') {
             return (
                 <div className="text-center">
                     <CardTitle>Session Complete</CardTitle>
-                    <Button onClick={startNewSession} className="mt-4">Play Again</Button>
+                    <Button onClick={() => startNewSession(true)} className="mt-4">Play Again</Button>
                 </div>
             )
         }
-        if (gameState === 'running' || gameState === 'feedback') {
-            return (
-                <div className="flex flex-col items-center gap-8">
-                     <div className="text-center">
-                        <p className="font-bold text-2xl">Which instrument is missing from the second mix?</p>
-                     </div>
-                     <div className="h-10 text-xl font-bold">
-                         {gameState === 'feedback' && <p className={cn(feedback === 'Correct!' ? 'text-green-400' : 'text-red-400')}>{feedback}</p>}
-                     </div>
-                     <div className="flex flex-wrap gap-4 justify-center">
-                        {trial?.reference_scene_instruments.map(instrument => (
-                             <Button key={instrument} onClick={() => handleResponse(instrument)} size="lg" className="w-32 h-16" disabled={gameState === 'feedback'}>
-                                 {instrument.charAt(0).toUpperCase() + instrument.slice(1)}
-                             </Button>
-                        ))}
-                    </div>
+        if (!trial) return <Loader2 className="animate-spin" />;
+
+        return (
+            <div className="flex flex-col items-center gap-8 w-full">
+                 {gameState === 'tutorial' && <p className="font-bold mb-2">TUTORIAL ({tutorialStep}/3)</p>}
+                 <div className="text-center">
+                    <p className="font-bold text-2xl">Which instrument is missing from the second mix?</p>
+                 </div>
+                 <div className="h-10 text-xl font-bold">
+                     {feedback && <p className={cn(feedback.includes('Incorrect') ? 'text-red-400' : 'text-green-400')}>{feedback}</p>}
+                 </div>
+                 <div className="flex flex-wrap gap-4 justify-center">
+                    {trial.reference_scene_names.map(instrument => (
+                         <Button key={instrument} onClick={() => handleResponse(instrument)} size="lg" className="w-32 h-16" disabled={gameState === 'feedback'}>
+                             {instrument.charAt(0).toUpperCase() + instrument.slice(1)}
+                         </Button>
+                    ))}
                 </div>
-            )
-        }
+            </div>
+        )
     }
 
     return (

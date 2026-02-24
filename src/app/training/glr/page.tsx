@@ -2,7 +2,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, Brain, Settings, Music, MessageSquare, View, Smile, Share2 } from 'lucide-react';
+import { ArrowLeft, Brain, Settings, Music, MessageSquare, View, Smile, Share2, Headphones } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { type CHCDomain, type TrainingFocus } from '@/types';
 import { chcDomains } from '@/lib/domain-constants';
@@ -64,16 +64,21 @@ export default function TrainingPage() {
               </Link>
             </Button>
           </div>
-          <div className="flex items-center gap-3">
-            <PageIcon className="h-7 w-7 text-primary" />
-            <div>
-              <h1 className="text-2xl font-bold text-foreground font-headline tracking-tight">
-                {gameTitle}
-              </h1>
-               <Badge variant="secondary" className="capitalize">
-                 Training: {domainInfo.name}
-               </Badge>
+          <div className="flex flex-col items-center gap-1 text-center">
+             <div className="flex items-center gap-3">
+                <PageIcon className="h-7 w-7 text-primary" />
+                <div>
+                  <h1 className="text-2xl font-bold text-foreground font-headline tracking-tight">
+                    {gameTitle}
+                  </h1>
+                   <Badge variant="secondary" className="capitalize">
+                     Training: {domainInfo.name}
+                   </Badge>
+                </div>
             </div>
+             {effectiveFocus === 'music' && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1"><Headphones className="w-3 h-3"/> Wired headphones recommended</p>
+            )}
           </div>
           <div className="flex-1 flex justify-end">
             <Button variant="ghost" size="icon">
@@ -83,7 +88,7 @@ export default function TrainingPage() {
         </div>
       </header>
 
-       <div className="border-b bg-card sticky top-[85px] z-10">
+       <div className="border-b bg-card sticky top-[95px] z-10">
          <div className="mx-auto max-w-5xl px-4 sm:px-6 md:px-8">
             <Tabs
               value={effectiveFocus}

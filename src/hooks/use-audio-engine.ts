@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useRef, useCallback, useState, useEffect } from 'react';
@@ -155,6 +156,24 @@ export const useAudioEngine = () => {
         return [targetHandle, leftFlankerHandle, rightFlankerHandle];
     }, [context]);
 
+    const playSimultaneous = useCallback((timbres: OscillatorType[], durationMs: number): ToneHandle[] => {
+        if (!context) return [];
+        const now = context.currentTime;
+        const durationSec = durationMs / 1000;
+        const handles: ToneHandle[] = [];
+
+        const baseMidi = 60; // Base note C4
+
+        timbres.forEach((timbre, index) => {
+            // Slightly detune each voice to create a richer texture instead of phase cancellation
+            const freq = midiToFreq(baseMidi) + (Math.random() - 0.5) * 2;
+            const handle = scheduleTone(freq, now, durationSec, timbre);
+            if(handle) handles.push(handle);
+        });
+
+        return handles;
+    }, [context, scheduleTone]);
+
     const stopAll = useCallback(() => {
         if (!context) return;
         const now = context.currentTime;
@@ -165,7 +184,7 @@ export const useAudioEngine = () => {
                 voice.gain.gain.linearRampToValueAtTime(0, now + 0.015);
                 voice.osc.stop(now + 0.02);
             } catch (e) {
-                // Ignore errors
+                // Ignore errors from trying to stop already-stopped nodes
             }
         });
         activeVoices.current = [];
@@ -239,6 +258,7 @@ export const useAudioEngine = () => {
         playNote,
         playChord,
         playSequence,
+        playSimultaneous,
         playFlanker,
     };
 };
