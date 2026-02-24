@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,7 +47,7 @@ type Stimulus = {
 };
 
 export function FocusSwitchReactor() {
-  const store = usePerformanceStore.getState();
+  const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
   const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
 
@@ -69,10 +70,10 @@ export function FocusSwitchReactor() {
   
   useEffect(() => {
     if (isComponentLoaded) {
-      setAdaptiveState(store.getAdaptiveState(GAME_ID, currentMode));
+      setAdaptiveState(getAdaptiveState(GAME_ID, currentMode));
       setGameState('start');
     }
-  }, [isComponentLoaded, currentMode, store]);
+  }, [isComponentLoaded, currentMode, getAdaptiveState]);
   
   useEffect(() => {
     previousRuleRef.current = ruleRef.current;
@@ -128,13 +129,13 @@ export function FocusSwitchReactor() {
   const startNewSession = useCallback(() => {
     if (!adaptiveState) return;
     const sessionState = startSession(adaptiveState);
-    store.updateAdaptiveState(GAME_ID, currentMode, sessionState);
+    updateAdaptiveState(GAME_ID, currentMode, sessionState);
     setAdaptiveState(sessionState);
     currentTrialIndex.current = 0;
     ruleSwitchCounter.current = 0;
     setScore(0);
     startNewTrial(sessionState);
-  }, [adaptiveState, startNewTrial, store, currentMode]);
+  }, [adaptiveState, startNewTrial, updateAdaptiveState, currentMode]);
 
   const processNextTurn = useCallback((correct: boolean, source: 'click' | 'keyboard' | 'timeout', responseSide?: 'left' | 'right') => {
     if (gameState !== 'running' || !adaptiveState) return;
@@ -174,8 +175,10 @@ export function FocusSwitchReactor() {
         }
     };
     
-    store.logTrial({
+    logTrial({
+      id: crypto.randomUUID(),
       userId: 'local_user', // Placeholder
+      timestamp: Date.now(),
       module_id: GAME_ID,
       currentLevel: levelPlayed,
       isCorrect: correct,
@@ -184,7 +187,7 @@ export function FocusSwitchReactor() {
     });
     
     const newState = adjustDifficulty(trialResult, adaptiveState, policy);
-    store.updateAdaptiveState(GAME_ID, currentMode, newState);
+    updateAdaptiveState(GAME_ID, currentMode, newState);
     setAdaptiveState(newState);
 
     const feedbackMessage = correct ? getSuccessFeedback('EF') : getFailureFeedback('EF');
@@ -198,7 +201,7 @@ export function FocusSwitchReactor() {
             startNewTrial(newState);
         }
     }, 600); // Increased feedback duration
-  }, [gameState, adaptiveState, store, currentMode, startNewTrial, stimulus]);
+  }, [gameState, adaptiveState, logTrial, updateAdaptiveState, currentMode, startNewTrial, stimulus]);
   
   const handleAnswer = useCallback((answer: 'left' | 'right', source: 'click' | 'keyboard') => {
     if (gameState !== 'running' || !stimulus) return;
@@ -293,7 +296,7 @@ export function FocusSwitchReactor() {
           return (
             <div className="flex flex-col items-center gap-4 text-center">
               <div className="font-mono text-lg">Level: {adaptiveState?.currentLevel}</div>
-              <Button onClick={startNewSession} size="lg" disabled={!adaptiveState}>Start Session</Button>
+              <Button onClick={startNewSession} size="lg" disabled={!adaptiveState}>Start Challenge</Button>
                <div className="flex items-center gap-2 text-muted-foreground mt-4">
                   <Keyboard className="w-5 h-5"/>
                   <p>Controls: Use (A / ←) and (L / →) keys</p>

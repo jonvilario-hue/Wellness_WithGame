@@ -42,14 +42,13 @@ const getQuestionsForLevel = (level: number) => {
 }
 
 export default function GcMathConcepts({ focus = 'math' }: { focus: TrainingFocus }) {
-  const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
+  const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
   const [adaptiveState, setAdaptiveState] = useState<AdaptiveState | null>(null);
   const [gameState, setGameState] = useState<'loading' | 'start' | 'playing' | 'feedback' | 'finished'>('loading');
-  const [sessionTrials, setSessionTrials] = useState<TrialResult[]>([]);
   const [shuffledQuestions, setShuffledQuestions] = useState<any[]>([]);
   
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
-  const [timeLeft, setTimeLeft] = useState(15);
+  const [timeLeft, setTimeLeft] = useState(20);
 
   const trialStartTime = useRef(0);
   const currentTrialIndex = useRef(0);
@@ -79,63 +78,73 @@ export default function GcMathConcepts({ focus = 'math' }: { focus: TrainingFocu
         reactionTimeMs,
         telemetry: {
             questionId: currentQuestion.id,
-            questionLevel: currentQuestion.level,
+            question_level: currentQuestion.level,
             timedOut: option === null,
         }
     };
-    setSessionTrials(prev => [...prev, trialResult]);
+
+    logTrial({
+      id: crypto.randomUUID(),
+      userId: 'local_user',
+      timestamp: Date.now(),
+      module_id: GAME_ID,
+      currentLevel: adaptiveState.currentLevel,
+      isCorrect,
+      responseTime_ms: reactionTimeMs,
+      meta: trialResult.telemetry
+    });
     
     const newState = adjustDifficulty(trialResult, adaptiveState, policy);
+    updateAdaptiveState(GAME_ID, focus, newState);
     setAdaptiveState(newState);
 
     setTimeout(() => {
       currentTrialIndex.current++;
       if (currentTrialIndex.current >= policy.sessionLength) {
         setGameState('finished');
-        const finalState = endSession(newState, [...sessionTrials, trialResult]);
-        updateAdaptiveState(GAME_ID, focus, finalState);
       } else {
         startNewTrial(newState);
       }
     }, 2500); // Give user time to read explanation
-  }, [gameState, currentQuestion, adaptiveState, sessionTrials, focus, updateAdaptiveState]);
+  }, [gameState, currentQuestion, adaptiveState, logTrial, focus, updateAdaptiveState]);
 
   // Timer logic
   useEffect(() => {
     if (gameState === 'playing') {
+        const timeLimit = policy.levelMap[adaptiveState?.currentLevel || 1].mechanic_config.timeLimit || 20000;
+        setTimeLeft(timeLimit / 1000);
       timerRef.current = setInterval(() => {
         setTimeLeft(prev => {
           if (prev <= 1) {
             handleAnswer(null); // Timeout is an incorrect answer
-            return policy.levelMap[1].mechanic_config.timeLimit / 1000;
+            return timeLimit / 1000;
           }
           return prev - 1;
         });
       }, 1000);
     } else {
       if (timerRef.current) clearInterval(timerRef.current);
-      setTimeLeft(policy.levelMap[1].mechanic_config.timeLimit / 1000);
     }
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [gameState, handleAnswer]);
+  }, [gameState, handleAnswer, adaptiveState]);
 
 
   const startNewSession = useCallback(() => {
     if (!adaptiveState) return;
     const sessionState = startSession(adaptiveState);
     setAdaptiveState(sessionState);
+    updateAdaptiveState(GAME_ID, focus, sessionState);
 
     const level1Qs = shuffle(mathConceptQuestions.filter(q => q.level === 1)).slice(0, 5);
     const level2Qs = shuffle(mathConceptQuestions.filter(q => q.level === 2)).slice(0, 5);
     const level3Qs = shuffle(mathConceptQuestions.filter(q => q.level === 3)).slice(0, 5);
     setShuffledQuestions([...level1Qs, ...level2Qs, ...level3Qs]);
     
-    setSessionTrials([]);
     currentTrialIndex.current = 0;
     startNewTrial(sessionState);
-  }, [adaptiveState]);
+  }, [adaptiveState, updateAdaptiveState, focus]);
 
   const startNewTrial = useCallback((state: AdaptiveState) => {
     setSelectedAnswer(null);
@@ -150,14 +159,14 @@ export default function GcMathConcepts({ focus = 'math' }: { focus: TrainingFocu
       return (
         <div className="flex flex-col items-center gap-4">
           <CardDescription>Test your knowledge of mathematical concepts.</CardDescription>
-          <Button onClick={startNewSession} size="lg" className="bg-blue-600 hover:bg-blue-500">Start Session</Button>
+          <Button onClick={startNewSession} size="lg" className="bg-blue-600 hover:bg-blue-500">Start Quiz</Button>
         </div>
       );
     }
 
     if (gameState === 'finished') {
-       const score = sessionTrials.filter(r => r.correct).length;
-       const accuracy = score / sessionTrials.length;
+       const score = getAdaptiveState(GAME_ID, focus).recentTrials.slice(-policy.sessionLength).filter(r => r.correct).length;
+       const accuracy = score / policy.sessionLength;
        return (
         <div className="text-center space-y-4 animate-in fade-in">
           <CardTitle>Session Complete!</CardTitle>

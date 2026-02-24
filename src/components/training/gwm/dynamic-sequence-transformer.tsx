@@ -58,13 +58,12 @@ const tasks = [
 ];
 
 export function DynamicSequenceTransformer() {
-  const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
+  const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
   const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
 
   const [adaptiveState, setAdaptiveState] = useState<AdaptiveState | null>(null);
   const [gameState, setGameState] = useState<'loading' | 'start' | 'memorizing' | 'answering' | 'feedback' | 'finished'>('loading');
-  const [sessionTrials, setSessionTrials] = useState<TrialResult[]>([]);
   
   const [sequence, setSequence] = useState('');
   const [task, setTask] = useState(tasks[0]);
@@ -130,10 +129,10 @@ export function DynamicSequenceTransformer() {
     if (!adaptiveState) return;
     const sessionState = startSession(adaptiveState);
     setAdaptiveState(sessionState);
-    setSessionTrials([]);
+    updateAdaptiveState(GAME_ID, currentMode, sessionState);
     currentTrialIndex.current = 0;
     startNewTrial(sessionState);
-  }, [adaptiveState, startNewTrial]);
+  }, [adaptiveState, startNewTrial, updateAdaptiveState, currentMode]);
   
   const correctAnswer = useMemo(() => {
     if (!sequence || !task) return '';
@@ -180,10 +179,20 @@ export function DynamicSequenceTransformer() {
             sequenceType: content_config?.params.charSet,
         }
     };
-    setSessionTrials(prev => [...prev, trialResult]);
+    logTrial({
+      id: crypto.randomUUID(),
+      userId: 'local_user',
+      timestamp: Date.now(),
+      module_id: GAME_ID,
+      currentLevel: adaptiveState.currentLevel,
+      isCorrect,
+      responseTime_ms: reactionTimeMs,
+      meta: trialResult.telemetry
+    });
     
     const newState = adjustDifficulty(trialResult, adaptiveState, policy);
     setAdaptiveState(newState);
+    updateAdaptiveState(GAME_ID, currentMode, newState);
 
     setFeedback(isCorrect ? getSuccessFeedback('Gwm') : `Incorrect. The answer was: ${correctAnswer}. ${getFailureFeedback('Gwm')}`);
 
@@ -191,14 +200,12 @@ export function DynamicSequenceTransformer() {
         currentTrialIndex.current++;
         if(currentTrialIndex.current >= policy.sessionLength) {
             setGameState('finished');
-            const finalState = endSession(newState, [...sessionTrials, trialResult]);
-            updateAdaptiveState(GAME_ID, currentMode, finalState);
         } else {
             startNewTrial(newState);
         }
     }, 2500);
 
-  }, [gameState, userAnswer, correctAnswer, adaptiveState, sessionTrials, updateAdaptiveState, startNewTrial, task.id, currentMode, sequence.length]);
+  }, [gameState, userAnswer, correctAnswer, adaptiveState, updateAdaptiveState, startNewTrial, task.id, currentMode, sequence.length, logTrial]);
   
   if (currentMode === 'spatial') {
     return <GameStub 
@@ -225,7 +232,7 @@ export function DynamicSequenceTransformer() {
         return (
           <div className="flex flex-col items-center gap-4">
             <div className="font-mono text-lg">Level: {adaptiveState?.currentLevel}</div>
-            <Button onClick={startNewSession} size="lg">Start Session</Button>
+            <Button onClick={startNewSession} size="lg">Start Sequence</Button>
           </div>
         );
       case 'memorizing':
@@ -266,7 +273,7 @@ export function DynamicSequenceTransformer() {
           </div>
         );
       case 'finished':
-          const finalAccuracy = sessionTrials.filter(t => t.correct).length / sessionTrials.length;
+          const finalAccuracy = currentTrialIndex.current > 0 ? getAdaptiveState(GAME_ID, currentMode).recentTrials.slice(-currentTrialIndex.current).filter(r => r.correct).length / currentTrialIndex.current : 0;
         return (
             <div className="flex flex-col items-center gap-4">
                 <CardTitle>Session Complete!</CardTitle>

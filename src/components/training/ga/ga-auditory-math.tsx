@@ -51,13 +51,12 @@ const generateNumber = (digits: number) => {
 };
 
 export function GaAuditoryMath({ focus }: { focus: TrainingFocus }) {
-  const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
+  const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
   const { playTone, getAudioContext } = useAudioEngine();
 
   const [isSpeechSupported, setIsSpeechSupported] = useState(false);
   const [adaptiveState, setAdaptiveState] = useState<AdaptiveState | null>(null);
   const [gameState, setGameState] = useState<'loading' | 'start' | 'playing' | 'feedback' | 'finished'>('loading');
-  const [sessionTrials, setSessionTrials] = useState<TrialResult[]>([]);
   
   const [puzzle, setPuzzle] = useState<{ num1: number, num2: number } | null>(null);
   const [feedback, setFeedback] = useState('');
@@ -122,10 +121,10 @@ export function GaAuditoryMath({ focus }: { focus: TrainingFocus }) {
     getAudioContext()?.resume();
     const sessionState = startSession(adaptiveState);
     setAdaptiveState(sessionState);
-    setSessionTrials([]);
+    updateAdaptiveState(GAME_ID, focus, sessionState);
     currentTrialIndex.current = 0;
     startNewTrial(sessionState);
-  }, [adaptiveState, startNewTrial, getAudioContext]);
+  }, [adaptiveState, startNewTrial, getAudioContext, updateAdaptiveState, focus]);
 
   const handleAnswer = (userChoice: 'num1' | 'num2' | 'equal') => {
     if (gameState !== 'playing' || !puzzle || !adaptiveState) return;
@@ -149,10 +148,21 @@ export function GaAuditoryMath({ focus }: { focus: TrainingFocus }) {
             pitchDelta: params?.pitchDelta,
         }
     };
-    setSessionTrials(prev => [...prev, trialResult]);
     
+    logTrial({
+      id: crypto.randomUUID(),
+      userId: 'local_user',
+      timestamp: Date.now(),
+      module_id: GAME_ID,
+      currentLevel: adaptiveState.currentLevel,
+      isCorrect: isCorrect,
+      responseTime_ms: reactionTimeMs,
+      meta: trialResult.telemetry
+    });
+
     const newState = adjustDifficulty(trialResult, adaptiveState, policy);
     setAdaptiveState(newState);
+    updateAdaptiveState(GAME_ID, focus, newState);
 
     setFeedback(isCorrect ? getSuccessFeedback('Ga') : getFailureFeedback('Ga'));
     
@@ -160,8 +170,6 @@ export function GaAuditoryMath({ focus }: { focus: TrainingFocus }) {
       currentTrialIndex.current++;
       if (currentTrialIndex.current >= policy.sessionLength) {
         setGameState('finished');
-        const finalState = endSession(newState, [...sessionTrials, trialResult]);
-        updateAdaptiveState(GAME_ID, focus, finalState);
       } else {
         startNewTrial(newState);
       }
@@ -187,14 +195,14 @@ export function GaAuditoryMath({ focus }: { focus: TrainingFocus }) {
               <AlertDescription>Your browser doesn't support speech. The game will use tones as a fallback to test auditory discrimination.</AlertDescription>
             </Alert>
           )}
-          <Button onClick={startNewSession} size="lg">Start Session</Button>
+          <Button onClick={startNewSession} size="lg">Begin Listening</Button>
         </div>
       );
     }
     
     if (gameState === 'finished') {
-      const score = sessionTrials.filter(r => r.correct).length;
-      const accuracy = score / sessionTrials.length;
+      const score = currentTrialIndex.current > 0 ? getAdaptiveState(GAME_ID, focus).recentTrials.slice(-currentTrialIndex.current).filter(r => r.correct).length : 0;
+      const accuracy = score / currentTrialIndex.current;
       return (
         <div className="text-center space-y-4">
           <CardTitle>Session Complete!</CardTitle>
