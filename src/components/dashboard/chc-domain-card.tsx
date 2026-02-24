@@ -52,19 +52,14 @@ const ChcDomainCardComponent = ({ domain }: ChcDomainCardProps) => {
   const Icon = domainIcons[domain.key];
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
   
-  // OPTIMIZATION: Select only the getter function.
   const getAdaptiveState = usePerformanceStore(state => state.getAdaptiveState);
   
-  // The component's internal state now holds the adaptive state.
   const [gameState, setGameState] = useState(() => getAdaptiveState(domain.id, globalFocus));
 
   useEffect(() => {
-    // When the global focus changes, we need to get the correct state for that mode.
     if (isGlobalFocusLoaded) {
       setGameState(getAdaptiveState(domain.id, globalFocus));
     }
-    // This effect depends on the globalFocus and the getter function.
-    // The getter function is stable, so it re-runs only when focus changes.
   }, [globalFocus, isGlobalFocusLoaded, getAdaptiveState, domain.id]);
 
 
@@ -72,6 +67,8 @@ const ChcDomainCardComponent = ({ domain }: ChcDomainCardProps) => {
   useEffect(() => {
     setIsClient(true);
   }, []);
+
+  const isDisabledByFocus = globalFocus === 'neutral' && domain.key === 'Gc';
   
   const focusInfo: Record<TrainingFocus, { Icon: any; label: string; color: string; supported: boolean; }> = {
     neutral: { Icon: Brain, label: 'Core Thinking', color: 'text-muted-foreground', supported: true },
@@ -108,8 +105,8 @@ const ChcDomainCardComponent = ({ domain }: ChcDomainCardProps) => {
   
   const { Icon: TrendIcon, color: trendColor, text: trendText } = getTrendInfo(trend);
 
-  return (
-    <Card className="flex flex-col h-full hover:shadow-lg transition-shadow duration-300">
+  const cardContent = (
+    <Card className={cn("flex flex-col h-full hover:shadow-lg transition-shadow duration-300", isDisabledByFocus && "opacity-50 bg-muted/50")}>
       <CardHeader className="flex flex-row items-start gap-4 space-y-0 pb-2 flex-grow">
         <div className="p-3 bg-primary/10 rounded-lg">
           <Icon className="w-6 h-6 text-primary" />
@@ -118,7 +115,7 @@ const ChcDomainCardComponent = ({ domain }: ChcDomainCardProps) => {
           <CardTitle className="font-headline text-base">{domain.name}</CardTitle>
           <CardDescription className="text-xs">{domain.description}</CardDescription>
         </div>
-        {isLoaded && activeMode.supported && (
+        {isLoaded && activeMode.supported && !isDisabledByFocus && (
            <TooltipProvider>
              <Tooltip delayDuration={0}>
                <TooltipTrigger>
@@ -178,12 +175,29 @@ const ChcDomainCardComponent = ({ domain }: ChcDomainCardProps) => {
         )}
       </CardContent>
       <CardFooter className="flex items-center gap-2 pt-0">
-        <Button asChild className="w-full">
+        <Button asChild className="w-full" disabled={isDisabledByFocus}>
           <Link href={`/training/${domain.key}`}>{domain.gameTitle}</Link>
         </Button>
       </CardFooter>
     </Card>
   );
+
+  if (isDisabledByFocus) {
+    return (
+        <TooltipProvider>
+            <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>
+                    {cardContent}
+                </TooltipTrigger>
+                <TooltipContent>
+                    <p>(Gc) Crystallized Intelligence cannot be trained in a 'neutral' mode as it relies on existing knowledge.</p>
+                </TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
+    )
+  }
+
+  return cardContent;
 };
 
 export const ChcDomainCard = memo(ChcDomainCardComponent);

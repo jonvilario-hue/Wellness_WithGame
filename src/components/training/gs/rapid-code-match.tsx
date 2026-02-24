@@ -54,11 +54,11 @@ export function RapidCodeMatch() {
   const [gameState, setGameState] = useState<'loading' | 'start' | 'running' | 'feedback' | 'finished'>('loading');
   const [sessionTrials, setSessionTrials] = useState<TrialResult[]>([]);
 
-  const [timeLeft, setTimeLeft] = useState(policy.sessionLength);
   const [problem, setProblem] = useState<Problem | null>(null);
   const [inlineFeedback, setInlineFeedback] = useState({ message: '', type: '' });
   
   const trialStartTime = useRef(0);
+  const currentTrialIndex = useRef(0);
   const keyChangeCounter = useRef(0);
 
   const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
@@ -112,10 +112,6 @@ export function RapidCodeMatch() {
 
       if (currentMode === 'verbal') {
           setProblem(generateLexicalProblem());
-      } else if (currentMode === 'math') {
-          // Per audit, math mode must remain a pure Gs task.
-          // Using simple symbol substitution is the valid approach.
-          setProblem(generateSymbolProblem(loadedLevel));
       } else {
         setProblem(generateSymbolProblem(loadedLevel));
       }
@@ -129,7 +125,7 @@ export function RapidCodeMatch() {
     const sessionState = startSession(adaptiveState);
     setAdaptiveState(sessionState);
     setSessionTrials([]);
-    setTimeLeft(policy.sessionLength);
+    currentTrialIndex.current = 0;
     keyChangeCounter.current = 0;
     startNewTrial(sessionState);
   }, [adaptiveState, startNewTrial]);
@@ -141,18 +137,6 @@ export function RapidCodeMatch() {
       setGameState('start');
     }
   }, [isComponentLoaded, currentMode, getAdaptiveState]);
-
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (gameState === 'running' && timeLeft > 0) {
-      timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
-    } else if (timeLeft <= 0 && gameState === 'running' && adaptiveState) {
-        setGameState('finished');
-        const finalState = endSession(adaptiveState, sessionTrials);
-        updateAdaptiveState(GAME_ID, currentMode, finalState);
-    }
-    return () => clearTimeout(timer);
-  }, [gameState, timeLeft, adaptiveState, sessionTrials, updateAdaptiveState, currentMode]);
 
   const handleAnswer = useCallback((answer: number | string | boolean) => {
     if (gameState !== 'running' || !adaptiveState || !problem) return;
@@ -184,15 +168,16 @@ export function RapidCodeMatch() {
     }
 
     setTimeout(() => {
-        if(timeLeft > 0) {
-            startNewTrial(newState);
-        } else {
+        currentTrialIndex.current++;
+        if (currentTrialIndex.current >= policy.sessionLength) {
             setGameState('finished');
-            const finalState = endSession(newState, sessionTrials);
+            const finalState = endSession(newState, [...sessionTrials, trialResult]);
             updateAdaptiveState(GAME_ID, currentMode, finalState);
+        } else {
+            startNewTrial(newState);
         }
     }, 500);
-  }, [gameState, problem, adaptiveState, timeLeft, startNewTrial, updateAdaptiveState, currentMode]);
+  }, [gameState, problem, adaptiveState, sessionTrials, startNewTrial, updateAdaptiveState, currentMode]);
 
   if (currentMode === 'spatial') {
     return <GameStub 
@@ -217,7 +202,10 @@ export function RapidCodeMatch() {
         techStack={['Framer Motion', 'Face Asset Library']}
         complexity="Medium"
         fallbackPlan="If face assets fail, use abstract emotional icons (e.g., stylized happy/sad faces). This preserves the speeded classification mechanic but loses the micro-expression subtlety."
-        />
+        difficultyExamples={{
+        level1: "Evaluate '[T] OR [F]' with a 2000ms time limit.",
+        level8: "Evaluate 'NOT ([T] XOR [F])' with a 700ms time limit, requiring knowledge of operator precedence."
+      }}/>
   }
 
   const renderContent = () => {
@@ -249,7 +237,7 @@ export function RapidCodeMatch() {
             <div className="w-full">
                 <div className="flex justify-between w-full text-lg font-mono mb-4">
                     <span>Score: {sessionTrials.filter(t => t.correct).length}</span>
-                    <span>Time: {timeLeft}s</span>
+                    <span>Trial: {currentTrialIndex.current + 1} / {policy.sessionLength}</span>
                 </div>
                 <div className="relative mb-6 h-24 flex flex-col items-center justify-center">
                     <p className="text-5xl font-bold text-primary mb-4">{problem.word}</p>
@@ -270,8 +258,8 @@ export function RapidCodeMatch() {
     return (
       <div className="w-full">
         <div className="flex justify-between w-full text-lg font-mono mb-4">
-          <span>Score: {sessionTrials.filter(t => t.correct).length}</span>
-          <span>Time: {timeLeft}s</span>
+            <span>Score: {sessionTrials.filter(t => t.correct).length}</span>
+            <span>Trial: {currentTrialIndex.current + 1} / {policy.sessionLength}</span>
         </div>
         
         <div className="flex justify-center gap-4 p-3 bg-muted rounded-lg mb-6 flex-wrap">
