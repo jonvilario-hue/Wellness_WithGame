@@ -1,12 +1,28 @@
-
 'use client';
 
 import { useRef, useCallback, useState, useEffect } from 'react';
 
-// Singleton instance of the AudioContext
+// --- Type Definitions ---
+interface ActiveVoice {
+  osc: OscillatorNode;
+  gain: GainNode;
+  scheduledEnd: number;
+}
+
+export interface ToneHandle {
+  scheduledOnset: number;
+  scheduledEnd: number;
+  voice: ActiveVoice;
+}
+
+// --- Singleton AudioContext ---
 let audioContextInstance: AudioContext | null = null;
 const getAudioContext = () => {
-    if (typeof window !== 'undefined' && !audioContextInstance) {
+    // 7. Guard the singleton against a closed AudioContext.
+    if (typeof window !== 'undefined' && (!audioContextInstance || audioContextInstance.state === 'closed')) {
+        if (audioContextInstance && audioContextInstance.state === 'closed') {
+            audioContextInstance = null;
+        }
         try {
             audioContextInstance = new (window.AudioContext || (window as any).webkitAudioContext)();
         } catch (e) {
@@ -21,8 +37,28 @@ export const midiToFreq = (midi: number) => 440 * Math.pow(2, (midi - 69) / 12);
 export const useAudioEngine = () => {
     const context = getAudioContext();
     const [isAudioReady, setIsAudioReady] = useState(context ? context.state === 'running' : false);
-    const activeSources = useRef<AudioNode[]>([]);
+    // 1. Restructure activeSources to use a typed voice interface.
+    const activeVoices = useRef<ActiveVoice[]>([]);
 
+    // 2. Add a master output chain with a limiter.
+    const masterGainRef = useRef<GainNode | null>(null);
+    const compressorRef = useRef<DynamicsCompressorNode | null>(null);
+
+    if (context && !masterGainRef.current) {
+        masterGainRef.current = context.createGain();
+        masterGainRef.current.gain.value = 0.5;
+
+        compressorRef.current = context.createDynamicsCompressor();
+        compressorRef.current.threshold.value = -6;
+        compressorRef.current.knee.value = 30;
+        compressorRef.current.ratio.value = 12;
+        compressorRef.current.attack.value = 0.003;
+        compressorRef.current.release.value = 0.25;
+
+        masterGainRef.current.connect(compressorRef.current);
+        compressorRef.current.connect(context.destination);
+    }
+    
     const resumeContext = useCallback(async () => {
         if (context && context.state === 'suspended') {
             try {
@@ -37,58 +73,75 @@ export const useAudioEngine = () => {
         }
     }, [context]);
 
-    // Function to get the high-precision current time of the AudioContext
     const getAudioContextTime = useCallback(() => {
         return context?.currentTime ?? 0;
     }, [context]);
 
-    const scheduleTone = useCallback((frequency: number, startTime: number, duration: number, timbre: OscillatorType = 'sine') => {
-        if (!context) return;
+    // 4. Add getLatencyInfo()
+    const getLatencyInfo = useCallback(() => {
+      if (!context) return { baseLatency: 0, outputLatency: 0, sampleRate: 0 };
+      return {
+        baseLatency: (context as any).baseLatency ?? 0,
+        outputLatency: (context as any).outputLatency ?? 0,
+        sampleRate: context.sampleRate,
+      };
+    }, [context]);
+
+    // 3. Make scheduleTone return onset timing info.
+    const scheduleTone = useCallback((frequency: number, startTime: number, duration: number, timbre: OscillatorType = 'sine'): ToneHandle | null => {
+        if (!context || !masterGainRef.current) return null;
+
+        // 8. Add a minimum duration guard in scheduleTone.
+        const safeDuration = Math.max(duration, 0.1);
 
         const osc = context.createOscillator();
         const gainNode = context.createGain();
 
         osc.type = timbre;
         osc.frequency.setValueAtTime(frequency, startTime);
-
-        // ADSR Envelope to prevent clicks
+        
         gainNode.gain.setValueAtTime(0, startTime);
         gainNode.gain.linearRampToValueAtTime(0.7, startTime + 0.01); // Attack
-        gainNode.gain.exponentialRampToValueAtTime(0.1, startTime + duration - 0.05); // Decay/Sustain
-        gainNode.gain.linearRampToValueAtTime(0, startTime + duration); // Release
+        gainNode.gain.exponentialRampToValueAtTime(0.1, startTime + safeDuration - 0.05); // Decay/Sustain
+        gainNode.gain.linearRampToValueAtTime(0, startTime + safeDuration); // Release
 
+        // Connect to master chain
         osc.connect(gainNode);
-        gainNode.connect(context.destination);
+        gainNode.connect(masterGainRef.current);
 
         osc.start(startTime);
-        osc.stop(startTime + duration);
+        osc.stop(startTime + safeDuration);
 
-        activeSources.current.push(osc, gainNode);
+        const voice: ActiveVoice = { osc, gain: gainNode, scheduledEnd: startTime + safeDuration };
+        activeVoices.current.push(voice);
         
-        // Clean up finished sources
         osc.onended = () => {
-            activeSources.current = activeSources.current.filter(node => node !== osc && node !== gainNode);
+            activeVoices.current = activeVoices.current.filter(v => v !== voice);
             osc.disconnect();
             gainNode.disconnect();
         };
 
+        return { scheduledOnset: startTime, scheduledEnd: startTime + safeDuration, voice };
+
     }, [context]);
 
+    // 5. Fix stopAll() to ramp down gain before stopping.
     const stopAll = useCallback(() => {
-        activeSources.current.forEach(node => {
+        if (!context) return;
+        const now = context.currentTime;
+        activeVoices.current.forEach(voice => {
             try {
-                if (node instanceof OscillatorNode) {
-                    node.stop();
-                }
-                node.disconnect();
+                voice.gain.gain.cancelScheduledValues(now);
+                voice.gain.gain.setValueAtTime(voice.gain.gain.value, now);
+                voice.gain.gain.linearRampToValueAtTime(0, now + 0.015);
+                voice.osc.stop(now + 0.02);
             } catch (e) {
-                // Ignore errors from trying to stop already-stopped nodes
+                // Ignore errors
             }
         });
-        activeSources.current = [];
-    }, []);
+        activeVoices.current = [];
+    }, [context]);
     
-    // Resume context on any user interaction
     useEffect(() => {
         const handleFirstInteraction = async () => {
             if (context && context.state !== 'running') {
@@ -106,38 +159,58 @@ export const useAudioEngine = () => {
         }
     }, [resumeContext, context]);
 
+    // 9. Update convenience wrappers to return timing info.
+    const playNote = useCallback((pitch: number, timbre: string, durationMs: number): ToneHandle | null => {
+        if (!context) return null;
+        const now = context.currentTime;
+        return scheduleTone(midiToFreq(pitch), now, durationMs / 1000, timbre as OscillatorType);
+    }, [context, scheduleTone]);
+    
+    const playChord = useCallback((notes: number[], durationMs: number): ToneHandle[] => {
+         if (!context) return [];
+         const now = context.currentTime;
+         return notes.map(note => scheduleTone(midiToFreq(note), now, durationMs / 1000, 'sine')).filter(Boolean) as ToneHandle[];
+    }, [context, scheduleTone]);
+
+    // 6. Fix playSequence — replace setTimeout for onEnd with osc.onended.
+    const playSequence = useCallback((notes: (string | number)[], intervalSeconds: number, onEnd?: () => void): ToneHandle[] => {
+         if (!context) { onEnd?.(); return []; }
+         let time = context.currentTime + 0.1;
+         const handles: ToneHandle[] = [];
+
+         notes.forEach(note => {
+            if (typeof note === 'number' && note > 0) {
+               const handle = scheduleTone(midiToFreq(note), time, intervalSeconds);
+               if(handle) handles.push(handle);
+            }
+            time += intervalSeconds;
+         });
+         
+         if (onEnd && handles.length > 0) {
+            const lastVoice = handles[handles.length - 1].voice;
+            lastVoice.osc.onended = () => {
+                onEnd();
+                 // Clean up old onended handler to prevent memory leaks
+                lastVoice.osc.onended = null;
+            };
+         } else if (onEnd) {
+             onEnd();
+         }
+         
+         return handles;
+    }, [context, scheduleTone]);
+
+    // 10. Update the return type of useAudioEngine.
     return {
         audioContext: context,
         isAudioReady,
         resumeContext,
         getAudioContextTime,
+        getLatencyInfo,
         scheduleTone,
         stopAll,
-        // Keep existing methods for now, can be deprecated later
-        playNote: (pitch: number, timbre: string, durationMs: number) => {
-            if (!context) return;
-            const now = context.currentTime;
-            scheduleTone(midiToFreq(pitch), now, durationMs / 1000, timbre as OscillatorType);
-        },
-        playChord: (notes: number[], durationMs: number) => {
-             if (!context) return;
-             const now = context.currentTime;
-             notes.forEach(note => {
-                scheduleTone(midiToFreq(note), now, durationMs / 1000, 'sine');
-             });
-        },
-        playSequence: (notes: (string | number)[], intervalSeconds: number, onEnd?: () => void) => {
-             if (!context) { onEnd?.(); return; }
-             let time = context.currentTime + 0.1;
-             notes.forEach(note => {
-                if (typeof note === 'number' && note > 0) {
-                   scheduleTone(midiToFreq(note), time, intervalSeconds);
-                }
-                time += intervalSeconds;
-             });
-             if (onEnd) {
-                setTimeout(onEnd, (time - context.currentTime) * 1000);
-             }
-        },
+        playNote,
+        playChord,
+        playSequence,
     };
 };
