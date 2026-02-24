@@ -1,15 +1,17 @@
+
 'use client';
 
 import { useTrainingFocus } from '@/hooks/use-training-focus';
 import { useTrainingOverride } from '@/hooks/use-training-override';
 import { MentalRotationLab } from './mental-rotation-lab';
-import { BalancePuzzle } from './balance-puzzle';
 import { Skeleton } from '@/components/ui/skeleton';
 import { VisualMusicMatch } from './visual-music-match';
 import { TypographicSearch } from './typographic-search';
 import { GameStub } from '../game-stub';
 import { FlowchartTracer } from '../logic/flowchart-tracer';
 import { EmotionalCrowdSearch } from './emotional-crowd-search';
+import { GvSpatialAssembly } from './gv-spatial-assembly';
+
 
 export function VisualProcessingRouter() {
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
@@ -26,7 +28,7 @@ export function VisualProcessingRouter() {
   
   switch (effectiveFocus) {
     case 'math':
-      return <BalancePuzzle focus={effectiveFocus} />;
+      return <GvSpatialAssembly focus={effectiveFocus} />;
     case 'music':
       return <VisualMusicMatch focus={effectiveFocus} />;
     case 'verbal':
