@@ -147,7 +147,7 @@ export function FocusSwitchReactor() {
         setScore(prev => prev + 1);
     }
     
-    let targetSide: string | undefined;
+    let targetSide = 'left';
     if (currentMode === 'neutral') {
         const correctDir: Record<Position, ArrowDir> = { top: 'up', bottom: 'down', left: 'left', right: 'right' };
         if (ruleRef.current === 'position') {
@@ -163,6 +163,8 @@ export function FocusSwitchReactor() {
         }
     }
 
+    const isCongruent = currentMode === 'neutral' ? (stimulus.position === targetSide) : false;
+
     const trialResult: TrialResult = { 
         correct, 
         reactionTimeMs,
@@ -171,14 +173,13 @@ export function FocusSwitchReactor() {
             rule: ruleRef.current,
             switchOccurred: ruleRef.current !== previousRuleRef.current,
             targetSide,
-            responseSide,
+            responseSide: responseSide || null,
+            congruent: isCongruent
         }
     };
     
     logTrial({
-      id: crypto.randomUUID(),
-      userId: 'local_user', // Placeholder
-      timestamp: Date.now(),
+      userId: 'local_user',
       module_id: GAME_ID,
       currentLevel: levelPlayed,
       isCorrect: correct,
@@ -200,7 +201,7 @@ export function FocusSwitchReactor() {
         } else {
             startNewTrial(newState);
         }
-    }, 600); // Increased feedback duration
+    }, 600);
   }, [gameState, adaptiveState, logTrial, updateAdaptiveState, currentMode, startNewTrial, stimulus]);
   
   const handleAnswer = useCallback((answer: 'left' | 'right', source: 'click' | 'keyboard') => {
@@ -238,7 +239,6 @@ export function FocusSwitchReactor() {
     processNextTurn(isCorrect, source, answer);
   }, [gameState, processNextTurn, currentMode, stimulus]);
 
-  // Keyboard input handler
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
         if(e.repeat || gameState !== 'running') return;
@@ -252,7 +252,6 @@ export function FocusSwitchReactor() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [gameState, handleAnswer]);
   
-  // No-Go timer
   useEffect(() => {
     let noGoTimer: NodeJS.Timeout;
     if (gameState === 'running' && rule === 'no_go') {

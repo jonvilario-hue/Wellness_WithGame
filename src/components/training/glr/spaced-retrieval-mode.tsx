@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
@@ -58,6 +59,7 @@ function ActiveDistractor({ duration, onComplete }: { duration: number, onComple
 export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result: { score: number, trials: TrialResult[] }) => void, focus: TrainingFocus }) {
     const { addSpacedPairs, getDueReviewPairs, updatePairOnResult } = useGlrStore();
     const store = usePerformanceStore.getState();
+    const { logTrial } = usePerformanceStore();
     
     const [adaptiveState, setAdaptiveState] = useState<AdaptiveState | null>(null);
     const [phase, setPhase] = useState<'review' | 'learn' | 'distract' | 'recall' | 'finished'>('review');
@@ -134,11 +136,18 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
             telemetry: {
                 mode: 'spaced_retrieval',
                 pairId: pair.id,
-                intervalStage: pair.intervalStage
+                intervalStage: pair.intervalStage,
+                pairCount: (duePairs.length > 0 ? duePairs : newPairs).length,
+                distractorDuration_s: policyParams.distractorDuration,
+                encodingTime_s: 0, // Not tracked
+                pairIndex: currentIndex,
+                cue: pair.word1,
+                expectedResponse: pair.word2,
+                userResponse: userInput.trim(),
             }
         };
 
-        store.logTrial({
+        logTrial({
             userId: 'local_user',
             module_id: GLR_GAME_ID,
             currentLevel: levelPlayed,
@@ -150,7 +159,8 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
         const newState = adjustDifficulty(trial, adaptiveState, glrPolicy);
         store.updateAdaptiveState(GLR_GAME_ID, focus, newState);
         setAdaptiveState(newState);
-
+        setSessionTrials(prev => [...prev, trial]);
+        
         updatePairOnResult(pair.id || `${pair.word1}-${pair.word2}`, isCorrect);
         
         setFeedback(prev => ({...prev, [pair.word1]: isCorrect ? 'correct' : 'incorrect'}));

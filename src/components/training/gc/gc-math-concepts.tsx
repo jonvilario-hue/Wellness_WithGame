@@ -55,6 +55,11 @@ export default function GcMathConcepts({ focus = 'math' }: { focus: TrainingFocu
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const currentQuestion = useMemo(() => shuffledQuestions[currentTrialIndex.current], [shuffledQuestions, currentTrialIndex.current]);
+  const timeLimit = useMemo(() => {
+    if (!adaptiveState) return 20000;
+    const policyForLevel = policy.levelMap[adaptiveState.currentLevel] || policy.levelMap[1];
+    return policyForLevel.mechanic_config.timeLimit || 20000;
+  }, [adaptiveState]);
 
   useEffect(() => {
     const initialState = getAdaptiveState(GAME_ID, focus);
@@ -66,6 +71,7 @@ export default function GcMathConcepts({ focus = 'math' }: { focus: TrainingFocu
     if (gameState !== 'playing' || !currentQuestion || !adaptiveState) return;
 
     if (timerRef.current) clearInterval(timerRef.current);
+    const levelPlayed = adaptiveState.currentLevel;
     setGameState('feedback');
 
     const reactionTimeMs = Date.now() - trialStartTime.current;
@@ -80,15 +86,14 @@ export default function GcMathConcepts({ focus = 'math' }: { focus: TrainingFocu
             questionId: currentQuestion.id,
             question_level: currentQuestion.level,
             timedOut: option === null,
+            timeLimit: timeLimit,
         }
     };
 
     logTrial({
-      id: crypto.randomUUID(),
       userId: 'local_user',
-      timestamp: Date.now(),
       module_id: GAME_ID,
-      currentLevel: adaptiveState.currentLevel,
+      currentLevel: levelPlayed,
       isCorrect,
       responseTime_ms: reactionTimeMs,
       meta: trialResult.telemetry
@@ -105,13 +110,12 @@ export default function GcMathConcepts({ focus = 'math' }: { focus: TrainingFocu
       } else {
         startNewTrial(newState);
       }
-    }, 2500); // Give user time to read explanation
-  }, [gameState, currentQuestion, adaptiveState, logTrial, focus, updateAdaptiveState]);
+    }, 2500);
+  }, [gameState, currentQuestion, adaptiveState, logTrial, focus, updateAdaptiveState, timeLimit]);
 
   // Timer logic
   useEffect(() => {
     if (gameState === 'playing') {
-        const timeLimit = policy.levelMap[adaptiveState?.currentLevel || 1].mechanic_config.timeLimit || 20000;
         setTimeLeft(timeLimit / 1000);
       timerRef.current = setInterval(() => {
         setTimeLeft(prev => {
@@ -128,7 +132,7 @@ export default function GcMathConcepts({ focus = 'math' }: { focus: TrainingFocu
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [gameState, handleAnswer, adaptiveState]);
+  }, [gameState, handleAnswer, timeLimit]);
 
 
   const startNewSession = useCallback(() => {
@@ -165,8 +169,9 @@ export default function GcMathConcepts({ focus = 'math' }: { focus: TrainingFocu
     }
 
     if (gameState === 'finished') {
-       const score = getAdaptiveState(GAME_ID, focus).recentTrials.slice(-policy.sessionLength).filter(r => r.correct).length;
-       const accuracy = score / policy.sessionLength;
+       const sessionTrials = getAdaptiveState(GAME_ID, focus).recentTrials.slice(-policy.sessionLength);
+       const score = sessionTrials.filter(r => r.correct).length;
+       const accuracy = sessionTrials.length > 0 ? score / sessionTrials.length : 0;
        return (
         <div className="text-center space-y-4 animate-in fade-in">
           <CardTitle>Session Complete!</CardTitle>

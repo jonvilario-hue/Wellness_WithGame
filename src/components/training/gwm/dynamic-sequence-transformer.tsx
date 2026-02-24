@@ -116,7 +116,6 @@ export function DynamicSequenceTransformer() {
     setFeedback('');
     setGameState('memorizing');
     
-    // Per audit decision: present verbal stimuli visually due to TTS unreliability
     const displayTime = currentMode === 'verbal' ? mechanic_config.visualDisplayTimeMs || 800 : mechanic_config.displayTimeMs || 1500;
 
     setTimeout(() => {
@@ -148,7 +147,7 @@ export function DynamicSequenceTransformer() {
             ).join('');
         case 'every_other':
             return sequence.split('').filter((_, i) => i % 2 === 0).join('');
-        default: return sequence; // Default to simple recall for verbal tasks
+        default: return sequence;
     }
   }, [sequence, task]);
 
@@ -158,16 +157,16 @@ export function DynamicSequenceTransformer() {
     if (gameState !== 'answering' || !adaptiveState) return;
     
     setGameState('feedback');
+    const levelPlayed = adaptiveState.currentLevel;
     const reactionTimeMs = Date.now() - trialStartTime.current;
     
     let isCorrect = userAnswer.trim().toUpperCase() === correctAnswer.toUpperCase();
-    // Normalize punctuation for sentence unscramble
     if (task.id === 'sentence_unscramble') {
         const normalize = (str: string) => str.toUpperCase().replace(/[.,!?]/g, '');
         isCorrect = normalize(userAnswer.trim()) === normalize(correctAnswer);
     }
     
-    const levelDef = policy.levelMap[adaptiveState.currentLevel] || policy.levelMap[1];
+    const levelDef = policy.levelMap[levelPlayed] || policy.levelMap[1];
     const content_config = levelDef.content_config[currentMode];
 
     const trialResult: TrialResult = { 
@@ -175,16 +174,16 @@ export function DynamicSequenceTransformer() {
         reactionTimeMs,
         telemetry: {
             sequenceLength: sequence.length,
-            transformRule: task.id,
+            recallDirection: task.id,
+            userSequence: userAnswer.trim().toUpperCase(),
+            correctSequence: correctAnswer.toUpperCase(),
             sequenceType: content_config?.params.charSet,
         }
     };
     logTrial({
-      id: crypto.randomUUID(),
       userId: 'local_user',
-      timestamp: Date.now(),
       module_id: GAME_ID,
-      currentLevel: adaptiveState.currentLevel,
+      currentLevel: levelPlayed,
       isCorrect,
       responseTime_ms: reactionTimeMs,
       meta: trialResult.telemetry
@@ -273,7 +272,8 @@ export function DynamicSequenceTransformer() {
           </div>
         );
       case 'finished':
-          const finalAccuracy = currentTrialIndex.current > 0 ? getAdaptiveState(GAME_ID, currentMode).recentTrials.slice(-currentTrialIndex.current).filter(r => r.correct).length / currentTrialIndex.current : 0;
+          const sessionTrials = getAdaptiveState(GAME_ID, currentMode).recentTrials.slice(-policy.sessionLength);
+          const finalAccuracy = sessionTrials.length > 0 ? sessionTrials.filter(t => t.correct).length / sessionTrials.length : 0;
         return (
             <div className="flex flex-col items-center gap-4">
                 <CardTitle>Session Complete!</CardTitle>

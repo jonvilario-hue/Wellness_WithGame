@@ -45,10 +45,9 @@ const shuffle = (array: any[]) => {
 };
 
 export function GvSpatialAssembly({ focus }: { focus: TrainingFocus }) {
-  const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
+  const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
   const [adaptiveState, setAdaptiveState] = useState<AdaptiveState | null>(null);
   const [gameState, setGameState] = useState<'loading' | 'start' | 'playing' | 'feedback' | 'finished'>('loading');
-  const [sessionTrials, setSessionTrials] = useState<TrialResult[]>([]);
   const [currentTrialIndex, setCurrentTrialIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<any | null>(null);
   const trialStartTime = useRef(0);
@@ -57,15 +56,11 @@ export function GvSpatialAssembly({ focus }: { focus: TrainingFocus }) {
     if (!adaptiveState) return null;
     const level = adaptiveState.currentLevel;
     
-    // Get the policy for the current level, or the last defined level as a fallback
     const policyForLevel = policy.levelMap[level] || policy.levelMap[Object.keys(policy.levelMap).pop() as any];
-    
-    // Get puzzle_tier from the policy, defaulting to 1
     const policyTier = policyForLevel?.content_config?.[focus]?.params?.puzzle_tier || 1;
 
     const puzzlesInTier = PUZZLE_BANK.filter(p => p.tier === policyTier);
     if (puzzlesInTier.length === 0) {
-      // Fallback to a tier 1 puzzle if no puzzles are found for the current tier
       const fallbackPuzzles = PUZZLE_BANK.filter(p => p.tier === 1);
       return fallbackPuzzles[currentTrialIndex % fallbackPuzzles.length];
     }
@@ -85,7 +80,6 @@ export function GvSpatialAssembly({ focus }: { focus: TrainingFocus }) {
     if (!adaptiveState) return;
     const sessionState = startSession(adaptiveState);
     setAdaptiveState(sessionState);
-    setSessionTrials([]);
     setCurrentTrialIndex(0);
     setGameState('playing');
     trialStartTime.current = Date.now();
@@ -93,7 +87,8 @@ export function GvSpatialAssembly({ focus }: { focus: TrainingFocus }) {
 
   const handleAnswer = (option: { d: string }) => {
     if (gameState !== 'playing' || !puzzle || !adaptiveState) return;
-
+    
+    const levelPlayed = adaptiveState.currentLevel;
     const reactionTimeMs = Date.now() - trialStartTime.current;
     const isCorrect = option.d === puzzle.solution.d;
 
@@ -102,12 +97,24 @@ export function GvSpatialAssembly({ focus }: { focus: TrainingFocus }) {
         reactionTimeMs,
         telemetry: {
             puzzleTier: puzzle.tier,
-            fragments: puzzle.fragments.length,
-            rotation: puzzle.fragments.some(f => f.t.includes('rotate')),
+            pieceCount: puzzle.fragments.length,
+            rotationRequired: puzzle.fragments.some(f => f.t.includes('rotate')),
+            completionTime_ms: reactionTimeMs,
+            errorMargin_px: 0, // Not applicable for this task version
         }
     };
-    setSessionTrials(prev => [...prev, trialResult]);
+
+    logTrial({
+      userId: 'local_user',
+      module_id: GAME_ID,
+      currentLevel: levelPlayed,
+      isCorrect,
+      responseTime_ms: reactionTimeMs,
+      meta: trialResult.telemetry
+    });
+
     const newState = adjustDifficulty(trialResult, adaptiveState, policy);
+    updateAdaptiveState(GAME_ID, focus, newState);
     setAdaptiveState(newState);
     
     setSelectedAnswer(option);
@@ -117,8 +124,6 @@ export function GvSpatialAssembly({ focus }: { focus: TrainingFocus }) {
       const nextTrialIndex = currentTrialIndex + 1;
       if (nextTrialIndex >= policy.sessionLength) {
         setGameState('finished');
-        const finalState = endSession(newState, [...sessionTrials, trialResult]);
-        updateAdaptiveState(GAME_ID, focus, finalState);
       } else {
         setCurrentTrialIndex(nextTrialIndex);
         setSelectedAnswer(null);
@@ -140,6 +145,7 @@ export function GvSpatialAssembly({ focus }: { focus: TrainingFocus }) {
     }
     
     if (gameState === 'finished') {
+      const sessionTrials = getAdaptiveState(GAME_ID, focus).recentTrials.slice(-policy.sessionLength);
       const score = sessionTrials.filter(r => r.correct).length;
       return (
         <div className="text-center space-y-4">

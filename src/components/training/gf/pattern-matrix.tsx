@@ -239,16 +239,16 @@ export function PatternMatrix() {
             correct: isCorrect, 
             reactionTimeMs,
             telemetry: {
-                matrixSize: puzzle.size,
-                patternComplexity: puzzle.params.rule,
+                gridSize: puzzle.size,
+                patternRule: puzzle.params.rule,
+                selectedAnswer: option,
+                correctAnswer: puzzle.answer,
                 distractorCount: puzzle.options.length,
             }
         };
 
         logTrial({
-            id: crypto.randomUUID(),
-            userId: 'local_user', // Placeholder
-            timestamp: Date.now(),
+            userId: 'local_user',
             module_id: GAME_ID,
             currentLevel: levelPlayed,
             isCorrect,
