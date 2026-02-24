@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,6 +29,15 @@ const PUZZLE_BANK = [
   { tier: 3, fragments: [{d: "M 0 25 L 50 0 L 100 25 L 50 50 Z", t: "translate(0,0)"}, {d: "M 0 25 L 50 50 L 100 25 L 50 100 Z", t: "translate(0, 10)"}], solution: {d: "M 50 0 L 100 25 L 100 75 L 50 100 L 0 75 L 0 25 Z"}, distractors: [{d: "M 0 0 L 100 0 L 100 100 L 0 100 Z"}, {d: "M 50 0 L 100 50 L 50 100 L 0 50 Z"}]},
   { tier: 3, fragments: [{d: "M 50 0 L 60 40 L 100 40 L 65 65 L 80 100 L 50 80 L 20 100 L 35 65 L 0 40 L 40 40 Z", t: "translate(0,0)"}], solution: {d: "M 50 0 L 60 40 L 100 40 L 65 65 L 80 100 L 50 80 L 20 100 L 35 65 L 0 40 L 40 40 Z"}, distractors: [{d: "M 50 0 L 100 100 L 0 100 Z"}, {d: "M 50 0 L 100 50 L 50 100 L 0 50 Z"}]},
 ];
+
+// --- Fisher-Yates Shuffle ---
+const shuffle = (array: any[]) => {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+};
 
 export function GvSpatialAssembly({ focus, onGameComplete = () => {} }: { focus: TrainingFocus, onGameComplete?: (result: any) => void }) {
   const [gameState, setGameState] = useState<'loading' | 'start' | 'playing' | 'feedback' | 'finished'>('loading');
@@ -168,4 +176,3 @@ export function GvSpatialAssembly({ focus, onGameComplete = () => {} }: { focus:
     </Card>
   );
 }
-
