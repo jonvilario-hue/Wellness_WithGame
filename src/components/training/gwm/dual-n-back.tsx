@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +9,7 @@ import { useAudioEngine } from "@/hooks/use-audio-engine";
 import { Loader2, Headphones, Brain, Waves } from "lucide-react";
 import { adjustDifficulty, startSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
-import type { AdaptiveState, TrialResult, GameId, TrialRecord } from "@/types";
+import type { TrialResult, GameId, TrialRecord } from "@/types";
 import { domainIcons } from "@/components/icons";
 
 const GAME_ID: GameId = 'gwm_dynamic_sequence';
@@ -23,7 +24,7 @@ type Trial = {
 
 export function DualNBack() {
     const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
-    const { playNote, resumeContext, isAudioReady, getLatencyInfo } = useAudioEngine();
+    const { playNote, resumeContext, isAudioReady, getAudioContextTime, getLatencyInfo } = useAudioEngine();
 
     const [gameState, setGameState] = useState<'loading' | 'tutorial' | 'playing' | 'finished'>('loading');
     const [history, setHistory] = useState<Trial[]>([]);
@@ -38,7 +39,7 @@ export function DualNBack() {
     const responseTracker = useRef<{ pitch: boolean, timbre: boolean }>({ pitch: false, timbre: false });
     const sessionId = useRef<string | null>(null);
 
-    const startSession = useCallback(() => {
+    const startNewSession = useCallback((isTutorial: boolean) => {
         resumeContext();
         const info = getLatencyInfo();
         setDeviceInfo(info);
@@ -51,14 +52,12 @@ export function DualNBack() {
         setHistory([]);
         sessionId.current = crypto.randomUUID();
         setTutorialStep(0);
-        setGameState('tutorial');
+        if (isTutorial) {
+            setGameState('tutorial');
+        } else {
+            setGameState('playing');
+        }
     }, [resumeContext, getLatencyInfo, getAdaptiveState, updateAdaptiveState]);
-
-    const startScoredSession = useCallback(() => {
-        trialCount.current = 0;
-        setHistory([]);
-        setGameState('playing');
-    }, []);
 
     const endSession = useCallback(() => {
         setGameState('finished');
@@ -121,41 +120,45 @@ export function DualNBack() {
     }, [isAudioReady, gameState, getAdaptiveState, history, playNote]);
 
      useEffect(() => {
-        if ((gameState === 'playing' || gameState === 'tutorial') && trialCount.current < 30 && tutorialStep < 6) {
-            const levelParams = policy.levelMap[getAdaptiveState(GAME_ID, 'music').currentLevel]?.content_config['music']?.params;
+        if ((gameState === 'playing' || gameState === 'tutorial')) {
+            if (trialCount.current >= 30 || tutorialStep >= 5) {
+                if (gameState === 'tutorial') {
+                    startNewSession(false);
+                } else {
+                    endSession();
+                }
+                return;
+            }
+            
+            const adaptiveState = getAdaptiveState(GAME_ID, 'music');
+            const levelParams = policy.levelMap[adaptiveState.currentLevel]?.content_config['music']?.params;
             const isi = levelParams?.isi_ms || 2500;
             trialTimer.current = setInterval(runTrial, isi);
-        } else if (gameState === 'playing' || (gameState === 'tutorial' && tutorialStep >= 5)) {
-            if (gameState === 'tutorial') {
-                startScoredSession();
-            } else {
-                endSession();
-            }
         }
 
         return () => {
             if (trialTimer.current) clearInterval(trialTimer.current);
         };
-    }, [gameState, runTrial, getAdaptiveState, tutorialStep, startScoredSession, endSession]);
+    }, [gameState, runTrial, getAdaptiveState, tutorialStep, startNewSession, endSession]);
 
 
     const handleResponse = (matchType: 'pitch' | 'timbre') => {
         if (!isAudioReady || history.length === 0) return;
         
-        const responseTs = performance.now(); // We will need to convert this
-        const rtMs = responseTs - stimulusOnsetTs.current; // This is an approximation until we convert times
+        const responseTs = getAudioContextTime();
+        const rtMs = (responseTs - stimulusOnsetTs.current) * 1000;
         const adaptiveState = getAdaptiveState(GAME_ID, 'music');
         const levelParams = policy.levelMap[adaptiveState.currentLevel]?.content_config['music']?.params;
         const n_back = levelParams?.n_back || 1;
 
-        if (history.length <= n_back) return; // Not enough history to check
+        if (history.length <= n_back) return;
 
         const currentTrial = history[history.length - 1];
         let correct = false;
         let responseType = 'false_alarm';
 
         if (matchType === 'pitch') {
-            if (responseTracker.current.pitch) return; // Already responded
+            if (responseTracker.current.pitch) return;
             responseTracker.current.pitch = true;
             correct = currentTrial.isPitchMatch;
             if(correct) responseType = 'hit';
@@ -172,32 +175,35 @@ export function DualNBack() {
         if (gameState !== 'tutorial') {
             const trialResult: TrialResult = { correct, reactionTimeMs: rtMs, telemetry: {} };
             sessionTrials.current.push(trialResult);
+            
+            let condition = "no_match";
+            if (currentTrial.isPitchMatch && currentTrial.isTimbreMatch) condition = "dual_match";
+            else if (currentTrial.isPitchMatch) condition = "pitch_only";
+            else if (currentTrial.isTimbreMatch) condition = "timbre_only";
 
             logTrial({
                 sessionId: sessionId.current!,
-                userId: 'local-user', // Placeholder for Firebase Auth
+                userId: 'local-user',
                 gameId: GAME_ID,
                 trialIndex: trialCount.current,
-                condition: currentTrial.isPitchMatch && currentTrial.isTimbreMatch ? "dual_match" : currentTrial.isPitchMatch ? "pitch_only" : currentTrial.isTimbreMatch ? "timbre_only" : "no_match",
+                condition,
                 stimulusParams: {
-                    pitch: currentTrial.pitch,
-                    timbre: currentTrial.timbre,
-                },
-                stimulusOnsetTs: stimulusOnsetTs.current,
-                responseTs: responseTs,
-                rtMs,
-                correct,
-                responseType,
-                difficultyLevel: adaptiveState.currentLevel,
-                deviceInfo,
-                meta: {
                     n_back_level: n_back,
                     is_pitch_match: currentTrial.isPitchMatch,
                     is_timbre_match: currentTrial.isTimbreMatch,
                     player_said_pitch_match: matchType === 'pitch',
                     player_said_timbre_match: matchType === 'timbre',
-                }
-            } as any);
+                    pitch: currentTrial.pitch,
+                    timbre: currentTrial.timbre
+                },
+                stimulusOnsetTs: stimulusOnsetTs.current,
+                responseTs,
+                rtMs,
+                correct,
+                responseType,
+                difficultyLevel: adaptiveState.currentLevel,
+                deviceInfo,
+            });
 
             const newState = adjustDifficulty(trialResult, adaptiveState, policy);
             updateAdaptiveState(GAME_ID, 'music', newState);
@@ -205,11 +211,13 @@ export function DualNBack() {
     };
     
     useEffect(() => {
-        if(!isAudioReady) setGameState('loading');
-    }, [isAudioReady]);
+        if(isAudioReady && gameState === 'loading') {
+            startNewSession(true);
+        }
+    }, [isAudioReady, gameState, startNewSession]);
 
     const renderContent = () => {
-        if (gameState === 'loading') {
+        if (gameState === 'loading' && !isAudioReady) {
             return <Button onClick={resumeContext} size="lg">Tap to Enable Audio</Button>
         }
         if (gameState === 'tutorial') {
@@ -230,7 +238,7 @@ export function DualNBack() {
                 <div className="text-center space-y-4">
                     <h3 className="text-2xl font-bold">Session Complete</h3>
                     <p className="text-lg">Accuracy: {accuracy.toFixed(1)}%</p>
-                    <Button onClick={startSession} size="lg">Play Again</Button>
+                    <Button onClick={() => startNewSession(true)} size="lg">Play Again</Button>
                 </div>
             )
         }
@@ -269,11 +277,7 @@ export function DualNBack() {
                 <CardDescription className="text-cyan-300/70">Does the pitch or timbre match the one from N steps ago? <br/><br/> <Headphones className="inline-block mr-2" /> Wired headphones recommended for best results.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center gap-6 min-h-[350px] justify-center">
-                 {gameState === 'loading' && !isAudioReady
-                    ? <Button onClick={resumeContext} size="lg">Tap to Enable Audio & Start</Button>
-                    : gameState === 'loading' && isAudioReady ? <Button onClick={startSession} size="lg">Start Session</Button>
-                    : renderContent()
-                 }
+                {renderContent()}
             </CardContent>
         </Card>
     );

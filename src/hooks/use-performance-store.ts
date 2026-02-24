@@ -1,3 +1,4 @@
+
 'use client';
 
 import { create } from 'zustand';
@@ -122,7 +123,7 @@ export const usePerformanceStore = create<PerformanceStateData & PerformanceActi
       },
     })),
     {
-      name: 'chc-performance-cache-v2-fixed',
+      name: 'chc-performance-cache-v3-final',
       storage: createJSONStorage(() => localStorage),
     }
   )

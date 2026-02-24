@@ -1,3 +1,4 @@
+
 'use client';
 
 // This file is the single source of truth for all shared types in the application.
@@ -19,27 +20,20 @@ export type GameId =
 // --- Local Cache & Telemetry ---
 export interface TrialRecord {
   id: string; // UUID for the trial
-  sessionId?: string; // Optional: UUID for the session
-  userId?: string; // Optional: Firebase Auth UID
-  
-  module_id: GameId;
-  mode: TrainingFocus;
-  condition?: string; // e.g., 'congruent', 'incongruent', 'switch', 'stay'
-  
-  timestamp: number; // Wall clock time (Date.now())
-  stimulusOnsetTs: number; // High-precision timestamp from AudioContext
-  responseTs: number; // High-precision timestamp from user event or AudioContext
-  
-  currentLevel: number;
-  isCorrect: boolean;
-  rtMs: number; // Final calculated reaction time
-  
-  meta: Record<string, any>; // Rich, module-specific data payload
-  deviceInfo?: {
-      browser: string;
-      sampleRate: number;
-      audioOutputLatency: number;
-  }
+  sessionId: string;
+  userId?: string;
+  gameId: GameId;
+  trialIndex: number;
+  condition?: string;
+  stimulusParams: Record<string, any>;
+  stimulusOnsetTs: number;
+  responseTs: number;
+  rtMs: number;
+  correct: boolean;
+  responseType: string;
+  difficultyLevel: number;
+  deviceInfo?: any;
+  timestamp: number;
 }
 
 
