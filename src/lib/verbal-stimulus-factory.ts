@@ -128,6 +128,22 @@ export const generateClozeProblem = (level: number, prng: PRNG) => {
     };
 }
 
+// --- PHONEME DISCRIMINATION (Ga) ---
+export const generatePhonemeDiscriminationProblem = (level: number, prng: PRNG) => {
+  const set = phoneticallySimilarSets[prng.nextIntRange(0, phoneticallySimilarSets.length)];
+  const shuffledSet = prng.shuffle([...set]);
+  const wordToSpeak = shuffledSet[0];
+  const otherWord = shuffledSet[1];
+
+  const options = prng.shuffle([wordToSpeak, otherWord]);
+
+  return {
+    prompt: wordToSpeak, // This will be spoken by the TTS engine
+    options: options,
+    answer: wordToSpeak
+  };
+};
+
 
 // --- Audit 2.1: Development-only validation function ---
 export function validateDeterminism(seed: string, gameId: string, tier: number, trialCount: number): boolean {
@@ -138,14 +154,14 @@ export function validateDeterminism(seed: string, gameId: string, tier: number, 
 
     console.log(`Running determinism check for game ${gameId}, tier ${tier} with seed "${seed}"...`);
     
+    // This is a simplified check. A full check would call the specific generator for the gameId.
+    // For now, we'll use a generic one.
+    const generator = generateVerbalSequence;
+
     const prng1 = new PRNG(seed);
     const prng2 = new PRNG(seed);
     const results1 = [];
     const results2 = [];
-
-    // This is a simplified check. A full check would call the specific generator for the gameId.
-    // For now, we'll use a generic one.
-    const generator = generateVerbalSequence;
 
     for (let i = 0; i < trialCount; i++) {
         results1.push(generator(tier, prng1));
