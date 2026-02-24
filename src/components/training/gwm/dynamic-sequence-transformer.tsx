@@ -9,7 +9,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
 import { cn } from "@/lib/utils";
-import { adjustDifficulty, startSession } from "@/lib/adaptive-engine";
+import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
 import { useTrainingFocus } from "@/hooks/use-training-focus";
@@ -19,6 +19,7 @@ import { GameStub } from "../game-stub";
 import { StateMachineTracer } from "../logic/state-machine-tracer";
 import { domainIcons } from "@/components/icons";
 import { useAudioEngine } from "@/hooks/use-audio-engine";
+import { ComplexSpanTask } from "./ComplexSpanTask";
 
 
 const GAME_ID: GameId = 'gwm_dynamic_sequence';
@@ -28,16 +29,6 @@ const generateSequence = (length: number, charSet: string) => {
   let chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   if (charSet === 'alphanumeric') chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   if (charSet === 'numeric') chars = '0123456789';
-  if (charSet === 'numeric_ops') chars = '0123456789+-*/=';
-  
-  if (charSet === 'notes' || charSet === 'notes_symbols') {
-    const notes = [60, 62, 64, 65, 67, 69, 71]; // C Major Scale
-    let result = [];
-    for(let i=0; i < length; i++) {
-        result.push(notes[Math.floor(Math.random() * notes.length)]);
-    }
-    return result;
-  }
   
   if (charSet === 'phonological_similar') {
     const set = phoneticallySimilarSets[Math.floor(Math.random() * phoneticallySimilarSets.length)];
@@ -70,7 +61,7 @@ export function DynamicSequenceTransformer() {
   const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
   const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
-  const { playSequence, resumeContext, isAudioReady, audioContext } = useAudioEngine();
+  const { playSequence, resumeContext, isAudioReady, getAudioContextTime } = useAudioEngine();
 
   const [gameState, setGameState] = useState<'loading' | 'start' | 'memorizing' | 'answering' | 'feedback' | 'finished'>('loading');
   
@@ -82,6 +73,7 @@ export function DynamicSequenceTransformer() {
   const trialStartTime = useRef(0);
   const currentTrialIndex = useRef(0);
   const correctSentenceRef = useRef('');
+  const sessionId = useRef(crypto.randomUUID());
 
   const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
   const currentMode = isComponentLoaded ? (override || globalFocus) : 'neutral';
@@ -101,7 +93,10 @@ export function DynamicSequenceTransformer() {
     const levelDef = policy.levelMap[loadedLevel] || policy.levelMap[Object.keys(policy.levelMap).pop() as any];
     const { mechanic_config } = levelDef;
     const content_config = levelDef.content_config[currentMode];
-    if (!content_config || !content_config.params) throw new Error("Invalid content config");
+    if (!content_config || !content_config.params) {
+        console.error("Invalid content config for", currentMode);
+        return;
+    }
     
     let newTask = tasks.find(t => t.id === content_config.sub_variant) || tasks[0];
     let newSequence: string | (string|number)[] = '';
@@ -125,18 +120,12 @@ export function DynamicSequenceTransformer() {
     
     const displayTime = currentMode === 'verbal' ? mechanic_config.visualDisplayTimeMs || 800 : mechanic_config.displayTimeMs || 1500;
 
-    if (currentMode === 'music' && Array.isArray(newSequence)) {
-        playSequence(newSequence as number[], 0.3, () => {
-             setGameState('answering');
-             if (audioContext) trialStartTime.current = audioContext.currentTime;
-        });
-    } else {
-        setTimeout(() => {
-          setGameState('answering');
-          if (audioContext) trialStartTime.current = audioContext.currentTime;
-        }, displayTime);
-    }
-  }, [currentMode, playSequence, audioContext]);
+    setTimeout(() => {
+      setGameState('answering');
+      trialStartTime.current = getAudioContextTime();
+    }, displayTime);
+    
+  }, [currentMode, getAudioContextTime]);
 
   const startNewSession = useCallback(() => {
     resumeContext();
@@ -144,6 +133,7 @@ export function DynamicSequenceTransformer() {
     const sessionState = startSession(state);
     updateAdaptiveState(GAME_ID, currentMode, sessionState);
     currentTrialIndex.current = 0;
+    sessionId.current = crypto.randomUUID();
     startNewTrial(sessionState);
   }, [startNewTrial, resumeContext, updateAdaptiveState, currentMode, getAdaptiveState]);
   
@@ -152,7 +142,7 @@ export function DynamicSequenceTransformer() {
     const seqStr = Array.isArray(sequence) ? sequence.join('') : sequence;
     switch(task.id) {
         case 'reverse': return seqStr.split('').reverse().join('');
-        case 'alpha_only': return seqStr.replace(/[^A-Z♩♪♫♭♯♮]/gi, '');
+        case 'alpha_only': return seqStr.replace(/[^A-Z]/gi, '');
         case 'numeric_only': return seqStr.replace(/[^0-9+\-*/=]/g, '');
         case 'remove_first': return seqStr.substring(1);
         case 'sentence_unscramble': return correctSentenceRef.current;
@@ -170,11 +160,12 @@ export function DynamicSequenceTransformer() {
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     const state = getAdaptiveState(GAME_ID, currentMode);
-    if (gameState !== 'answering' || !state || !audioContext) return;
+    if (gameState !== 'answering' || !state) return;
     
     setGameState('feedback');
     const levelPlayed = state.currentLevel;
-    const reactionTimeMs = (audioContext.currentTime - trialStartTime.current) * 1000;
+    const responseTs = getAudioContextTime();
+    const reactionTimeMs = (responseTs - trialStartTime.current) * 1000;
     
     let isCorrect = userAnswer.trim().toUpperCase() === correctAnswer.toUpperCase();
     if (task.id === 'sentence_unscramble') {
@@ -199,13 +190,15 @@ export function DynamicSequenceTransformer() {
         }
     };
     logTrial({
-      module_id: GAME_ID,
-      mode: currentMode,
-      levelPlayed,
-      isCorrect,
-      responseTime_ms: reactionTimeMs,
-      meta: trialResult.telemetry
-    });
+      sessionId: sessionId.current,
+      userId: 'local-user',
+      gameId: GAME_ID,
+      trialIndex: currentTrialIndex.current,
+      difficultyLevel: levelPlayed,
+      stimulusOnsetTs: trialStartTime.current,
+      responseTs,
+      ...trialResult
+    } as any);
     
     const newState = adjustDifficulty(trialResult, state, policy);
     updateAdaptiveState(GAME_ID, currentMode, newState);
@@ -221,7 +214,7 @@ export function DynamicSequenceTransformer() {
         }
     }, 2500);
 
-  }, [gameState, userAnswer, correctAnswer, getAdaptiveState, updateAdaptiveState, startNewTrial, task.id, currentMode, sequence, logTrial, audioContext]);
+  }, [gameState, userAnswer, correctAnswer, getAdaptiveState, updateAdaptiveState, startNewTrial, task.id, currentMode, sequence, logTrial, getAudioContextTime]);
   
   if (currentMode === 'spatial') {
     return <GameStub 
@@ -238,6 +231,10 @@ export function DynamicSequenceTransformer() {
     return <StateMachineTracer />;
   }
 
+  // --- ROUTER LOGIC ---
+  if (currentMode === 'music') {
+    return <ComplexSpanTask />;
+  }
 
   const renderContent = () => {
     if (!isComponentLoaded || gameState === 'loading') {
@@ -246,14 +243,6 @@ export function DynamicSequenceTransformer() {
     const state = getAdaptiveState(GAME_ID, currentMode);
     switch (gameState) {
       case 'start':
-        if (currentMode === 'music' && !isAudioReady) {
-            return (
-                <div className="flex flex-col items-center gap-4 text-center">
-                    <p className="text-muted-foreground">Audio required for this mode.</p>
-                    <Button onClick={startNewSession} size="lg" className="bg-cyan-600 hover:bg-cyan-500 text-white">Tap to Enable Audio & Start</Button>
-                </div>
-            )
-        }
         return (
           <div className="flex flex-col items-center gap-4">
             <div className="font-mono text-lg text-cyan-300">Level: {state?.currentLevel}</div>
@@ -265,7 +254,7 @@ export function DynamicSequenceTransformer() {
           <div className="text-center space-y-4 animate-in fade-in">
             <p className="font-semibold text-muted-foreground">Memorize this sequence:</p>
             <div className="p-4 bg-teal-900/40 rounded-lg">
-              <p className="text-4xl font-mono tracking-widest text-teal-100">{Array.isArray(sequence) ? "♪ ♪ ♪" : sequence}</p>
+              <p className="text-4xl font-mono tracking-widest text-teal-100">{sequence}</p>
             </div>
             <p className="text-sm text-cyan-400 animate-pulse">Prepare to answer...</p>
           </div>
@@ -316,7 +305,7 @@ export function DynamicSequenceTransformer() {
             <span className="p-2 bg-cyan-500/10 rounded-md"><domainIcons.Gwm className="w-6 h-6 text-cyan-400" /></span>
             Dynamic Sequence
         </CardTitle>
-        <CardDescription className="text-cyan-400/70">Memorize the sequence, then transform it as instructed. Wired headphones recommended for best results.</CardDescription>
+        <CardDescription className="text-cyan-400/70">Memorize the sequence, then transform it as instructed.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-6 min-h-[250px] justify-center">
         {renderContent()}

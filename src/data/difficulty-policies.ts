@@ -4,17 +4,17 @@ import type { DifficultyPolicy, GameId } from "@/types";
 const policies: Partial<Record<GameId, DifficultyPolicy>> = {
   gwm_dynamic_sequence: {
     gameId: "gwm_dynamic_sequence",
-    sessionLength: 30, // Updated to match spec
-    windowSize: 20, // Updated to match spec
-    targetAccuracyHigh: 0.8, // Updated to match spec
-    targetAccuracyLow: 0.5, // Updated to match spec
+    sessionLength: 15,
+    windowSize: 10,
+    targetAccuracyHigh: 0.8,
+    targetAccuracyLow: 0.6,
     levelMap: {
       1: { 
         mechanic_config: { sequenceLength: 3, displayTimeMs: 2000, visualDisplayTimeMs: 1000 }, 
         content_config: { 
           neutral: { params: { charSet: "alpha" } }, 
           math: { params: { charSet: "numeric" } }, 
-          music: { sub_variant: 'dual_n_back', params: { n_back: 1, isi_ms: 2500, pitch_palette_size: 4, timbre_palette: ['sine', 'square', 'sawtooth'], target_probability: 0.25 } },
+          music: { sub_variant: 'complex_span', params: { melody_length: 3, note_palette_size: 5, distractor_difficulty: 'major_minor' } },
           verbal: { sub_variant: 'phonological_loop', params: { charSet: 'phonological_distinct' } },
           spatial: { sub_variant: 'spatial_span', params: { gridSize: '2d', itemCount: 2 } }
         } 
@@ -24,7 +24,7 @@ const policies: Partial<Record<GameId, DifficultyPolicy>> = {
         content_config: { 
           neutral: { params: { charSet: "alpha" } }, 
           math: { params: { charSet: "numeric" } }, 
-          music: { sub_variant: 'dual_n_back', params: { n_back: 1, isi_ms: 2500, pitch_palette_size: 5, timbre_palette: ['sine', 'square', 'sawtooth'], target_probability: 0.25 } },
+          music: { sub_variant: 'complex_span', params: { melody_length: 3, note_palette_size: 6, distractor_difficulty: 'major_minor' } },
           verbal: { sub_variant: 'phonological_loop', params: { charSet: 'phonological_distinct' } },
           spatial: { sub_variant: 'spatial_span', params: { gridSize: '2d', itemCount: 3 } }
         } 
@@ -34,7 +34,7 @@ const policies: Partial<Record<GameId, DifficultyPolicy>> = {
         content_config: { 
           neutral: { params: { charSet: "alphanumeric" } }, 
           math: { params: { charSet: "numeric_ops" } }, 
-          music: { sub_variant: 'dual_n_back', params: { n_back: 2, isi_ms: 2500, pitch_palette_size: 5, timbre_palette: ['sine', 'square', 'sawtooth'], target_probability: 0.25 } },
+          music: { sub_variant: 'complex_span', params: { melody_length: 4, note_palette_size: 6, distractor_difficulty: 'major_minor' } },
           verbal: { sub_variant: 'phonological_loop', params: { charSet: 'phonological_similar' } },
           spatial: { sub_variant: 'spatial_span', params: { gridSize: '3d', itemCount: 3 } }
         } 
@@ -44,7 +44,7 @@ const policies: Partial<Record<GameId, DifficultyPolicy>> = {
         content_config: { 
           neutral: { params: { charSet: "alphanumeric" } }, 
           math: { params: { charSet: "numeric_ops" } }, 
-          music: { sub_variant: 'dual_n_back', params: { n_back: 2, isi_ms: 2000, pitch_palette_size: 6, timbre_palette: ['sine', 'square', 'sawtooth', 'triangle'], target_probability: 0.25 } },
+          music: { sub_variant: 'complex_span', params: { melody_length: 4, note_palette_size: 7, distractor_difficulty: 'major_minor' } },
           verbal: { sub_variant: 'phonological_loop', params: { charSet: 'phonological_similar' } },
           spatial: { sub_variant: 'spatial_span', params: { gridSize: '3d', itemCount: 4 } }
         } 
@@ -54,31 +54,66 @@ const policies: Partial<Record<GameId, DifficultyPolicy>> = {
         content_config: { 
           neutral: { params: { charSet: "alphanumeric" } }, 
           math: { params: { charSet: "numeric_ops" } }, 
-          music: { sub_variant: 'dual_n_back', params: { n_back: 2, isi_ms: 2000, pitch_palette_size: 7, timbre_palette: ['sine', 'square', 'sawtooth', 'triangle'], target_probability: 0.25 } },
+          music: { sub_variant: 'complex_span', params: { melody_length: 5, note_palette_size: 7, distractor_difficulty: 'augmented_diminished' } },
           verbal: { sub_variant: 'grammatical_recall', params: { error_type: 'tense' } },
           spatial: { sub_variant: 'spatial_span', params: { gridSize: '3d', itemCount: 4, distractors: true } }
         } 
       },
-      6: { mechanic_config: { sequenceLength: 6, displayTimeMs: 1500, visualDisplayTimeMs: 1800 }, content_config: { neutral: {}, math: {}, music: { sub_variant: 'dual_n_back', params: { n_back: 3, isi_ms: 2000, pitch_palette_size: 7, timbre_palette: ['sine', 'square', 'sawtooth', 'triangle'], target_probability: 0.25 } }, verbal: { sub_variant: 'sentence_unscramble'}, spatial: {} } },
-      7: { mechanic_config: { sequenceLength: 6, displayTimeMs: 1200, visualDisplayTimeMs: 1800 }, content_config: { neutral: {}, math: {}, music: { sub_variant: 'dual_n_back', params: { n_back: 3, isi_ms: 1800, pitch_palette_size: 8, timbre_palette: ['sine', 'square', 'sawtooth', 'triangle'], target_probability: 0.25 } }, verbal: {}, spatial: {} } },
-      8: { mechanic_config: { sequenceLength: 7, displayTimeMs: 1200, visualDisplayTimeMs: 2100 }, content_config: { neutral: {}, math: {}, music: { sub_variant: 'dual_n_back', params: { n_back: 3, isi_ms: 1500, pitch_palette_size: 8, timbre_palette: ['sine', 'square', 'sawtooth', 'triangle'], target_probability: 0.25 } }, verbal: {}, spatial: {} } },
-      9: { mechanic_config: { sequenceLength: 7, displayTimeMs: 1000, visualDisplayTimeMs: 2100 }, content_config: { neutral: {}, math: {}, music: {}, verbal: {}, spatial: {} } },
-      10: { mechanic_config: { sequenceLength: 8, displayTimeMs: 1000, visualDisplayTimeMs: 2400 }, content_config: { neutral: {}, math: {}, music: {}, verbal: {}, spatial: {} } },
+      6: { 
+        mechanic_config: { sequenceLength: 6, displayTimeMs: 1500, visualDisplayTimeMs: 1800 }, 
+        content_config: { 
+            neutral: {}, math: {}, 
+            music: { sub_variant: 'complex_span', params: { melody_length: 5, note_palette_size: 8, distractor_difficulty: 'augmented_diminished' } },
+            verbal: { sub_variant: 'sentence_unscramble'}, spatial: {} 
+        } 
+      },
+      7: { 
+        mechanic_config: { sequenceLength: 6, displayTimeMs: 1200, visualDisplayTimeMs: 1800 }, 
+        content_config: { 
+            neutral: {}, math: {}, 
+            music: { sub_variant: 'complex_span', params: { melody_length: 6, note_palette_size: 8, distractor_difficulty: 'augmented_diminished' } },
+            verbal: {}, spatial: {} 
+        } 
+      },
+      8: { 
+        mechanic_config: { sequenceLength: 7, displayTimeMs: 1200, visualDisplayTimeMs: 2100 }, 
+        content_config: { 
+            neutral: {}, math: {}, 
+            music: { sub_variant: 'complex_span', params: { melody_length: 6, note_palette_size: 9, distractor_difficulty: 'seventh_chords' } },
+            verbal: {}, spatial: {} 
+        } 
+      },
+      9: { 
+        mechanic_config: { sequenceLength: 7, displayTimeMs: 1000, visualDisplayTimeMs: 2100 }, 
+        content_config: { 
+            neutral: {}, math: {}, 
+            music: { sub_variant: 'complex_span', params: { melody_length: 7, note_palette_size: 9, distractor_difficulty: 'seventh_chords' } },
+            verbal: {}, spatial: {} 
+        } 
+      },
+      10: { 
+        mechanic_config: { sequenceLength: 8, displayTimeMs: 1000, visualDisplayTimeMs: 2400 }, 
+        content_config: { 
+            neutral: {}, math: {}, 
+            music: { sub_variant: 'complex_span', params: { melody_length: 7, note_palette_size: 10, distractor_difficulty: 'seventh_chords' } },
+            verbal: {}, spatial: {} 
+        } 
+      },
     }
   },
   gs_rapid_code: {
     gameId: "gs_rapid_code",
-    sessionLength: 25,
-    windowSize: 15,
+    sessionLength: 30,
+    windowSize: 20,
     targetAccuracyHigh: 0.90,
     targetAccuracyLow: 0.70,
     levelMap: {
-      1: { mechanic_config: { responseWindowMs: 6000, distractorCount: 2 }, content_config: { neutral: { params: { complexity: "simple" } }, math: { sub_variant: "perceptual_judgment", params: { type: "parity" } }, music: { sub_variant: 'symbol_match', params: { set: ['treble', 'bass', 'quarter', 'half'] }}, verbal: { sub_variant: 'lexical_decision', params: { word_length: 4, frequency_min: 7 } }, spatial: { sub_variant: 'rapid_rotation', params: { shape: 'simple', rotation: 'cardinal' }} } },
-      2: { mechanic_config: { responseWindowMs: 5500, distractorCount: 2 }, content_config: { neutral: { params: { complexity: "simple" } }, math: { sub_variant: "perceptual_judgment", params: { type: "sign" } }, music: { sub_variant: 'interval_compare', params: { types: ['P5', 'octave'], direction: true }}, verbal: { sub_variant: 'synonym_match', params: { word_length: 4, frequency_min: 7 } }, spatial: { sub_variant: 'rapid_rotation', params: { shape: 'simple', rotation: 'cardinal' }} } },
-      3: { mechanic_config: { responseWindowMs: 5000, distractorCount: 3 }, content_config: { neutral: { params: { complexity: "simple" } }, math: { sub_variant: "perceptual_judgment", params: { type: "parity" } }, music: { sub_variant: 'symbol_match', params: { set: ['treble', 'bass', 'quarter', 'half', 'eighth', 'sharp'] }}, verbal: { sub_variant: 'homophone_hunter', params: { frequency_min: 6 } }, spatial: { sub_variant: 'rapid_rotation', params: { shape: 'simple', rotation: 'any' }} } },
-      4: { mechanic_config: { responseWindowMs: 4500, distractorCount: 3 }, content_config: { neutral: { params: { complexity: "simple" } }, math: { sub_variant: "perceptual_judgment", params: { type: "magnitude", threshold: 5 } }, music: { sub_variant: 'interval_compare', params: { types: ['P5', 'M3', 'm3'], direction: true }}, verbal: { sub_variant: 'lexical_decision', params: { word_length: 5, frequency_min: 6 } }, spatial: { sub_variant: 'rapid_rotation', params: { shape: 'simple', rotation: 'any', mirror: true }} } },
-      5: { mechanic_config: { responseWindowMs: 4000, distractorCount: 4 }, content_config: { neutral: { params: { complexity: "moderate" } }, math: { sub_variant: "perceptual_judgment", params: { type: "sign" } }, music: { sub_variant: 'rhythm_compare', params: { types: ['simple_duple'] }}, verbal: { sub_variant: 'synonym_match', params: { word_length: 5, frequency_min: 6 } }, spatial: { sub_variant: 'target_interception', params: { speed: 1, prediction: false }} } },
-      6: { mechanic_config: { responseWindowMs: 3500, distractorCount: 4 }, content_config: { neutral: { params: { complexity: "moderate" } }, math: { sub_variant: "perceptual_judgment", params: { type: "parity" } }, music: { sub_variant: 'interval_compare', params: { types: ['P5', 'M3', 'm3', 'M6', 'm6'], direction: false }}, verbal: { sub_variant: 'homophone_hunter', params: { frequency_min: 5 } }, spatial: { sub_variant: 'target_interception', params: { speed: 1.2, prediction: true }} } },
+      1: { mechanic_config: { responseWindowMs: 6000, distractorCount: 2 }, content_config: { neutral: { params: { complexity: "simple" } }, math: { sub_variant: "perceptual_judgment", params: { type: "parity" } }, music: { sub_variant: 'rhythm_compare', params: { types: ['simple_duple'], isSameProbability: 0.5 } }, verbal: { sub_variant: 'lexical_decision', params: { word_length: 4, frequency_min: 7 } }, spatial: { sub_variant: 'rapid_rotation', params: { shape: 'simple', rotation: 'cardinal' }} } },
+      2: { mechanic_config: { responseWindowMs: 5500, distractorCount: 2 }, content_config: { neutral: { params: { complexity: "simple" } }, math: { sub_variant: "perceptual_judgment", params: { type: "sign" } }, music: { sub_variant: 'rhythm_compare', params: { types: ['simple_duple'], isSameProbability: 0.5 } }, verbal: { sub_variant: 'synonym_match', params: { word_length: 4, frequency_min: 7 } }, spatial: { sub_variant: 'rapid_rotation', params: { shape: 'simple', rotation: 'cardinal' }} } },
+      3: { mechanic_config: { responseWindowMs: 5000, distractorCount: 3 }, content_config: { neutral: { params: { complexity: "simple" } }, math: { sub_variant: "perceptual_judgment", params: { type: "parity" } }, music: { sub_variant: 'rhythm_compare', params: { types: ['simple_compound'], isSameProbability: 0.5 } }, verbal: { sub_variant: 'homophone_hunter', params: { frequency_min: 6 } }, spatial: { sub_variant: 'rapid_rotation', params: { shape: 'simple', rotation: 'any' }} } },
+      4: { mechanic_config: { responseWindowMs: 4500, distractorCount: 3 }, content_config: { neutral: { params: { complexity: "simple" } }, math: { sub_variant: "perceptual_judgment", params: { type: "magnitude", threshold: 5 } }, music: { sub_variant: 'rhythm_compare', params: { types: ['simple_compound'], isSameProbability: 0.5 } }, verbal: { sub_variant: 'lexical_decision', params: { word_length: 5, frequency_min: 6 } }, spatial: { sub_variant: 'rapid_rotation', params: { shape: 'simple', rotation: 'any', mirror: true }} } },
+      5: { mechanic_config: { responseWindowMs: 4000, distractorCount: 4 }, content_config: { neutral: { params: { complexity: "moderate" } }, math: { sub_variant: "perceptual_judgment", params: { type: "sign" } }, music: { sub_variant: 'rhythm_compare', params: { types: ['syncopated'], isSameProbability: 0.5 } }, verbal: { sub_variant: 'synonym_match', params: { word_length: 5, frequency_min: 6 } }, spatial: { sub_variant: 'target_interception', params: { speed: 1, prediction: false }} } },
+      6: { mechanic_config: { responseWindowMs: 3500, distractorCount: 4 }, content_config: { neutral: { params: { complexity: "moderate" } }, math: { sub_variant: "perceptual_judgment", params: { type: "parity" } }, music: { sub_variant: 'rhythm_compare', params: { types: ['syncopated'], isSameProbability: 0.5 } }, verbal: { sub_variant: 'homophone_hunter', params: { frequency_min: 5 } }, spatial: { sub_variant: 'target_interception', params: { speed: 1.2, prediction: true }} } },
       7: { mechanic_config: { responseWindowMs: 3000, distractorCount: 5 }, content_config: { neutral: { params: { complexity: "moderate" } }, math: { sub_variant: "perceptual_judgment", params: { type: "magnitude", threshold: 5 } }, music: {}, verbal: {}, spatial: {} } },
       8: { mechanic_config: { responseWindowMs: 2800, distractorCount: 5 }, content_config: { neutral: { params: { complexity: "complex" } }, math: {}, music: {}, verbal: {}, spatial: {} } },
       9: { mechanic_config: { responseWindowMs: 2500, distractorCount: 6 }, content_config: { neutral: { params: { complexity: "complex" } }, math: {}, music: {}, verbal: {}, spatial: {} } },
@@ -111,31 +146,31 @@ const policies: Partial<Record<GameId, DifficultyPolicy>> = {
     targetAccuracyHigh: 0.88,
     targetAccuracyLow: 0.65,
     levelMap: {
-      1: { mechanic_config: { distractorCount: 3, responseWindowMs: 5000 }, content_config: { neutral: { sub_variant: "mental_rotation", params: { angles: [90, 180, 270] } }, math: { sub_variant: "spatial_assembly", params: { puzzle_tier: 1 } }, music: { sub_variant: "contour_match", params: { measures: ['q_q_h', 'h_q_q'], distractorCount: 1 } }, verbal: { sub_variant: 'typographic_search', params: { type: 'compound', complexity: 1 } }, spatial: { sub_variant: 'voxel_jigsaw', params: { pieceCount: 3, complexity: 1 } } } },
-      2: { mechanic_config: { distractorCount: 3, responseWindowMs: 4500 }, content_config: { neutral: { sub_variant: "mental_rotation", params: { angles: [90, 180, 270] } }, math: { sub_variant: "spatial_assembly", params: { puzzle_tier: 1 } }, music: { sub_variant: "contour_match", params: { measures: ['q_q_h', 'h_q_q'], distractorCount: 2 } }, verbal: { sub_variant: 'typographic_search', params: { type: 'compound', complexity: 2 } }, spatial: { sub_variant: 'voxel_jigsaw', params: { pieceCount: 4, complexity: 1 } } } },
-      3: { mechanic_config: { distractorCount: 4, responseWindowMs: 4500 }, content_config: { neutral: { sub_variant: "mental_rotation", params: { angles: "free" } }, math: { sub_variant: "spatial_assembly", params: { puzzle_tier: 2 } }, music: { sub_variant: "contour_match", params: { measures: ['q_q_h', 'h_q_q', 'e_e_q_q'], distractorCount: 2 } }, verbal: { sub_variant: 'typographic_search', params: { type: 'affixes', complexity: 1 } }, spatial: { sub_variant: 'voxel_jigsaw', params: { pieceCount: 4, complexity: 2 } } } },
-      4: { mechanic_config: { distractorCount: 4, responseWindowMs: 4000 }, content_config: { neutral: { sub_variant: "mental_rotation", params: { angles: "free" } }, math: { sub_variant: "spatial_assembly", params: { puzzle_tier: 2 } }, music: { sub_variant: "contour_match", params: { measures: ['q_q_h', 'h_q_q', 'e_e_q_q'], distractorCount: 3 } }, verbal: { sub_variant: 'typographic_search', params: { type: 'affixes', complexity: 2 } }, spatial: { sub_variant: 'proportion_match', params: { distortion: 0.2 } } } },
-      5: { mechanic_config: { distractorCount: 4, responseWindowMs: 3500 }, content_config: { neutral: { sub_variant: "mental_rotation", params: { angles: "free", reflection: true } }, math: { sub_variant: "spatial_assembly", params: { puzzle_tier: 3 } }, music: { sub_variant: "spectrogram_match", params: { timbres: ['sine', 'square'], distractorCount: 3 } }, verbal: { sub_variant: 'visual_scan', params: { grid_size: 5, target_length: 3 } }, spatial: { sub_variant: 'proportion_match', params: { distortion: 0.1 } } } },
-      6: { mechanic_config: { distractorCount: 4, responseWindowMs: 3000 }, content_config: { neutral: {}, math: { sub_variant: "spatial_assembly", params: { puzzle_tier: 3 } }, music: {}, verbal: {}, spatial: {} } },
+      1: { mechanic_config: { distractorCount: 3, responseWindowMs: 5000 }, content_config: { neutral: { sub_variant: "mental_rotation", params: { angles: [90, 180, 270] } }, math: { sub_variant: "balance_puzzle", params: { shapeCount: 3, maxWeight: 5, equationTerms: 4 } }, music: { sub_variant: "contour_match", params: { measures: ['q_q_h', 'h_q_q'], distractorCount: 1 } }, verbal: { sub_variant: 'typographic_search', params: { type: 'compound', complexity: 1 } }, spatial: { sub_variant: 'voxel_jigsaw', params: { pieceCount: 3, complexity: 1 } } } },
+      2: { mechanic_config: { distractorCount: 3, responseWindowMs: 4500 }, content_config: { neutral: { sub_variant: "mental_rotation", params: { angles: [90, 180, 270] } }, math: { sub_variant: "balance_puzzle", params: { shapeCount: 3, maxWeight: 7, equationTerms: 5 } }, music: { sub_variant: "contour_match", params: { measures: ['q_q_h', 'h_q_q'], distractorCount: 2 } }, verbal: { sub_variant: 'typographic_search', params: { type: 'compound', complexity: 2 } }, spatial: { sub_variant: 'voxel_jigsaw', params: { pieceCount: 4, complexity: 1 } } } },
+      3: { mechanic_config: { distractorCount: 4, responseWindowMs: 4500 }, content_config: { neutral: { sub_variant: "mental_rotation", params: { angles: "free" } }, math: { sub_variant: "balance_puzzle", params: { shapeCount: 4, maxWeight: 7, equationTerms: 5 } }, music: { sub_variant: "contour_match", params: { measures: ['q_q_h', 'h_q_q', 'e_e_q_q'], distractorCount: 2 } }, verbal: { sub_variant: 'typographic_search', params: { type: 'affixes', complexity: 1 } }, spatial: { sub_variant: 'voxel_jigsaw', params: { pieceCount: 4, complexity: 2 } } } },
+      4: { mechanic_config: { distractorCount: 4, responseWindowMs: 4000 }, content_config: { neutral: { sub_variant: "mental_rotation", params: { angles: "free" } }, math: { sub_variant: "balance_puzzle", params: { shapeCount: 4, maxWeight: 9, equationTerms: 6 } }, music: { sub_variant: "contour_match", params: { measures: ['q_q_h', 'h_q_q', 'e_e_q_q'], distractorCount: 3 } }, verbal: { sub_variant: 'typographic_search', params: { type: 'affixes', complexity: 2 } }, spatial: { sub_variant: 'proportion_match', params: { distortion: 0.2 } } } },
+      5: { mechanic_config: { distractorCount: 4, responseWindowMs: 3500 }, content_config: { neutral: { sub_variant: "mental_rotation", params: { angles: "free", reflection: true } }, math: { sub_variant: "balance_puzzle", params: { shapeCount: 5, maxWeight: 9, equationTerms: 6 } }, music: { sub_variant: "spectrogram_match", params: { timbres: ['sine', 'square'], distractorCount: 3 } }, verbal: { sub_variant: 'visual_scan', params: { grid_size: 5, target_length: 3 } }, spatial: { sub_variant: 'proportion_match', params: { distortion: 0.1 } } } },
+      6: { mechanic_config: { distractorCount: 4, responseWindowMs: 3000 }, content_config: { neutral: {}, math: { sub_variant: "balance_puzzle", params: { shapeCount: 5, maxWeight: 12, equationTerms: 7 } }, music: {}, verbal: {}, spatial: {} } },
     }
   },
   ga_auditory_lab: {
     gameId: "ga_auditory_lab",
-    sessionLength: 12,
-    windowSize: 10,
+    sessionLength: 20,
+    windowSize: 15,
     targetAccuracyHigh: 0.85,
     targetAccuracyLow: 0.65,
     levelMap: {
-        1: { mechanic_config: {}, content_config: { math: { sub_variant: "magnitude_comparison", params: { digits: 2, speechRate: 1.0, pitchDelta: 100 } } } },
-        2: { mechanic_config: {}, content_config: { math: { sub_variant: "magnitude_comparison", params: { digits: 2, speechRate: 1.2, pitchDelta: 90 } } } },
-        3: { mechanic_config: {}, content_config: { math: { sub_variant: "magnitude_comparison", params: { digits: 3, speechRate: 1.0, pitchDelta: 80 } } } },
-        4: { mechanic_config: {}, content_config: { math: { sub_variant: "magnitude_comparison", params: { digits: 3, speechRate: 1.2, pitchDelta: 70 } } } },
-        5: { mechanic_config: {}, content_config: { math: { sub_variant: "magnitude_comparison", params: { digits: 3, speechRate: 1.5, pitchDelta: 60 } } } },
-        6: { mechanic_config: {}, content_config: { math: { sub_variant: "magnitude_comparison", params: { digits: 4, speechRate: 1.2, pitchDelta: 50 } } } },
-        7: { mechanic_config: {}, content_config: { math: { sub_variant: "magnitude_comparison", params: { digits: 4, speechRate: 1.5, pitchDelta: 40 } } } },
-        8: { mechanic_config: {}, content_config: { math: { sub_variant: "magnitude_comparison", params: { digits: 5, speechRate: 1.5, pitchDelta: 30 } } } },
-        9: { mechanic_config: {}, content_config: { math: { sub_variant: "magnitude_comparison", params: { digits: 5, speechRate: 1.8, pitchDelta: 20 } } } },
-        10: { mechanic_config: {}, content_config: { math: { sub_variant: "magnitude_comparison", params: { digits: 6, speechRate: 1.8, pitchDelta: 15 } } } },
+        1: { mechanic_config: {}, content_config: { music: { sub_variant: 'pitch_discrimination', params: { pitchDelta: 200 } } } },
+        2: { mechanic_config: {}, content_config: { music: { sub_variant: 'pitch_discrimination', params: { pitchDelta: 150 } } } },
+        3: { mechanic_config: {}, content_config: { music: { sub_variant: 'pitch_discrimination', params: { pitchDelta: 100 } } } },
+        4: { mechanic_config: {}, content_config: { music: { sub_variant: 'pitch_discrimination', params: { pitchDelta: 75 } } } },
+        5: { mechanic_config: {}, content_config: { music: { sub_variant: 'pitch_discrimination', params: { pitchDelta: 50 } } } },
+        6: { mechanic_config: {}, content_config: { music: { sub_variant: 'pitch_discrimination', params: { pitchDelta: 35 } } } },
+        7: { mechanic_config: {}, content_config: { music: { sub_variant: 'pitch_discrimination', params: { pitchDelta: 25 } } } },
+        8: { mechanic_config: {}, content_config: { music: { sub_variant: 'pitch_discrimination', params: { pitchDelta: 15 } } } },
+        9: { mechanic_config: {}, content_config: { music: { sub_variant: 'pitch_discrimination', params: { pitchDelta: 10 } } } },
+        10: { mechanic_config: {}, content_config: { music: { sub_variant: 'pitch_discrimination', params: { pitchDelta: 5 } } } },
     }
   },
   glr_fluency_storm: {
@@ -145,16 +180,16 @@ const policies: Partial<Record<GameId, DifficultyPolicy>> = {
     targetAccuracyHigh: 0.85,
     targetAccuracyLow: 0.60,
     levelMap: {
-      1: { mechanic_config: { timeSec: 45, minTarget: 5 }, content_config: { math: { sub_variant: 'spaced_retrieval', params: { pairs: 4, distractorDuration: 10 } }, neutral: { params: { category: "broad_concrete" } }, music: { sub_variant: 'category_sprint', params: { category: "instrument_families" } }, verbal: { sub_variant: 'category_sprint', params: { category: 'Animals' } }, spatial: { sub_variant: 'route_retrieval', params: { map_complexity: 1 } } } },
-      2: { mechanic_config: {}, content_config: { math: { sub_variant: 'spaced_retrieval', params: { pairs: 4, distractorDuration: 15 } } } },
-      3: { mechanic_config: {}, content_config: { math: { sub_variant: 'spaced_retrieval', params: { pairs: 5, distractorDuration: 15 } } } },
-      4: { mechanic_config: {}, content_config: { math: { sub_variant: 'spaced_retrieval', params: { pairs: 5, distractorDuration: 20 } } } },
-      5: { mechanic_config: {}, content_config: { math: { sub_variant: 'spaced_retrieval', params: { pairs: 6, distractorDuration: 20 } } } },
-      6: { mechanic_config: {}, content_config: { math: { sub_variant: 'spaced_retrieval', params: { pairs: 6, distractorDuration: 25 } } } },
-      7: { mechanic_config: {}, content_config: { math: { sub_variant: 'spaced_retrieval', params: { pairs: 7, distractorDuration: 25 } } } },
-      8: { mechanic_config: {}, content_config: { math: { sub_variant: 'spaced_retrieval', params: { pairs: 7, distractorDuration: 30 } } } },
-      9: { mechanic_config: {}, content_config: { math: { sub_variant: 'spaced_retrieval', params: { pairs: 8, distractorDuration: 30 } } } },
-      10: { mechanic_config: {}, content_config: { math: { sub_variant: 'spaced_retrieval', params: { pairs: 8, distractorDuration: 35 } } } },
+      1: { mechanic_config: { timeSec: 45, minTarget: 5 }, content_config: { math: { sub_variant: 'spaced_retrieval', params: { pairs: 4, distractorDuration: 10 } }, neutral: { params: { category: "broad_concrete" } }, music: { sub_variant: 'spaced_retrieval', params: { pairs: 4, distractorDuration: 10 } }, verbal: { sub_variant: 'category_sprint', params: { category: 'Animals' } }, spatial: { sub_variant: 'route_retrieval', params: { map_complexity: 1 } } } },
+      2: { mechanic_config: {}, content_config: { math: { sub_variant: 'spaced_retrieval', params: { pairs: 4, distractorDuration: 15 } }, music: { sub_variant: 'spaced_retrieval', params: { pairs: 4, distractorDuration: 15 } } } },
+      3: { mechanic_config: {}, content_config: { math: { sub_variant: 'spaced_retrieval', params: { pairs: 5, distractorDuration: 15 } }, music: { sub_variant: 'spaced_retrieval', params: { pairs: 5, distractorDuration: 15 } } } },
+      4: { mechanic_config: {}, content_config: { math: { sub_variant: 'spaced_retrieval', params: { pairs: 5, distractorDuration: 20 } }, music: { sub_variant: 'spaced_retrieval', params: { pairs: 5, distractorDuration: 20 } } } },
+      5: { mechanic_config: {}, content_config: { math: { sub_variant: 'spaced_retrieval', params: { pairs: 6, distractorDuration: 20 } }, music: { sub_variant: 'spaced_retrieval', params: { pairs: 6, distractorDuration: 20 } } } },
+      6: { mechanic_config: {}, content_config: { math: { sub_variant: 'spaced_retrieval', params: { pairs: 6, distractorDuration: 25 } }, music: { sub_variant: 'spaced_retrieval', params: { pairs: 6, distractorDuration: 25 } } } },
+      7: { mechanic_config: {}, content_config: { math: { sub_variant: 'spaced_retrieval', params: { pairs: 7, distractorDuration: 25 } }, music: { sub_variant: 'spaced_retrieval', params: { pairs: 7, distractorDuration: 25 } } } },
+      8: { mechanic_config: {}, content_config: { math: { sub_variant: 'spaced_retrieval', params: { pairs: 7, distractorDuration: 30 } }, music: { sub_variant: 'spaced_retrieval', params: { pairs: 7, distractorDuration: 30 } } } },
+      9: { mechanic_config: {}, content_config: { math: { sub_variant: 'spaced_retrieval', params: { pairs: 8, distractorDuration: 30 } }, music: { sub_variant: 'spaced_retrieval', params: { pairs: 8, distractorDuration: 30 } } } },
+      10: { mechanic_config: {}, content_config: { math: { sub_variant: 'spaced_retrieval', params: { pairs: 8, distractorDuration: 35 } }, music: { sub_variant: 'spaced_retrieval', params: { pairs: 8, distractorDuration: 35 } } } },
     }
   },
   gc_verbal_inference: {
@@ -164,35 +199,35 @@ const policies: Partial<Record<GameId, DifficultyPolicy>> = {
     targetAccuracyHigh: 0.88,
     targetAccuracyLow: 0.60,
     levelMap: {
-      1: { mechanic_config: { timeLimit: 15000 }, content_config: { math: { sub_variant: 'knowledge_retrieval', params: { question_level: 1 } }, neutral: { sub_variant: "analogy", params: { word_rarity: 1000 } }, music: { sub_variant: 'knowledge', params: { type: 'instrument_family', complexity: 1 } }, verbal: { sub_variant: 'cloze_deletion', params: { word_rarity: 'common' } }, spatial: { sub_variant: 'spatial_lexicon', params: { type: 'preposition' } } } },
-      2: { mechanic_config: { timeLimit: 15000 }, content_config: { math: { sub_variant: 'knowledge_retrieval', params: { question_level: 1 } } } },
-      3: { mechanic_config: { timeLimit: 15000 }, content_config: { math: { sub_variant: 'knowledge_retrieval', params: { question_level: 1 } } } },
-      4: { mechanic_config: { timeLimit: 15000 }, content_config: { math: { sub_variant: 'knowledge_retrieval', params: { question_level: 2 } } } },
-      5: { mechanic_config: { timeLimit: 15000 }, content_config: { math: { sub_variant: 'knowledge_retrieval', params: { question_level: 2 } } } },
-      6: { mechanic_config: { timeLimit: 15000 }, content_config: { math: { sub_variant: 'knowledge_retrieval', params: { question_level: 2 } } } },
-      7: { mechanic_config: { timeLimit: 15000 }, content_config: { math: { sub_variant: 'knowledge_retrieval', params: { question_level: 3 } } } },
-      8: { mechanic_config: { timeLimit: 15000 }, content_config: { math: { sub_variant: 'knowledge_retrieval', params: { question_level: 3 } } } },
-      9: { mechanic_config: { timeLimit: 15000 }, content_config: { math: { sub_variant: 'knowledge_retrieval', params: { question_level: 3 } } } },
-      10: { mechanic_config: { timeLimit: 15000 }, content_config: { math: { sub_variant: 'knowledge_retrieval', params: { question_level: 3 } } } },
+      1: { mechanic_config: { timeLimit: 20000 }, content_config: { math: { sub_variant: 'knowledge_retrieval', params: { question_level: 1 } }, neutral: { sub_variant: "analogy", params: { word_rarity: 1000 } }, music: { sub_variant: 'knowledge_retrieval', params: { question_level: 1 } }, verbal: { sub_variant: 'cloze_deletion', params: { word_rarity: 'common' } }, spatial: { sub_variant: 'spatial_lexicon', params: { type: 'preposition' } } } },
+      2: { mechanic_config: { timeLimit: 20000 }, content_config: { math: { sub_variant: 'knowledge_retrieval', params: { question_level: 1 } }, music: { sub_variant: 'knowledge_retrieval', params: { question_level: 1 } } } },
+      3: { mechanic_config: { timeLimit: 20000 }, content_config: { math: { sub_variant: 'knowledge_retrieval', params: { question_level: 1 } }, music: { sub_variant: 'knowledge_retrieval', params: { question_level: 2 } } } },
+      4: { mechanic_config: { timeLimit: 20000 }, content_config: { math: { sub_variant: 'knowledge_retrieval', params: { question_level: 2 } }, music: { sub_variant: 'knowledge_retrieval', params: { question_level: 2 } } } },
+      5: { mechanic_config: { timeLimit: 20000 }, content_config: { math: { sub_variant: 'knowledge_retrieval', params: { question_level: 2 } }, music: { sub_variant: 'knowledge_retrieval', params: { question_level: 3 } } } },
+      6: { mechanic_config: { timeLimit: 20000 }, content_config: { math: { sub_variant: 'knowledge_retrieval', params: { question_level: 2 } }, music: { sub_variant: 'knowledge_retrieval', params: { question_level: 3 } } } },
+      7: { mechanic_config: { timeLimit: 20000 }, content_config: { math: { sub_variant: 'knowledge_retrieval', params: { question_level: 3 } }, music: { sub_variant: 'knowledge_retrieval', params: { question_level: 3 } } } },
+      8: { mechanic_config: { timeLimit: 20000 }, content_config: { math: { sub_variant: 'knowledge_retrieval', params: { question_level: 3 } }, music: { sub_variant: 'knowledge_retrieval', params: { question_level: 4 } } } },
+      9: { mechanic_config: { timeLimit: 20000 }, content_config: { math: { sub_variant: 'knowledge_retrieval', params: { question_level: 3 } }, music: { sub_variant: 'knowledge_retrieval', params: { question_level: 4 } } } },
+      10: { mechanic_config: { timeLimit: 20000 }, content_config: { math: { sub_variant: 'knowledge_retrieval', params: { question_level: 3 } }, music: { sub_variant: 'knowledge_retrieval', params: { question_level: 4 } } } },
     }
   },
   ef_focus_switch: {
     gameId: "ef_focus_switch",
-    sessionLength: 20,
-    windowSize: 15,
+    sessionLength: 30,
+    windowSize: 20,
     targetAccuracyHigh: 0.88,
     targetAccuracyLow: 0.68,
     levelMap: {
-      1: { mechanic_config: { switchInterval: 8, noGo: false, responseWindowMs: 3000, switchProbability: 0 }, content_config: { neutral: { params: { ruleCount: 2, cueType: "explicit_text" } }, math: { params: { ruleCount: 2, rules: ["parity", "magnitude"] } }, music: { params: { ruleCount: 2, rules: ["pitch_direction", "rhythm_evenness"] } }, verbal: { sub_variant: 'semantic_phonetic_shift', params: { rules: ['rhyme', 'category'], switch_interval: 10 } }, spatial: { sub_variant: 'perspective_shift', params: { cue: 'explicit' } } } },
-      2: { mechanic_config: { switchInterval: 8, noGo: false, responseWindowMs: 2800, switchProbability: 0.1 }, content_config: { math: { params: { ruleCount: 2, rules: ["parity", "magnitude"] } } } },
-      3: { mechanic_config: { switchInterval: 8, noGo: false, responseWindowMs: 2800, switchProbability: 0.15 }, content_config: { math: { params: { ruleCount: 2, rules: ["parity", "magnitude"] } } } },
-      4: { mechanic_config: { switchInterval: 5, noGo: false, responseWindowMs: 2500, switchProbability: 0.2 }, content_config: { math: { params: { ruleCount: 2, rules: ["parity", "magnitude"] } } } },
-      5: { mechanic_config: { switchInterval: 5, noGo: false, responseWindowMs: 2500, switchProbability: 0.25 }, content_config: { math: { params: { ruleCount: 2, rules: ["parity", "magnitude"] } } } },
-      6: { mechanic_config: { switchInterval: 4, noGo: false, responseWindowMs: 2200, switchProbability: 0.3 }, content_config: { math: { params: { ruleCount: 2, rules: ["parity", "magnitude"] } } } },
-      7: { mechanic_config: { switchInterval: 4, noGo: true, noGoWaitMs: 1500, responseWindowMs: 2200, switchProbability: 0.3 }, content_config: { math: { params: { ruleCount: 2, rules: ["parity", "magnitude"] } } } },
-      8: { mechanic_config: { switchInterval: 3, noGo: true, noGoWaitMs: 1500, responseWindowMs: 2000, switchProbability: 0.3 }, content_config: { math: { params: { ruleCount: 2, rules: ["parity", "magnitude"] } } } },
-      9: { mechanic_config: { switchInterval: 3, noGo: true, noGoWaitMs: 1400, responseWindowMs: 1800, switchProbability: 0.35 }, content_config: { math: { params: { ruleCount: 2, rules: ["parity", "magnitude"] } } } },
-      10: { mechanic_config: { switchInterval: 2, noGo: true, noGoWaitMs: 1300, responseWindowMs: 1800, switchProbability: 0.4 }, content_config: { math: { params: { ruleCount: 2, rules: ["parity", "magnitude"] } } } },
+      1: { mechanic_config: { switchInterval: 8, noGo: false, responseWindowMs: 3000, switchProbability: 0 }, content_config: { neutral: { params: { ruleCount: 2, cueType: "explicit_text" } }, math: { params: { ruleCount: 2, rules: ["parity", "magnitude"] } }, music: { sub_variant: 'go_nogo', params: { go_probability: 0.8, nogo_probability: 0.2, isi_ms: 2000 } }, verbal: { sub_variant: 'semantic_phonetic_shift', params: { rules: ['rhyme', 'category'], switch_interval: 10 } }, spatial: { sub_variant: 'perspective_shift', params: { cue: 'explicit' } } } },
+      2: { mechanic_config: { switchInterval: 8, noGo: false, responseWindowMs: 2800, switchProbability: 0.1 }, content_config: { math: { params: { ruleCount: 2, rules: ["parity", "magnitude"] } }, music: { sub_variant: 'go_nogo', params: { go_probability: 0.8, nogo_probability: 0.2, isi_ms: 1900 } } } },
+      3: { mechanic_config: { switchInterval: 8, noGo: false, responseWindowMs: 2800, switchProbability: 0.15 }, content_config: { math: { params: { ruleCount: 2, rules: ["parity", "magnitude"] } }, music: { sub_variant: 'go_nogo', params: { go_probability: 0.75, nogo_probability: 0.25, isi_ms: 1800 } } } },
+      4: { mechanic_config: { switchInterval: 5, noGo: false, responseWindowMs: 2500, switchProbability: 0.2 }, content_config: { math: { params: { ruleCount: 2, rules: ["parity", "magnitude"] } }, music: { sub_variant: 'go_nogo', params: { go_probability: 0.75, nogo_probability: 0.25, isi_ms: 1700 } } } },
+      5: { mechanic_config: { switchInterval: 5, noGo: false, responseWindowMs: 2500, switchProbability: 0.25 }, content_config: { math: { params: { ruleCount: 2, rules: ["parity", "magnitude"] } }, music: { sub_variant: 'go_nogo', params: { go_probability: 0.7, nogo_probability: 0.3, isi_ms: 1600 } } } },
+      6: { mechanic_config: { switchInterval: 4, noGo: false, responseWindowMs: 2200, switchProbability: 0.3 }, content_config: { math: { params: { ruleCount: 2, rules: ["parity", "magnitude"] } }, music: { sub_variant: 'go_nogo', params: { go_probability: 0.7, nogo_probability: 0.3, isi_ms: 1500 } } } },
+      7: { mechanic_config: { switchInterval: 4, noGo: true, noGoWaitMs: 1500, responseWindowMs: 2200, switchProbability: 0.3 }, content_config: { math: { params: { ruleCount: 2, rules: ["parity", "magnitude"] } }, music: { sub_variant: 'go_nogo', params: { go_probability: 0.65, nogo_probability: 0.35, isi_ms: 1400 } } } },
+      8: { mechanic_config: { switchInterval: 3, noGo: true, noGoWaitMs: 1500, responseWindowMs: 2000, switchProbability: 0.3 }, content_config: { math: { params: { ruleCount: 2, rules: ["parity", "magnitude"] } }, music: { sub_variant: 'go_nogo', params: { go_probability: 0.65, nogo_probability: 0.35, isi_ms: 1300 } } } },
+      9: { mechanic_config: { switchInterval: 3, noGo: true, noGoWaitMs: 1400, responseWindowMs: 1800, switchProbability: 0.35 }, content_config: { math: { params: { ruleCount: 2, rules: ["parity", "magnitude"] } }, music: { sub_variant: 'go_nogo', params: { go_probability: 0.6, nogo_probability: 0.4, isi_ms: 1200 } } } },
+      10: { mechanic_config: { switchInterval: 2, noGo: true, noGoWaitMs: 1300, responseWindowMs: 1800, switchProbability: 0.4 }, content_config: { math: { params: { ruleCount: 2, rules: ["parity", "magnitude"] } }, music: { sub_variant: 'go_nogo', params: { go_probability: 0.6, nogo_probability: 0.4, isi_ms: 1100 } } } },
     }
   }
 };
