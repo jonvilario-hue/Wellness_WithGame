@@ -1,3 +1,4 @@
+
 'use client';
 
 // This file is the single source of truth for all shared types in the application.
@@ -17,16 +18,33 @@ export type GameId =
   | 'ef_focus_switch';
 
 // --- Local Cache & Telemetry ---
+// Updated to match the strict schema from the audit (Section E2)
 export interface TrialRecord {
-  id: string;
-  userId: string;
-  timestamp: number; // Date.now()
-  module_id: GameId;
-  currentLevel: number;
+  id: string; // UUID, now equivalent to trialId
+  sessionId: string; // UUID for the session
+  userId: string; // Firebase Auth UID
+  
+  module_id: GameId; // Renamed from gameType for consistency
+  mode: TrainingFocus;
+  condition?: string; // e.g., 'congruent', 'incongruent', 'switch', 'stay'
+  
+  timestamp: number; // Server timestamp from Firestore
+  stimulusOnsetTs: number; // High-precision timestamp from AudioContext
+  responseTs: number; // High-precision timestamp from user event
+  rtMs: number; // Calculated from the two timestamps above
+
+  currentLevel: number; // Level at the start of the trial
   isCorrect: boolean;
-  responseTime_ms: number;
-  meta: Record<string, any>; // module-specific extended payload
+  timedOut: boolean;
+  
+  meta: Record<string, any>; // Rich, module-specific data payload
+  deviceInfo?: {
+      browser: string;
+      sampleRate: number;
+      audioOutputLatency: number;
+  }
 }
+
 
 // --- Difficulty & Adaptive Engine Types ---
 export type Tier = 0 | 1 | 2 | 3;
@@ -62,13 +80,6 @@ export interface AdaptiveState {
 // Defines parameters for the "container" of the task
 export type MechanicConfig = {
     [key: string]: any;
-    responseWindowMs?: number; // Time to respond
-    timeLimit?: number; // Total time for the task
-    sequenceLength?: number; // For WM tasks
-    gridSize?: number; // For matrix/grid tasks
-    distractorCount?: number; // Number of incorrect options
-    switchInterval?: number; // For EF tasks
-    noiseLevel?: number; // For Ga tasks (e.g., SNR)
 };
 
 // Defines parameters for the "content" of the task
