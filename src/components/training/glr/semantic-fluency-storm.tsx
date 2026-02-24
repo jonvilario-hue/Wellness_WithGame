@@ -21,10 +21,43 @@ import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engin
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import { domainIcons } from "@/components/icons";
 import { usePageVisibility } from "@/hooks/use-page-visibility";
-import { PRNG, CategorySampler } from "@/lib/rng";
+import { PRNG } from "@/lib/rng";
 
 const GLR_GAME_ID: GameId = 'glr_fluency_storm';
 const glrPolicy = difficultyPolicies[GLR_GAME_ID];
+
+/**
+ * A session-scoped utility to sample items from a list of categories
+ * in a shuffled round-robin fashion, ensuring all categories are visited
+ * before any are repeated. This is a selectable strategy for stimulus generation.
+ */
+class CategorySampler {
+    private categories: string[];
+    private prng: PRNG;
+    private shuffledCategories: string[] = [];
+    private currentIndex = 0;
+
+    constructor(categories: string[], prng: PRNG) {
+        this.categories = categories;
+        this.prng = prng;
+        this.reshuffle();
+    }
+
+    private reshuffle() {
+        this.shuffledCategories = this.prng.shuffle(this.categories);
+        this.currentIndex = 0;
+    }
+
+    public next(): string {
+        if (this.currentIndex >= this.shuffledCategories.length) {
+            this.reshuffle();
+        }
+        const category = this.shuffledCategories[this.currentIndex];
+        this.currentIndex++;
+        return category;
+    }
+}
+
 
 export function SemanticFluencyStorm() {
     const [gameState, setGameState] = useState<'idle' | 'running' | 'finished'>('idle');

@@ -53,7 +53,7 @@ export class PRNG {
 
   /**
    * Shuffles an array in place using the Fisher-Yates algorithm and the seeded PRNG.
-   * This provides a deterministic shuffle, unlike Array.sort(() => Math.random() - 0.5).
+   * This provides a deterministic shuffle.
    * @param array - The array to be shuffled.
    * @returns A new array with the shuffled elements.
    */
@@ -63,49 +63,30 @@ export class PRNG {
 
     const newArray = [...array]; // Work on a copy
 
-    // While there remain elements to shuffle.
     while (currentIndex !== 0) {
-      // Pick a remaining element.
       randomIndex = this.nextIntRange(0, currentIndex);
       currentIndex--;
 
-      // And swap it with the current element.
       [newArray[currentIndex], newArray[randomIndex]] = [
         newArray[randomIndex], newArray[currentIndex]];
     }
 
     return newArray;
   }
-}
 
-/**
- * A session-scoped utility to sample items from a list of categories
- * in a shuffled round-robin fashion, ensuring all categories are visited
- * before any are repeated. This is a selectable strategy for stimulus generation.
- */
-export class CategorySampler {
-    private categories: string[];
-    private prng: PRNG;
-    private shuffledCategories: string[] = [];
-    private currentIndex = 0;
+  /**
+   * Returns the current internal state of the PRNG.
+   * @returns The current seed.
+   */
+  public getState(): number {
+    return this.seed;
+  }
 
-    constructor(categories: string[], prng: PRNG) {
-        this.categories = categories;
-        this.prng = prng;
-        this.reshuffle();
-    }
-
-    private reshuffle() {
-        this.shuffledCategories = this.prng.shuffle(this.categories);
-        this.currentIndex = 0;
-    }
-
-    public next(): string {
-        if (this.currentIndex >= this.shuffledCategories.length) {
-            this.reshuffle();
-        }
-        const category = this.shuffledCategories[this.currentIndex];
-        this.currentIndex++;
-        return category;
-    }
+  /**
+   * Sets the internal state of the PRNG.
+   * @param seed - The seed to restore.
+   */
+  public setState(seed: number): void {
+    this.seed = seed;
+  }
 }

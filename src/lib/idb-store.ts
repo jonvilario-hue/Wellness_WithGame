@@ -36,7 +36,10 @@ const openDB = (): Promise<IDBDatabase> => {
       if (!dbInstance.objectStoreNames.contains('trials')) {
         const trialStore = dbInstance.createObjectStore('trials', { keyPath: 'id' });
         trialStore.createIndex('sessionId', 'sessionId', { unique: false });
-        trialStore.createIndex('timestamp', 'timestamp', { unique: false });
+        // Ensure the timestamp index exists for eviction logic
+        if (!trialStore.indexNames.contains('timestamp')) {
+            trialStore.createIndex('timestamp', 'timestamp', { unique: false });
+        }
       }
       if (!dbInstance.objectStoreNames.contains('profiles')) {
           dbInstance.createObjectStore('profiles', { keyPath: 'id' });
@@ -71,14 +74,17 @@ const runEviction = async (db: IDBDatabase) => {
     const count = await promisifyRequest(countReq);
 
     if (count > EVICTION_CONFIG.maxTrials) {
-        // Use a cursor on the primary key ('id'), assuming it's a chronologically sortable string.
-        // This is more reliable than a timestamp for canonical ordering.
-        let cursor = await promisifyRequest(store.openCursor());
-        const toDelete = count - EVICTION_CONFIG.maxTrials;
-        console.log(`[Storage Eviction] Store count (${count}) exceeds max (${EVICTION_CONFIG.maxTrials}). Deleting oldest ${toDelete > EVICTION_CONFIG.batchDeleteSize ? EVICTION_CONFIG.batchDeleteSize : toDelete} trials.`);
+        // Use a cursor on the timestamp index to find the oldest records.
+        const index = store.index('timestamp');
+        let cursor = await promisifyRequest(index.openCursor());
+        const toDeleteCount = count - EVICTION_CONFIG.maxTrials;
+        console.log(`[Storage Eviction] Store count (${count}) exceeds max (${EVICTION_CONFIG.maxTrials}). Deleting oldest ${toDeleteCount > EVICTION_CONFIG.batchDeleteSize ? EVICTION_CONFIG.batchDeleteSize : toDeleteCount} trials.`);
         
         let deletedCount = 0;
-        while (cursor && deletedCount < EVICTION_CONFIG.batchDeleteSize) {
+        const targetDeleteCount = Math.min(toDeleteCount, EVICTION_CONFIG.batchDeleteSize);
+
+        while (cursor && deletedCount < targetDeleteCount) {
+            // Since we're using an index, cursor.primaryKey refers to the main store's key
             store.delete(cursor.primaryKey);
             deletedCount++;
             cursor = await promisifyRequest(cursor.continue());
@@ -91,7 +97,7 @@ export const logTrial = async (trial: TrialRecord): Promise<void> => {
   const tx = db.transaction(['trials'], 'readwrite');
   const store = tx.objectStore('trials');
   
-  await promisifyRequest(store.put(trial)); // Use put instead of add to be idempotent
+  await promisifyRequest(store.put(trial));
   
   writeCounter++;
   if (writeCounter % EVICTION_CONFIG.checkInterval === 0) {
@@ -109,16 +115,13 @@ export const logTrialBatch = async (trials: TrialRecord[]): Promise<void> => {
     const tx = db.transaction(['trials'], 'readwrite');
     const store = tx.objectStore('trials');
     for (const trial of trials) {
-        store.put(trial);
+        store.put(trial); // Use put to be idempotent
     }
-    // `tx.done` is a property on IDBTransaction in some libraries, but standard is `oncomplete`.
-    // Promisifying the transaction itself is the most robust way.
-    return new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
     });
 };
-
 
 export const getProfile = async (id: string): Promise<AdaptiveState | null> => {
   const db = await openDB();
@@ -194,7 +197,7 @@ export const clearAllData = async (): Promise<void> => {
   await Promise.all([
     promisifyRequest(tx.objectStore('profiles').clear()),
     promisifyRequest(tx.objectStore('trials').clear()),
-    tx.objectStoreNames.contains('sessions') ? promisifyRequest(tx.objectStore('sessions').clear()) : Promise.resolve(),
+    tx.objectStoreNames.contains('sessions') ? promisifyRequest(clearTx.objectStore('sessions').clear()) : Promise.resolve(),
   ]);
 };
 

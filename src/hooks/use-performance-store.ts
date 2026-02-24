@@ -23,6 +23,7 @@ type PerformanceActions = {
     setGlobalTier: (tier: TierSelection) => void;
     hydrate: () => Promise<void>;
     logTrial: (record: TrialRecord) => Promise<void>;
+    flushFailedWrites: () => Promise<void>; // New action for flushing buffer
     exportData: () => Promise<string>;
     importData: (json: string) => Promise<void>;
     clearAllData: () => Promise<void>;
@@ -96,23 +97,36 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
                     idbStore.setProfile(key, state.gameStates[key]).catch(e => console.error("Failed to set game tier in IDB", e));
                 });
             },
+            
+            flushFailedWrites: async () => {
+                const buffered = get().failedWrites;
+                if (buffered.length === 0) return;
+
+                console.log(`[Storage] Flushing ${buffered.length} buffered trial records...`);
+                try {
+                    await idbStore.logTrialBatch(buffered);
+                    set({ failedWrites: [] }); // Clear buffer on success
+                    console.log(`[Storage] Flush successful.`);
+                } catch (error) {
+                    console.error("[Storage] Critical: Failed to flush telemetry buffer. Data may be lost.", error);
+                    // Decide on a strategy: keep trying, or drop after N failures? For now, we keep them.
+                }
+            },
 
             logTrial: async (record) => {
                 try {
-                    // Log the new record FIRST. This may trigger eviction based on the state BEFORE adding the buffer.
+                    // Try flushing any previously failed writes first.
+                    await get().flushFailedWrites();
+                    
+                    // Now, log the new record. This may trigger eviction based on the state BEFORE adding the buffer.
                     await idbStore.logTrial(record);
-
-                    // Now, flush the buffer.
-                    const buffered = get().failedWrites;
-                    if (buffered.length > 0) {
-                        await idbStore.logTrialBatch(buffered);
-                        set({ failedWrites: [] });
-                    }
                 } catch (error) {
-                    console.warn("[Fault Tolerance] IDB write failed. Buffering trial record.", error);
+                    console.warn("[Storage] IDB write failed. Buffering trial record.", error);
                     set(state => {
                         state.failedWrites.push(record);
+                        // Safety cap to prevent unbounded memory usage
                         if (state.failedWrites.length > 500) {
+                            console.warn(`[Storage] In-memory buffer full. Dropping oldest trial record.`);
                             state.failedWrites.shift(); 
                         }
                     });
