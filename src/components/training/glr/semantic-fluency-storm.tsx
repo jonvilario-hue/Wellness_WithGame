@@ -19,6 +19,7 @@ import { AlgorithmFluency } from "../logic/algorithm-fluency";
 import { SpacedRetrievalMode } from "./spaced-retrieval-mode";
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
+import { logTrialResult } from "@/lib/analytics";
 
 const GLR_GAME_ID: GameId = 'glr_fluency_storm';
 const glrPolicy = difficultyPolicies[GLR_GAME_ID];
@@ -194,6 +195,7 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (result: { sc
                 word: currentWord
             }
         };
+        logTrialResult(GLR_GAME_ID, adaptiveState.currentLevel, trial);
         setTrials(prev => [...prev, trial]);
         const newState = adjustDifficulty(trial, adaptiveState, glrPolicy);
         updateAdaptiveState(GLR_GAME_ID, focus, newState);
@@ -300,6 +302,7 @@ function CategorySwitchingMode({ onComplete, focus }: { onComplete: (result: { s
                 word
             }
         };
+        logTrialResult(GLR_GAME_ID, getAdaptiveState(GLR_GAME_ID, focus).currentLevel, trial);
         setTrials(prev => [...prev, trial]);
         const adaptiveState = getAdaptiveState(GLR_GAME_ID, focus);
         const newState = adjustDifficulty(trial, adaptiveState, glrPolicy);

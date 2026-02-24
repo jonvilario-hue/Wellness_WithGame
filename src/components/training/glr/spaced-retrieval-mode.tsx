@@ -1,16 +1,24 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import type { TrainingFocus } from "@/types";
+import type { TrainingFocus, AdaptiveState, TrialResult, GameId } from "@/types";
 import { useGlrStore, type SpacedPair } from "@/hooks/use-glr-store";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { mathWordList, musicWordList, generalWordList, verbalWordList } from "@/data/verbal-content";
+import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
+import { difficultyPolicies } from "@/data/difficulty-policies";
+import { logTrialResult } from "@/lib/analytics";
 
-function Distractor({ onComplete }: { onComplete: () => void }) {
-    const [count, setCount] = useState(15);
+const GLR_GAME_ID: GameId = 'glr_fluency_storm';
+const glrPolicy = difficultyPolicies[GLR_GAME_ID];
+
+
+function Distractor({ duration, onComplete }: { duration: number, onComplete: () => void }) {
+    const [count, setCount] = useState(duration);
     useEffect(() => {
         if (count > 0) {
             const timer = setTimeout(() => setCount(c => c - 1), 1000);
@@ -23,9 +31,10 @@ function Distractor({ onComplete }: { onComplete: () => void }) {
     return <div className="text-center"><p className="text-muted-foreground">Mental Distraction</p><p className="text-6xl font-mono font-bold">{count}</p><p>Count down to zero...</p></div>;
 };
 
-export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (score: number) => void, focus: TrainingFocus }) {
+export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result: { score: number, trials: TrialResult[] }) => void, focus: TrainingFocus }) {
     const { addSpacedPairs, getDueReviewPairs, updatePairOnResult } = useGlrStore();
     const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
+    const adaptiveState = getAdaptiveState(GLR_GAME_ID, focus);
     
     const wordList1 = useMemo(() => {
         if (focus === 'math') return mathWordList;
@@ -35,6 +44,7 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (score:
     }, [focus]);
     
     const [phase, setPhase] = useState<'review' | 'learn' | 'distract' | 'recall' | 'finished'>('review');
+    const [sessionTrials, setSessionTrials] = useState<TrialResult[]>([]);
     const [duePairs, setDuePairs] = useState<SpacedPair[]>([]);
     const [newPairs, setNewPairs] = useState<{word1: string, word2: string}[]>([]);
     const [currentIndex, setCurrentIndex] = useState(0);
@@ -42,13 +52,19 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (score:
     const [feedback, setFeedback] = useState<Record<string, 'correct' | 'incorrect'>>({});
     const [score, setScore] = useState(0);
 
+    const trialStartTime = useRef(0);
+    
+    const policyParams = useMemo(() => {
+        return glrPolicy.levelMap[adaptiveState.currentLevel]?.content_config[focus]?.params || glrPolicy.levelMap[1].content_config.neutral!.params;
+    }, [adaptiveState.currentLevel, focus]);
+
     useEffect(() => {
         const pairsToReview = getDueReviewPairs();
         if (pairsToReview.length > 0) {
             setDuePairs(pairsToReview);
-            setPhase('recall'); // Start with recall if there are due pairs
+            setPhase('recall');
         } else {
-            const generated = Array.from({ length: 6 }).map(() => {
+            const generated = Array.from({ length: policyParams.pairs }).map(() => {
                 const word1 = wordList1[Math.floor(Math.random() * wordList1.length)];
                 let word2 = generalWordList[Math.floor(Math.random() * generalWordList.length)];
                 while(word1 === word2) word2 = generalWordList[Math.floor(Math.random() * generalWordList.length)];
@@ -59,19 +75,21 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (score:
             setPhase('learn');
         }
         setCurrentIndex(0);
-    }, [addSpacedPairs, getDueReviewPairs, wordList1]);
+        setSessionTrials([]);
+        trialStartTime.current = Date.now();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const handleNext = () => {
         const currentList = phase === 'recall' ? (duePairs.length > 0 ? duePairs : newPairs) : newPairs;
         if (currentIndex < currentList.length - 1) {
             setCurrentIndex(i => i + 1);
+            trialStartTime.current = Date.now();
         } else {
             if (phase === 'learn') setPhase('distract');
             else if (phase === 'recall') {
-                const currentState = getAdaptiveState('glr_fluency_storm', focus);
-                const newLevel = Math.max(currentState.levelFloor, Math.min(currentState.levelCeiling, 4 + score));
-                updateAdaptiveState('glr_fluency_storm', focus, { ...currentState, currentLevel: newLevel, lastFocus: focus, sessionCount: currentState.sessionCount + 1, lastSessionAt: Date.now() });
-                onComplete(score);
+                const recallAccuracy = score / currentList.length;
+                onComplete({ score, trials: sessionTrials });
                 setPhase('finished');
             }
             setCurrentIndex(0);
@@ -80,9 +98,23 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (score:
     
     const handleRecallSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        const reactionTimeMs = Date.now() - trialStartTime.current;
         const pair = (duePairs.length > 0 ? duePairs : newPairs)[currentIndex];
         const isCorrect = userInput.trim().toLowerCase() === pair.word2.toLowerCase();
         
+        const trial: TrialResult = {
+            correct: isCorrect,
+            reactionTimeMs,
+            telemetry: {
+                mode: 'spaced_retrieval',
+                pairId: pair.id,
+                intervalStage: pair.intervalStage
+            }
+        };
+
+        logTrialResult(GLR_GAME_ID, adaptiveState.currentLevel, trial);
+        setSessionTrials(prev => [...prev, trial]);
+
         updatePairOnResult(pair.id || `${pair.word1}-${pair.word2}`, isCorrect);
         
         setFeedback(prev => ({...prev, [pair.word1]: isCorrect ? 'correct' : 'incorrect'}));
@@ -93,7 +125,7 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (score:
     };
 
     if (phase === 'distract') {
-        return <Distractor onComplete={() => { setCurrentIndex(0); setPhase('recall'); }} />;
+        return <Distractor duration={policyParams.distractorDuration} onComplete={() => { setCurrentIndex(0); setPhase('recall'); trialStartTime.current = Date.now(); }} />;
     }
     
     const pairToShow = (phase === 'recall' ? (duePairs.length > 0 ? duePairs : newPairs) : newPairs)[currentIndex];

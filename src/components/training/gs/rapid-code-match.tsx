@@ -16,6 +16,7 @@ import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types"
 import { realWords, pseudowords } from "@/data/verbal-content";
 import { GameStub } from "../game-stub";
 import { GateSpeed } from '../logic/gate-speed';
+import { logTrialResult } from "@/lib/analytics";
 
 const GAME_ID: GameId = 'gs_rapid_code';
 const policy = difficultyPolicies[GAME_ID];
@@ -177,6 +178,7 @@ export function RapidCodeMatch() {
             trialDuration_ms: reactionTimeMs,
         }
     };
+    logTrialResult(GAME_ID, adaptiveState.currentLevel, trialResult);
     setSessionTrials(prev => [...prev, trialResult]);
     
     const newState = adjustDifficulty(trialResult, adaptiveState, policy);
