@@ -114,7 +114,7 @@ export function DynamicSequenceTransformer() {
     setTimeout(() => {
       setGameState('answering');
       if (getAudioContextTime) {
-        trialStartTime.current = getAudioContextTime();
+        trialStartTime.current = getAudioContextTime() || Date.now();
       } else {
         trialStartTime.current = Date.now();
       }
@@ -161,7 +161,7 @@ export function DynamicSequenceTransformer() {
     
     setGameState('feedback');
     const levelPlayed = state.currentLevel;
-    const responseTs = getAudioContextTime() || Date.now();
+    const responseTs = (getAudioContextTime && getAudioContextTime()) || Date.now();
     const reactionTimeMs = responseTs - trialStartTime.current;
     
     const normalize = (str: string) => str.toUpperCase().replace(/[.,!?]/g, '').trim();
@@ -184,6 +184,7 @@ export function DynamicSequenceTransformer() {
         }
     };
     logTrial({
+      id: crypto.randomUUID(),
       sessionId: sessionId.current,
       userId: 'local-user',
       gameId: GAME_ID,
@@ -191,6 +192,11 @@ export function DynamicSequenceTransformer() {
       difficultyLevel: levelPlayed,
       stimulusOnsetTs: trialStartTime.current,
       responseTs,
+      rtMs: reactionTimeMs,
+      correct: isCorrect,
+      responseType: isCorrect ? 'correct' : 'incorrect',
+      stimulusParams: { sequence: seqStr, task: task.id },
+      timestamp: Date.now(),
       ...trialResult
     } as any);
     
