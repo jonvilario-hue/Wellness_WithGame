@@ -66,22 +66,22 @@ export const usePerformanceStore = create<PerformanceStateData & PerformanceActi
           return existingState;
         }
 
+        // If a specific state for the focus doesn't exist, we create a *transient*
+        // one for display purposes, seeded from the 'neutral' state. This avoids
+        // a "set state during render" error. The state will be formally created
+        // and saved when a game in this mode is actually started.
         const neutralState = gameStates[neutralKey] || getDefaultState(gameId, 1);
         const newModeDefaultState = getDefaultState(gameId, neutralState.tier as Tier);
         const seededLevel = Math.max(newModeDefaultState.levelFloor, neutralState.currentLevel - 3);
         
-        const newState: AdaptiveState = {
+        const transientState: AdaptiveState = {
             ...newModeDefaultState,
             currentLevel: seededLevel,
             lastFocus: focus,
             uncertainty: 0.8, 
         };
-        
-        set(state => {
-            state.gameStates[key] = newState;
-        });
 
-        return newState;
+        return transientState;
       },
 
       updateAdaptiveState: (gameId, focus, newState) => {
