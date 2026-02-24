@@ -28,7 +28,7 @@ export function PerformanceInsights() {
   const [isPending, startTransition] = useTransition();
   const [isInsightVisible, setIsInsightVisible] = useState(false);
   const { organicGrowth } = useTheme();
-  const { getAdaptiveState } = usePerformanceStore();
+  const getAdaptiveState = usePerformanceStore(state => state.getAdaptiveState);
   const { focus: globalFocus, isLoaded } = useTrainingFocus();
 
   useEffect(() => {

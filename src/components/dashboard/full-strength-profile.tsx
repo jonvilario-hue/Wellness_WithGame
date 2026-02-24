@@ -22,21 +22,20 @@ import { useTrainingFocus } from '@/hooks/use-training-focus';
 export function FullStrengthProfile() {
   const [isClient, setIsClient] = useState(false);
   
-  // OPTIMIZATION: Select only the gameStates object, which is the sole dependency.
-  const gameStates = usePerformanceStore(state => state.gameStates);
+  const getAdaptiveState = usePerformanceStore(state => state.getAdaptiveState);
   const { isLoaded: isFocusLoaded } = useTrainingFocus();
 
   useEffect(() => {
     setIsClient(true);
   }, []);
 
-  const isComponentLoaded = isClient && isFocusLoaded && gameStates;
+  const isComponentLoaded = isClient && isFocusLoaded;
 
   // OPTIMIZATION: Memoize the chart data calculation. It will only re-run when gameStates changes.
   const chartData = useMemo(() => {
     if (!isComponentLoaded) return [];
     return chcDomains.map(domain => {
-      const gameState = gameStates[`${domain.id}/neutral`];
+      const gameState = getAdaptiveState(domain.id, 'neutral');
       const score = gameState ? Math.round((gameState.currentLevel / gameState.levelCeiling) * 100) : 0;
       const displayScore = score > 0 ? score : Math.round(Math.random() * 20 + 20); // Use real score or fallback for display
 
@@ -47,7 +46,7 @@ export function FullStrengthProfile() {
         fullMark: 100,
       };
     });
-  }, [isComponentLoaded, gameStates]);
+  }, [isComponentLoaded, getAdaptiveState]);
 
 
   if (!isComponentLoaded) {

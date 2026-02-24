@@ -1,5 +1,4 @@
-
-import type { TrialRecord } from './index';
+import type { TrialRecord, AdaptiveState } from './index';
 
 export interface LatencyInfo {
     baseLatency: number;
@@ -27,11 +26,9 @@ export interface SessionSummary {
   nextDifficultyLevel: number;
 }
 
-export interface GameProfile {
-  gameId: string;
-  currentDifficulty: number;
-  rollingAccuracy: number;
-  rollingMeanRt: number;
-  lastPlayedTimestamp: number;
-  sessionsCompleted: number;
+// GameProfile is now replaced by the more detailed AdaptiveState for persistence.
+// This ensures all adaptive parameters are saved, not just a summary.
+export type ProfileRecord = {
+  id: string; // Composite key, e.g., "gwm_dynamic_sequence/music"
+  state: AdaptiveState;
 }

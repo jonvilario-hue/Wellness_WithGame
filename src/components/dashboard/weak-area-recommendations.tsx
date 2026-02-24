@@ -25,8 +25,8 @@ export function WeakAreaRecommendations() {
   const [error, setError] = useState<string | null>(null);
   const [isInsightVisible, setIsInsightVisible] = useState(false);
   const { organicGrowth } = useTheme();
-  const { getAdaptiveState } = usePerformanceStore();
-  const { focus: globalFocus, isLoaded } = useTrainingFocus();
+  const getAdaptiveState = usePerformanceStore(state => state.getAdaptiveState);
+  const { isLoaded } = useTrainingFocus();
 
   useEffect(() => {
     if (!isLoaded) return;

@@ -123,7 +123,8 @@ export function TrainingSettings() {
                         </p>
                         <div className="space-y-3">
                         {chcDomains.map(domain => {
-                            const gameTier = getAdaptiveState(domain.id, focus)?.tier ?? globalTier;
+                            const gameState = getAdaptiveState(domain.id, focus);
+                            const gameTier = gameState ? gameState.tier : globalTier;
                             return (
                                 <div key={domain.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
                                     <Label htmlFor={`select-${domain.id}`} className="font-medium">{domain.name}</Label>

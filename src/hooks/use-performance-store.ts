@@ -1,135 +1,112 @@
-
 'use client';
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
-import type { GameId, TrialRecord, TrainingFocus } from '@/types';
-import type { GameProfile, SessionSummary, LatencyInfo } from '@/types/local-store';
+import type { GameId, TrialRecord, TrainingFocus, AdaptiveState, TierSelection } from '@/types';
+import { getDefaultState } from '@/lib/adaptive-engine';
 import * as idbStore from '@/lib/idb-store';
 import * as aggregator from '@/lib/local-aggregator';
+import type { LatencyInfo } from '@/types/local-store';
 
 type PerformanceState = {
-    activeSessionId: string | null;
-    profiles: Record<string, GameProfile>;
+    gameStates: Record<string, AdaptiveState>;
+    globalTier: TierSelection;
+    isHydrated: boolean;
 };
 
 type PerformanceActions = {
-    // Game Lifecycle
-    startSession: (gameId: GameId, mode: TrainingFocus, deviceInfo: LatencyInfo) => Promise<{ sessionId: string, difficulty: number }>;
-    logTrial: (record: Omit<TrialRecord, 'id' | 'sessionId' | 'timestamp'>) => Promise<void>;
-    endSession: () => Promise<void>;
-
-    // Data Management
+    getAdaptiveState: (gameId: GameId, focus: TrainingFocus) => AdaptiveState;
+    updateAdaptiveState: (gameId: GameId, focus: TrainingFocus, newState: Partial<AdaptiveState>) => void;
+    setGameTier: (gameId: GameId, focus: TrainingFocus, tier: TierSelection) => void;
+    setGlobalTier: (tier: TierSelection) => void;
+    hydrate: () => Promise<void>;
+    logTrial: (record: TrialRecord) => Promise<void>;
     exportData: () => Promise<string>;
     importData: (json: string) => Promise<void>;
     clearAllData: () => Promise<void>;
-    
-    // Profile access
-    getProfile: (gameId: GameId) => GameProfile | null;
 };
 
 export const usePerformanceStore = create<PerformanceState & PerformanceActions>()(
     persist(
         immer((set, get) => ({
-            activeSessionId: null,
-            profiles: {},
+            gameStates: {},
+            globalTier: 4,
+            isHydrated: false,
 
-            startSession: async (gameId, mode, deviceInfo) => {
-                await idbStore.initDB();
-                const profile = await idbStore.getProfile(gameId) || {
-                    gameId,
-                    currentDifficulty: 1,
-                    rollingAccuracy: 0,
-                    rollingMeanRt: 0,
-                    lastPlayedTimestamp: 0,
-                    sessionsCompleted: 0
-                };
+            hydrate: async () => {
+                const profiles = await idbStore.getAllProfiles();
+                const newGameStates: Record<string, AdaptiveState> = {};
+                for (const profile of profiles) {
+                    newGameStates[profile.id] = profile.state;
+                }
+                set({ gameStates: newGameStates, isHydrated: true });
+            },
+
+            getAdaptiveState: (gameId, focus) => {
+                const key = `${gameId}/${focus}`;
+                const existingState = get().gameStates[key];
+                if (existingState) {
+                    return existingState;
+                }
                 
-                set(state => { state.profiles[gameId] = profile; });
+                const globalTier = get().globalTier;
+                const tierForNewGame = globalTier === 4 ? 1 : globalTier;
+                const defaultState = getDefaultState(gameId, tierForNewGame);
+                const finalState = { ...defaultState, lastFocus: focus };
                 
-                const sessionId = await idbStore.startSession({
-                    gameId,
-                    mode,
-                    deviceInfo,
-                    startTimestamp: Date.now()
+                // Optimistically update in-memory state, and write to DB in the background.
+                // This keeps the getter synchronous for UI components.
+                set(state => {
+                    state.gameStates[key] = finalState;
                 });
+                idbStore.setProfile(key, finalState);
 
-                set({ activeSessionId: sessionId });
+                return finalState;
+            },
 
-                return { sessionId, difficulty: profile.currentDifficulty };
+            updateAdaptiveState: (gameId, focus, newState) => {
+                const key = `${gameId}/${focus}`;
+                set(state => {
+                    if (state.gameStates[key]) {
+                        state.gameStates[key] = { ...state.gameStates[key], ...newState };
+                        idbStore.setProfile(key, state.gameStates[key]);
+                    }
+                });
+            },
+
+            setGlobalTier: (tier) => set({ globalTier: tier }),
+
+            setGameTier: (gameId, focus, tier) => {
+                const key = `${gameId}/${focus}`;
+                const currentState = get().gameStates[key] || get().getAdaptiveState(gameId, focus);
+                
+                set(state => {
+                    state.gameStates[key] = { ...currentState, tier };
+                    idbStore.setProfile(key, state.gameStates[key]);
+                });
             },
 
             logTrial: async (record) => {
-                const sessionId = get().activeSessionId;
-                if (!sessionId) {
-                    console.error("Cannot log trial: no active session.");
-                    return;
-                }
-                const trial: TrialRecord = {
-                    ...record,
-                    id: crypto.randomUUID(),
-                    sessionId,
-                    timestamp: Date.now(),
-                };
-                await idbStore.logTrial(trial);
-            },
-
-            endSession: async () => {
-                const sessionId = get().activeSessionId;
-                const profiles = get().profiles;
-
-                if (!sessionId) {
-                    console.error("Cannot end session: no active session.");
-                    return;
-                }
-
-                const trials = await idbStore.getTrials(sessionId);
-                const sessionRecord = await idbStore.getRecentSessions(trials[0]?.gameId, 1);
-                const gameId = sessionRecord[0]?.gameId;
-                
-                if (!gameId) {
-                     console.error("Could not find gameId for session.");
-                     set({ activeSessionId: null });
-                     return;
-                }
-
-                const currentProfile = profiles[gameId];
-                const summary = aggregator.computeSessionSummary(trials, currentProfile.currentDifficulty);
-                
-                await idbStore.endSession(sessionId, summary);
-
-                const recentSessions = await idbStore.getRecentSessions(gameId, 10);
-                const newProfile = aggregator.updateGameProfile(gameId, currentProfile, recentSessions, summary);
-
-                await idbStore.setProfile(newProfile);
-                set(state => {
-                    state.profiles[gameId] = newProfile;
-                    state.activeSessionId = null;
-                });
-            },
-            
-            getProfile: (gameId) => {
-                return get().profiles[gameId] || null;
+                await idbStore.logTrial(record);
             },
 
             exportData: idbStore.exportAllData,
-            importData: idbStore.importData,
-            clearAllData: async () => {
-                await idbStore.clearAllData();
-                set({ profiles: {}, activeSessionId: null });
+            
+            importData: async (json) => {
+                await idbStore.importData(json);
+                get().hydrate();
             },
 
+            clearAllData: async () => {
+                await idbStore.clearAllData();
+                set({ gameStates: {}, isHydrated: true });
+            },
         })),
         {
-            name: 'cognitune-performance-store-v1',
+            name: 'cognitune-adaptive-store-v4',
             storage: createJSONStorage(() => localStorage),
-            partialize: (state) => ({ profiles: state.profiles }), // Only persist profiles, not session ID
+            partialize: (state) => ({ globalTier: state.globalTier }),
         }
     )
 );
-
-// Initialize DB on load
-if (typeof window !== 'undefined') {
-    idbStore.initDB();
-}

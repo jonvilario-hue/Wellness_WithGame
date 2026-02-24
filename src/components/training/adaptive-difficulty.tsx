@@ -26,7 +26,7 @@ export function AdaptiveDifficulty() {
   const [isInsightVisible, setIsInsightVisible] = useState(false);
   const [skillLevel, setSkillLevel] = useState(50);
   const { organicGrowth } = useTheme();
-  const { getAdaptiveState } = usePerformanceStore();
+  const getAdaptiveState = usePerformanceStore(state => state.getAdaptiveState);
   const { focus, isLoaded } = useTrainingFocus();
 
   useEffect(() => {

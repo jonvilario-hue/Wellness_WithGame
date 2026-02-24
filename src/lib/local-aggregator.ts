@@ -1,6 +1,6 @@
 
-import type { TrialRecord } from '@/types';
-import type { SessionSummary, GameProfile, SessionRecord } from '@/types/local-store';
+import type { TrialRecord, AdaptiveState } from '@/types';
+import type { SessionSummary, SessionRecord } from '@/types/local-store';
 
 // --- Adaptive Difficulty Constants ---
 const ACCURACY_THRESHOLD_UP = 0.85;
@@ -56,10 +56,8 @@ export const computeSessionSummary = (trials: TrialRecord[], currentDifficulty: 
     };
 };
 
-export const computeRollingStats = (sessions: SessionRecord[], window: number): { rollingAccuracy: number; rollingMeanRt: number } => {
-    const relevantSessions = sessions
-        .filter(s => s.summary)
-        .slice(0, window);
+export const computeRollingStats = (sessions: SessionRecord[]): { rollingAccuracy: number; rollingMeanRt: number } => {
+    const relevantSessions = sessions.filter(s => s.summary).slice(0, 10);
 
     if (relevantSessions.length === 0) {
         return { rollingAccuracy: 0, rollingMeanRt: 0 };
@@ -75,21 +73,19 @@ export const computeRollingStats = (sessions: SessionRecord[], window: number): 
 };
 
 export const updateGameProfile = (
-    gameId: string,
-    existingProfile: GameProfile | null,
     sessions: SessionRecord[],
-    currentSessionSummary: SessionSummary
-): GameProfile => {
-    const rollingStats = computeRollingStats(sessions, 10);
+    currentSessionSummary: SessionSummary,
+    currentState: AdaptiveState
+): Partial<AdaptiveState> => {
+    const rollingStats = computeRollingStats(sessions);
     
-    const newProfile: GameProfile = {
-        gameId,
-        currentDifficulty: currentSessionSummary.nextDifficultyLevel,
-        rollingAccuracy: rollingStats.rollingAccuracy,
-        rollingMeanRt: rollingStats.rollingMeanRt,
-        lastPlayedTimestamp: Date.now(),
-        sessionsCompleted: (existingProfile?.sessionsCompleted || 0) + 1,
+    const updatedFields: Partial<AdaptiveState> = {
+        currentLevel: currentSessionSummary.nextDifficultyLevel,
+        smoothedAccuracy: rollingStats.rollingAccuracy,
+        smoothedRT: rollingStats.rollingMeanRt,
+        lastSessionAt: Date.now(),
+        sessionCount: currentState.sessionCount + 1,
     };
 
-    return newProfile;
+    return updatedFields;
 };

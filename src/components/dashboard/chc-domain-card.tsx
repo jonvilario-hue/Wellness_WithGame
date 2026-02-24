@@ -79,7 +79,7 @@ export function ChcDomainCard({ domain, onPlay }: { domain: (typeof import('@/li
           disabled={isLocked}
           onClick={() => !isLocked && onPlay(domain.key)}
         >
-          {isLocked ? 'Unavailable in Core' : domain.gameTitle}
+          {isLocked ? 'Unavailable in this Mode' : domain.gameTitle}
         </Button>
       </CardFooter>
     </Card>
@@ -113,5 +113,3 @@ export function ChcDomainCard({ domain, onPlay }: { domain: (typeof import('@/li
 
   return cardContent;
 }
-
-    

@@ -1,15 +1,20 @@
 
-import type { TrialRecord } from '@/types';
-import type { SessionRecord, GameProfile, SessionSummary, LatencyInfo } from '@/types/local-store';
+import type { TrialRecord, AdaptiveState } from '@/types';
+import type { SessionRecord, SessionSummary, LatencyInfo, ProfileRecord } from '@/types/local-store';
 
 const DB_NAME = 'cognitune-local';
-const DB_VERSION = 1;
+const DB_VERSION = 2; // Version incremented due to schema change
 
 let db: IDBDatabase | null = null;
 
 const openDB = (): Promise<IDBDatabase> => {
   return new Promise((resolve, reject) => {
-    if (db) {
+    if (typeof window === 'undefined') {
+        reject(new Error('IndexedDB cannot be accessed in a server-side environment.'));
+        return;
+    }
+
+    if (db && db.version === DB_VERSION) {
       resolve(db);
       return;
     }
@@ -21,12 +26,13 @@ const openDB = (): Promise<IDBDatabase> => {
         dbInstance.createObjectStore('sessions', { keyPath: 'sessionId' });
       }
       if (!dbInstance.objectStoreNames.contains('trials')) {
-        const trialStore = dbInstance.createObjectStore('trials', { keyPath: 'id', autoIncrement: false });
+        const trialStore = dbInstance.createObjectStore('trials', { keyPath: 'id' });
         trialStore.createIndex('sessionId', 'sessionId', { unique: false });
       }
-      if (!dbInstance.objectStoreNames.contains('profiles')) {
-        dbInstance.createObjectStore('profiles', { keyPath: 'gameId' });
+      if (dbInstance.objectStoreNames.contains('profiles')) {
+          dbInstance.deleteObjectStore('profiles');
       }
+      dbInstance.createObjectStore('profiles', { keyPath: 'id' });
     };
 
     request.onsuccess = (event) => {
@@ -97,19 +103,26 @@ export const getRecentSessions = async (gameId: string, count: number): Promise<
         .slice(0, count);
 };
 
-export const getProfile = async (gameId: string): Promise<GameProfile | null> => {
+export const getProfile = async (id: string): Promise<AdaptiveState | null> => {
   const db = await openDB();
   const tx = db.transaction('profiles', 'readonly');
   const store = tx.objectStore('profiles');
-  const profile = await promisifyRequest(store.get(gameId));
-  return profile || null;
+  const profileRecord = await promisifyRequest(store.get(id));
+  return profileRecord ? profileRecord.state : null;
 };
 
-export const setProfile = async (profile: GameProfile): Promise<void> => {
+export const setProfile = async (id: string, state: AdaptiveState): Promise<void> => {
   const db = await openDB();
   const tx = db.transaction('profiles', 'readwrite');
   const store = tx.objectStore('profiles');
-  await promisifyRequest(store.put(profile));
+  await promisifyRequest(store.put({ id, state }));
+};
+
+export const getAllProfiles = async (): Promise<ProfileRecord[]> => {
+    const db = await openDB();
+    const tx = db.transaction('profiles', 'readonly');
+    const store = tx.objectStore('profiles');
+    return await promisifyRequest(store.getAll());
 };
 
 export const exportAllData = async (): Promise<string> => {
@@ -127,7 +140,7 @@ export const importData = async (json: string): Promise<void> => {
   if (data.sessions) {
     const tx = db.transaction('sessions', 'readwrite');
     for (const session of data.sessions) {
-      tx.objectStore('sessions').put(session); // put will overwrite duplicates
+      tx.objectStore('sessions').put(session);
     }
   }
   if (data.trials) {
