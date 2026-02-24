@@ -21,6 +21,7 @@ import { LogicLibrary } from '../logic/logic-library';
 import { GcNovelConceptLearner } from "./gc-novel-concept-learner";
 import GcMathConcepts from "./gc-math-concepts";
 import { GcMusicKnowledge } from "./gc-music-knowledge";
+import { domainIcons } from "@/components/icons";
 
 
 const GAME_ID: GameId = 'gc_verbal_inference';
@@ -90,8 +91,6 @@ export function VerbalInferenceBuilder() {
   const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
   const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
-
-  const [adaptiveState, setAdaptiveState] = useState<AdaptiveState | null>(null);
   const [gameState, setGameState] = useState<'loading' | 'start' | 'playing' | 'feedback' | 'finished'>('loading');
   
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
@@ -106,13 +105,12 @@ export function VerbalInferenceBuilder() {
   
   useEffect(() => {
     if (isComponentLoaded) {
-      const initialState = getAdaptiveState(GAME_ID, currentMode);
-      setAdaptiveState(initialState);
       setGameState('start');
     }
-  }, [isComponentLoaded, currentMode, getAdaptiveState]);
+  }, [isComponentLoaded, currentMode]);
   
-  const startNewTrial = useCallback((state: AdaptiveState) => {
+  const startNewTrial = useCallback(() => {
+    const state = getAdaptiveState(GAME_ID, currentMode);
     const onRamp = state.uncertainty > 0.7;
     const loadedLevel = onRamp
       ? Math.max(state.levelFloor, state.currentLevel - 2)
@@ -124,19 +122,19 @@ export function VerbalInferenceBuilder() {
     setInlineFeedback({ message: '', type: '' });
     setGameState('playing');
     trialStartTime.current = Date.now();
-  }, [currentMode]);
+  }, [currentMode, getAdaptiveState]);
 
   const startNewSession = useCallback(() => {
-    if (!adaptiveState) return;
-    const sessionState = startSession(adaptiveState);
+    const state = getAdaptiveState(GAME_ID, currentMode);
+    const sessionState = startSession(state);
     updateAdaptiveState(GAME_ID, currentMode, sessionState);
-    setAdaptiveState(sessionState);
     currentTrialIndex.current = 0;
-    startNewTrial(sessionState);
-  }, [adaptiveState, startNewTrial, updateAdaptiveState, currentMode]);
+    startNewTrial();
+  }, [startNewTrial, updateAdaptiveState, currentMode, getAdaptiveState]);
 
   const handleAnswer = (option: string) => {
-    if (gameState !== 'playing' || !puzzle || !adaptiveState) return;
+    const state = getAdaptiveState(GAME_ID, currentMode);
+    if (gameState !== 'playing' || !puzzle || !state) return;
 
     setGameState('feedback');
     setSelectedAnswer(option);
@@ -147,7 +145,7 @@ export function VerbalInferenceBuilder() {
     logTrial({
       module_id: GAME_ID,
       mode: currentMode,
-      levelPlayed: adaptiveState.currentLevel,
+      levelPlayed: state.currentLevel,
       isCorrect,
       responseTime_ms: reactionTimeMs,
       meta: {
@@ -155,9 +153,8 @@ export function VerbalInferenceBuilder() {
       }
     });
     
-    const newState = adjustDifficulty(trialResult, adaptiveState, policy);
+    const newState = adjustDifficulty(trialResult, state, policy);
     updateAdaptiveState(GAME_ID, currentMode, newState);
-    setAdaptiveState(newState);
 
     setInlineFeedback({ message: isCorrect ? getSuccessFeedback('Gc') : getFailureFeedback('Gc'), type: isCorrect ? 'success' : 'failure' });
     
@@ -166,7 +163,7 @@ export function VerbalInferenceBuilder() {
         if (currentTrialIndex.current >= policy.sessionLength) {
             setGameState('finished');
         } else {
-            startNewTrial(newState);
+            startNewTrial();
         }
     }, 2500);
   };
@@ -212,11 +209,12 @@ export function VerbalInferenceBuilder() {
     if (gameState === 'loading') {
       return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
     }
+    const state = getAdaptiveState(GAME_ID, currentMode);
     if (gameState === 'start') {
       return (
         <div className="flex flex-col items-center gap-4">
-          <div className="font-mono text-lg">Level: {adaptiveState?.currentLevel}</div>
-          <Button onClick={startNewSession} size="lg" disabled={!adaptiveState}>Verbal Inference Builder</Button>
+          <div className="font-mono text-lg">Level: {state?.currentLevel}</div>
+          <Button onClick={startNewSession} size="lg" disabled={!state}>Verbal Inference Builder</Button>
         </div>
       );
     }
@@ -234,7 +232,7 @@ export function VerbalInferenceBuilder() {
       <>
         <div className="w-full flex justify-between font-mono text-sm">
           <span>Trial: {currentTrialIndex.current + 1} / {policy.sessionLength}</span>
-          <span>Level: {adaptiveState?.currentLevel}</span>
+          <span>Level: {state?.currentLevel}</span>
         </div>
         <div className="p-6 bg-muted rounded-lg w-full text-center min-h-[100px] flex items-center justify-center">
           <p className="text-lg md:text-xl font-medium">{puzzle.question}</p>
@@ -275,8 +273,8 @@ export function VerbalInferenceBuilder() {
     <Card className="w-full max-w-2xl bg-amber-900/10 border-amber-500/20 text-foreground">
       <CardHeader>
         <CardTitle className="flex items-center justify-center gap-2 text-amber-500">
-            <BookOpenText />
-            (Gc) Verbal Inference
+            <span className="p-2 bg-amber-500/10 rounded-md"><domainIcons.Gc className="w-6 h-6 text-amber-400" /></span>
+            Verbal Inference Builder
         </CardTitle>
         <CardDescription className="text-center text-amber-500/80">
             Deduce the meaning or relationship from the context provided.
@@ -288,5 +286,3 @@ export function VerbalInferenceBuilder() {
     </Card>
   );
 }
-
-    

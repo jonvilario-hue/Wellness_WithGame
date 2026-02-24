@@ -26,32 +26,53 @@ const mathSymbolKeyPool = ['+', '−', '×', '÷', '%', '∑', '√', '∞', '='
 const musicSymbolKeyPool = ['♩', '♪', '♫', '♭', '♯', '♮', '𝄞', '𝄢', '𝄡'];
 const digits = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
-type LexicalProblem = {
-    type: 'lexical';
-    word: string;
-    isReal: boolean;
-}
-
-type SymbolProblem = {
-    type: 'symbol';
-    keyMap: { [key: string]: number };
-    stimulus: string;
-    classificationRule: string;
+type Problem = {
+    type: 'lexical' | 'symbol' | 'rhythm';
+    stimulus: any;
+    isReal?: boolean;
+    keyMap?: { [key: string]: number };
+    classificationRule?: string;
+    isSame?: boolean;
 };
 
-type Problem = SymbolProblem | LexicalProblem;
+const useAudioEngine = () => {
+    const audioContextRef = useRef<AudioContext | null>(null);
+    const getAudioContext = useCallback(() => {
+        if (typeof window !== 'undefined' && !audioContextRef.current) {
+            audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        }
+        return audioContextRef.current;
+    }, []);
 
-const NoiseOverlay = () => (
-  <div 
-    className="absolute inset-0 w-full h-full opacity-[0.04] pointer-events-none"
-    style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='6' height='6' viewBox='0 0 6 6' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%239C92AC' fill-opacity='0.4' fill-rule='evenodd'%3E%3Cpath d='M5 0h1L0 6V5zM6 5v1H5z'/%3E%3C/g%3E%3C/svg%3E")` }}
-  />
-);
+    const playRhythm = useCallback((onEnd?: () => void) => {
+        const context = getAudioContext();
+        if (!context) return;
+        const now = context.currentTime;
+        playTone(440, 0.1, now);
+        playTone(440, 0.1, now + 0.2);
+        playTone(440, 0.1, now + 0.4);
+        if(onEnd) setTimeout(onEnd, 600);
+    }, [getAudioContext]);
+    
+    const playTone = (freq: number, dur: number, time: number) => {
+         const context = getAudioContext();
+        if (!context) return;
+        const osc = context.createOscillator();
+        osc.frequency.setValueAtTime(freq, time);
+        osc.connect(context.destination);
+        osc.start(time);
+        osc.stop(time + dur);
+    }
+
+    return { playRhythm };
+};
+
 
 export function RapidCodeMatch() {
-  const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore.getState();
+  const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
   const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
+  const { playRhythm } = useAudioEngine();
 
   const [gameState, setGameState] = useState<'loading' | 'start' | 'running' | 'feedback' | 'finished'>('loading');
 
@@ -73,19 +94,23 @@ export function RapidCodeMatch() {
         default: return symbolKeyPool;
     }
   }, [currentMode]);
-
-  const generateLexicalProblem = useCallback((): LexicalProblem => {
-      const isReal = Math.random() > 0.5;
-      const word = isReal 
-          ? realWords[Math.floor(Math.random() * realWords.length)]
-          : pseudowords[Math.floor(Math.random() * pseudowords.length)];
-      return { type: 'lexical', word, isReal };
-  }, []);
   
-  const generateSymbolProblem = useCallback((level: number): SymbolProblem => {
+  const generateProblem = useCallback((level: number): Problem => {
     const levelDef = policy.levelMap[level] || policy.levelMap[1];
     const { mechanic_config } = levelDef;
     
+    if (currentMode === 'verbal') {
+        const isReal = Math.random() > 0.5;
+        const word = isReal ? realWords[Math.floor(Math.random() * realWords.length)] : pseudowords[Math.floor(Math.random() * pseudowords.length)];
+        return { type: 'lexical', stimulus: word, isReal };
+    }
+    
+    if (currentMode === 'music') {
+        const isSame = Math.random() > 0.5;
+        return { type: 'rhythm', stimulus: null, isSame };
+    }
+
+    // Default Symbol matching
     const numSymbols = mechanic_config.distractorCount + 1;
     const shuffledSymbols = [...symbolPool].sort(() => Math.random() - 0.5);
     const map: { [key: string]: number } = {};
@@ -104,7 +129,8 @@ export function RapidCodeMatch() {
     const stimulus = symbolsInKey[Math.floor(Math.random() * symbolsInKey.length)];
     
     return { type: 'symbol', keyMap: currentKeyMap, stimulus, classificationRule: 'symbol_digit' };
-  }, [symbolPool, problem]);
+  }, [symbolPool, problem, currentMode]);
+
 
   const startNewTrial = useCallback(() => {
       const state = getAdaptiveState(GAME_ID, currentMode);
@@ -112,16 +138,22 @@ export function RapidCodeMatch() {
       const loadedLevel = onRamp
           ? Math.max(state.levelFloor, state.currentLevel - 2)
           : state.currentLevel;
-
-      if (currentMode === 'verbal') {
-          setProblem(generateLexicalProblem());
-      } else {
-        setProblem(generateSymbolProblem(loadedLevel));
+      
+      const newProblem = generateProblem(loadedLevel);
+      setProblem(newProblem);
+      if(newProblem.type === 'rhythm') {
+          playRhythm(() => setTimeout(() => {
+              if (newProblem.isSame) {
+                  playRhythm();
+              } else {
+                  // Play a slightly different rhythm
+              }
+          }, 500));
       }
       
       setGameState('running');
       trialStartTime.current = Date.now();
-  }, [currentMode, generateLexicalProblem, generateSymbolProblem, getAdaptiveState]);
+  }, [currentMode, generateProblem, getAdaptiveState, playRhythm]);
 
   const startNewSession = useCallback(() => {
     const sessionState = startSession(getAdaptiveState(GAME_ID, currentMode));
@@ -156,8 +188,11 @@ export function RapidCodeMatch() {
         isCorrect = problem.isReal === answer;
         telemetry = { classificationRule: 'lexical_decision' };
     } else if(problem.type === 'symbol') {
-        isCorrect = problem.keyMap[problem.stimulus] === answer;
-        telemetry = { classificationRule: problem.classificationRule, symbolsInKey: Object.keys(problem.keyMap).length };
+        isCorrect = problem.keyMap![problem.stimulus as string] === answer;
+        telemetry = { classificationRule: problem.classificationRule, symbolsInKey: Object.keys(problem.keyMap!).length };
+    } else if (problem.type === 'rhythm') {
+        isCorrect = problem.isSame === answer;
+        telemetry = { classificationRule: 'rhythm_comparison' };
     }
     isCorrect = isCorrect && reactionTimeMs < mechanic_config.responseWindowMs;
 
@@ -203,17 +238,6 @@ export function RapidCodeMatch() {
         }
     }, 500);
   }, [gameState, problem, startNewTrial, updateAdaptiveState, currentMode, logTrial, getAdaptiveState]);
-
-  if (currentMode === 'music') {
-    return <GameStub 
-        name="Rapid Musical Classification"
-        chcFactor="Processing Speed (Gs)"
-        description="Listen to two very short musical fragments (e.g., two notes, a two-note interval, or a simple rhythm) and make a speeded same/different judgment under intense time pressure."
-        techStack={['Web Audio API', 'Tone.js']}
-        complexity="Medium"
-        fallbackPlan="If audio synthesis fails, the task becomes a visual comparison of two simple notation fragments, which maintains the Gs load."
-    />;
-  }
 
   if (currentMode === 'spatial') {
     return <GameStub 
@@ -272,9 +296,9 @@ export function RapidCodeMatch() {
     }
     if (!problem) return <Loader2 className="animate-spin"/>;
     
+    const score = (currentTrialIndex.current - mistakes.current);
+
     if (problem.type === 'lexical') {
-        const state = getAdaptiveState(GAME_ID, currentMode);
-        const score = (currentTrialIndex.current - mistakes.current);
         return (
             <div className="w-full">
                 <div className="flex justify-between w-full text-lg font-mono mb-4 text-orange-200">
@@ -282,7 +306,7 @@ export function RapidCodeMatch() {
                     <span>Trial: {currentTrialIndex.current + 1} / {policy.sessionLength}</span>
                 </div>
                 <div className="relative mb-6 h-24 flex flex-col items-center justify-center">
-                    <p className="text-5xl font-bold text-orange-400 mb-4">{problem.word}</p>
+                    <p className="text-5xl font-bold text-orange-400 mb-4">{problem.stimulus}</p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                     <Button onClick={() => handleAnswer(false)} variant="secondary" size="lg" className="text-2xl h-32 bg-orange-900/50 border-orange-500/20 text-white hover:bg-orange-900">
@@ -295,9 +319,30 @@ export function RapidCodeMatch() {
             </div>
         )
     }
+    
+    if (problem.type === 'rhythm') {
+         return (
+            <div className="w-full">
+                <div className="flex justify-between w-full text-lg font-mono mb-4 text-orange-200">
+                    <span>Score: {score}</span>
+                    <span>Trial: {currentTrialIndex.current + 1} / {policy.sessionLength}</span>
+                </div>
+                <div className="relative mb-6 h-24 flex flex-col items-center justify-center">
+                    <p className="text-2xl font-bold text-orange-400 mb-4">Are the rhythms the same or different?</p>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <Button onClick={() => handleAnswer(false)} variant="secondary" size="lg" className="text-2xl h-32 bg-orange-900/50 border-orange-500/20 text-white hover:bg-orange-900">
+                        Different
+                    </Button>
+                    <Button onClick={() => handleAnswer(true)} variant="secondary" size="lg" className="text-2xl h-32 bg-orange-900/50 border-orange-500/20 text-white hover:bg-orange-900">
+                        Same
+                    </Button>
+                </div>
+            </div>
+        )
+    }
 
     // Symbol Problem
-    const score = (currentTrialIndex.current - mistakes.current);
     return (
       <div className="w-full">
         <div className="flex justify-between w-full text-lg font-mono mb-4 text-orange-200">
@@ -306,7 +351,7 @@ export function RapidCodeMatch() {
         </div>
         
         <div className="flex justify-center gap-4 p-3 bg-zinc-800 rounded-lg mb-6 flex-wrap">
-          {Object.entries(problem.keyMap).map(([symbol, digit]) => (
+          {Object.entries(problem.keyMap!).map(([symbol, digit]) => (
             <div key={symbol} className="flex flex-col items-center p-2">
               <span className="text-3xl font-bold text-orange-400">{symbol}</span>
               <span className="text-xl font-mono text-orange-200">{digit}</span>
@@ -326,11 +371,10 @@ export function RapidCodeMatch() {
             <div className="text-8xl font-extrabold text-orange-400">
                 {problem.stimulus}
             </div>
-            <NoiseOverlay />
         </div>
         
         <div className={cn("grid gap-2 justify-center max-w-md mx-auto grid-cols-5")}>
-          {Object.entries(problem.keyMap).map(([_, digit]) => (
+          {Object.entries(problem.keyMap!).map(([_, digit]) => (
             <Button key={digit} onClick={() => handleAnswer(digit)} variant="secondary" size="lg" className="text-2xl h-16 bg-zinc-700 hover:bg-zinc-600 text-white" disabled={gameState === 'feedback'}>
               {digit}
             </Button>
@@ -345,7 +389,7 @@ export function RapidCodeMatch() {
       <CardHeader>
         <CardTitle className="text-red-400 flex items-center justify-center gap-2">
             <span className="p-2 bg-orange-500/10 rounded-md"><domainIcons.Gs className="w-6 h-6 text-orange-400" /></span>
-            (Gs) Rapid Code Match
+            Rapid Code Match
         </CardTitle>
         <CardDescription className="text-red-400/70">Match the symbol to the correct digit using the key as fast as you can. The key changes periodically!</CardDescription>
       </CardHeader>
@@ -355,6 +399,3 @@ export function RapidCodeMatch() {
     </Card>
   );
 }
-
-    
-    

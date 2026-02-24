@@ -58,7 +58,7 @@ function ActiveDistractor({ duration, onComplete }: { duration: number, onComple
 
 export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result: { score: number, trials: TrialResult[] }) => void, focus: TrainingFocus }) {
     const { addSpacedPairs, getDueReviewPairs, updatePairOnResult } = useGlrStore();
-    const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore.getState();
+    const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
     
     const [phase, setPhase] = useState<'review' | 'learn' | 'distract' | 'recall' | 'finished'>('review');
     const [sessionTrials, setSessionTrials] = useState<TrialResult[]>([]);
@@ -202,4 +202,3 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
     );
 }
 
-    

@@ -56,10 +56,6 @@ export function SemanticFluencyStorm() {
         setGameState('finished');
     };
 
-    if (currentTrainingFocus === 'music') {
-        return <SpacedRetrievalMode onComplete={handleGameComplete} focus={currentTrainingFocus} />;
-    }
-
     if (currentTrainingFocus === 'spatial') {
         return <GameStub 
             name="Route Retrieval" 
@@ -116,7 +112,7 @@ export function SemanticFluencyStorm() {
             <CardHeader className="text-center">
                 <CardTitle className="flex items-center justify-center gap-2 text-emerald-300">
                     <span className="p-2 bg-emerald-500/10 rounded-md"><domainIcons.Glr className="w-6 h-6 text-emerald-400" /></span>
-                    (Glr) Retrieval Trainer
+                    Retrieval Trainer
                 </CardTitle>
                 <CardDescription className="text-emerald-300/70">Strengthen your brain's ability to find and use stored information.</CardDescription>
             </CardHeader>

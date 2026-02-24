@@ -16,11 +16,43 @@ import type { TrialResult, GameId } from "@/types";
 import { morphologyWordPairs } from "@/data/verbal-content";
 import { GameStub } from "../game-stub";
 import { RuleInductionEngine } from '../logic/rule-induction-engine';
+import { domainIcons } from "@/components/icons";
 
 const GAME_ID: GameId = 'gf_pattern_matrix';
 const policy = difficultyPolicies[GAME_ID];
 
 type GameVariant = 'neutral' | 'math' | 'probability' | 'verbal' | 'music';
+
+const useAudioEngine = () => {
+    const audioContextRef = useRef<AudioContext | null>(null);
+    const getAudioContext = useCallback(() => {
+        if (typeof window !== 'undefined' && !audioContextRef.current) {
+            audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        }
+        return audioContextRef.current;
+    }, []);
+
+    const playSequence = useCallback((notes: number[], onEnd?: () => void) => {
+        const context = getAudioContext();
+        if (!context) return;
+        context.resume();
+        const now = context.currentTime;
+        let time = now;
+        notes.forEach(midiNote => {
+            const osc = context.createOscillator();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(440 * Math.pow(2, (midiNote - 69) / 12), time);
+            osc.connect(context.destination);
+            osc.start(time);
+            osc.stop(time + 0.2);
+            time += 0.25;
+        });
+        if(onEnd) setTimeout(onEnd, (time - now) * 1000);
+    }, [getAudioContext]);
+
+    return { playSequence };
+};
+
 
 // --- Display Components ---
 const ElementComponent = ({ element }: { element: any }) => {
@@ -33,6 +65,9 @@ const ElementComponent = ({ element }: { element: any }) => {
     }
     if (element.type === 'math') {
       return <div className={cn("text-4xl font-bold text-blue-300")}>{element.value}</div>;
+    }
+     if (element.type === 'music') {
+        return <div className="text-3xl font-bold text-blue-300">♪</div>
     }
 
     // Default Neutral Element
@@ -82,6 +117,26 @@ const generatePuzzleForLevel = (level: number, focus: GameVariant) => {
     if (!focusConfig || !focusConfig.params) return generatePuzzleForLevel(level, 'neutral');
 
     const { sub_variant, params } = focusConfig;
+    
+     if (sub_variant === 'melodic_pattern') {
+        const baseNote = 60; // C4
+        const interval = params.complexity === 1 ? 2 : 4; // Major 2nd or Major 3rd
+        const grid: any[] = Array(size * size).fill(null).map((_, i) => ({ type: 'music', notes: [baseNote + i * interval] }));
+        const missingIndex = Math.floor(Math.random() * (size*size));
+        const answer = grid[missingIndex];
+        grid[missingIndex] = null;
+        
+        const options = [answer];
+        while (options.length < 4) {
+            const decoyNote = answer.notes[0] + (Math.random() > 0.5 ? 1 : -1) * (Math.floor(Math.random()*3)+1);
+            const decoy = { type: 'music', notes: [decoyNote] };
+            if (!options.some(o => JSON.stringify(o) === JSON.stringify(decoy))) {
+                options.push(decoy);
+            }
+        }
+        
+        return { type: focus, grid, missingIndex, answer, options: options.sort(() => Math.random() - 0.5), size, params };
+    }
 
     if (sub_variant === 'probabilistic') {
         const populationRatio = Math.random() * 0.4 + 0.3; // 30-70%
@@ -182,6 +237,7 @@ export function PatternMatrix() {
     const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
     const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
     const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
+    const { playSequence } = useAudioEngine();
 
     const [gameState, setGameState] = useState<'loading' | 'start' | 'playing' | 'feedback' | 'finished'>('loading');
     
@@ -214,6 +270,13 @@ export function PatternMatrix() {
         setGameState('playing');
         trialStartTime.current = Date.now();
     }, [currentMode, getAdaptiveState]);
+    
+     useEffect(() => {
+        if (gameState === 'playing' && puzzle && puzzle.type === 'music') {
+            const allNotes = puzzle.grid.filter(Boolean).map((p: any) => p.notes[0]);
+            playSequence(allNotes);
+        }
+    }, [gameState, puzzle, playSequence]);
 
     const startNewSession = useCallback(() => {
         const sessionState = startSession(getAdaptiveState(GAME_ID, currentMode));
@@ -247,6 +310,7 @@ export function PatternMatrix() {
 
         logTrial({
             module_id: GAME_ID,
+            mode: currentMode,
             currentLevel: levelPlayed,
             isCorrect,
             responseTime_ms: reactionTimeMs,
@@ -267,17 +331,6 @@ export function PatternMatrix() {
             }
         }, 2000);
     };
-
-    if (currentMode === 'music') {
-        return <GameStub 
-            name="Musical Rule Induction"
-            chcFactor="Fluid Reasoning (Gf)"
-            description="Infer abstract rules from short musical sequences. For example, a 3x3 grid might show melodic transposition, and you must select the correct transposed melody for the final cell."
-            techStack={['Web Audio API', 'Tone.js']}
-            complexity="High"
-            fallbackPlan="If audio synthesis fails, the task falls back to using visual notation (SVG-based staves), becoming a visual pattern-matching task on musical symbols, preserving the Gf load."
-        />
-    }
 
     if (currentMode === 'spatial') {
         return <GameStub 
@@ -394,7 +447,7 @@ export function PatternMatrix() {
                                     <p className={cn("animate-in fade-in", feedback.includes('Incorrect') ? 'text-red-400' : 'text-green-400')}>{feedback}</p>
                                 )}
                             </div>
-                            <div className={cn("grid gap-3", puzzle.type === 'verbal' ? 'grid-cols-2' : 'grid-cols-3')}>
+                            <div className={cn("grid gap-3", puzzle.type === 'verbal' || puzzle.type === 'music' ? 'grid-cols-2' : 'grid-cols-3')}>
                                 {puzzle.options.map((option: any, index: number) => (
                                 <button 
                                     key={index} 
@@ -421,8 +474,8 @@ export function PatternMatrix() {
     <Card className="w-full max-w-md bg-slate-800 border-blue-500/30 text-slate-100">
       <CardHeader>
         <CardTitle className="flex items-center justify-center gap-2 text-blue-300">
-            <BrainCircuit />
-            (Gf) Pattern Matrix
+            <span className="p-2 bg-blue-500/10 rounded-md"><domainIcons.Gf className="w-6 h-6 text-blue-400" /></span>
+            Pattern Matrix
         </CardTitle>
         <CardDescription className="text-center text-blue-300/70">Identify the logical rule and find the missing piece.</CardDescription>
       </CardHeader>

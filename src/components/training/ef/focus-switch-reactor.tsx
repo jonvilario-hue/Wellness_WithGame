@@ -48,15 +48,54 @@ type Stimulus = {
     arrow?: ArrowDir;
     value?: number;
     pitch?: number;
-    rhythm?: number[];
+    rhythm?: number; // 0 for even, 1 for uneven
+};
+
+const useAudioEngine = () => {
+    const audioContextRef = useRef<AudioContext | null>(null);
+    const getAudioContext = useCallback(() => {
+        if (typeof window !== 'undefined' && !audioContextRef.current) {
+            audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        }
+        return audioContextRef.current;
+    }, []);
+
+    const playTone = useCallback((freq: number, duration: number, onEnd?: () => void) => {
+        const context = getAudioContext();
+        if (!context) return;
+        context.resume();
+        const osc = context.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, context.currentTime);
+        osc.connect(context.destination);
+        osc.start();
+        osc.stop(context.currentTime + duration);
+        if(onEnd) setTimeout(onEnd, duration * 1000);
+    }, [getAudioContext]);
+    
+    const playRhythm = useCallback((isEven: boolean, onEnd?: () => void) => {
+        const context = getAudioContext();
+        if (!context) return;
+        const now = context.currentTime;
+        if(isEven) {
+            playTone(440, 0.2);
+            setTimeout(() => playTone(440, 0.2), 250);
+        } else {
+            playTone(440, 0.3);
+            setTimeout(() => playTone(440, 0.1), 375);
+        }
+        if(onEnd) setTimeout(onEnd, 500);
+    }, [playTone]);
+
+    return { playTone, playRhythm };
 };
 
 export function FocusSwitchReactor() {
-  const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore.getState();
+  const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
   const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
+  const { playTone, playRhythm } = useAudioEngine();
 
-  const [adaptiveState, setAdaptiveState] = useState<AdaptiveState | null>(null);
   const [gameState, setGameState] = useState<'loading' | 'start' | 'running' | 'feedback' | 'finished'>('loading');
   
   const [score, setScore] = useState(0);
@@ -75,10 +114,9 @@ export function FocusSwitchReactor() {
   
   useEffect(() => {
     if (isComponentLoaded) {
-      setAdaptiveState(getAdaptiveState(GAME_ID, currentMode));
       setGameState('start');
     }
-  }, [isComponentLoaded, currentMode, getAdaptiveState]);
+  }, [isComponentLoaded]);
   
   useEffect(() => {
     previousRuleRef.current = ruleRef.current;
@@ -98,8 +136,7 @@ export function FocusSwitchReactor() {
     } else if (currentMode === 'music') {
         const newPitch = 60 + Math.floor(Math.random() * 24); // MIDI notes C4-B5
         const isEvenRhythm = Math.random() > 0.5;
-        const newRhythm = isEvenRhythm ? [0.5, 0.5] : [0.75, 0.25];
-        setStimulus({ pitch: newPitch, rhythm: newRhythm });
+        setStimulus({ pitch: newPitch, rhythm: isEvenRhythm ? 0 : 1 });
     }
   }, [currentMode]);
 
@@ -136,22 +173,31 @@ export function FocusSwitchReactor() {
     trialStartTime.current = Date.now();
   }, [generateStimulus, currentMode]);
   
+  useEffect(() => {
+      if(gameState === 'running' && stimulus.pitch && currentMode === 'music') {
+          playTone(440 * Math.pow(2, (stimulus.pitch - 69) / 12), 0.5);
+      }
+      if(gameState === 'running' && stimulus.rhythm !== undefined && currentMode === 'music') {
+          playRhythm(stimulus.rhythm === 0);
+      }
+  }, [gameState, stimulus, currentMode, playTone, playRhythm]);
+
   const startNewSession = useCallback(() => {
-    if (!adaptiveState) return;
-    const sessionState = startSession(adaptiveState);
+    const state = getAdaptiveState(GAME_ID, currentMode);
+    const sessionState = startSession(state);
     updateAdaptiveState(GAME_ID, currentMode, sessionState);
-    setAdaptiveState(sessionState);
     currentTrialIndex.current = 0;
     ruleSwitchCounter.current = 0;
     setScore(0);
     startNewTrial(sessionState);
-  }, [adaptiveState, startNewTrial, updateAdaptiveState, currentMode]);
+  }, [startNewTrial, updateAdaptiveState, currentMode, getAdaptiveState]);
 
   const processNextTurn = useCallback((correct: boolean, source: 'click' | 'keyboard' | 'timeout', responseSide?: 'left' | 'right') => {
-    if (gameState !== 'running' || !adaptiveState) return;
+    const state = getAdaptiveState(GAME_ID, currentMode);
+    if (gameState !== 'running' || !state) return;
 
     setGameState('feedback');
-    const levelPlayed = adaptiveState.currentLevel;
+    const levelPlayed = state.currentLevel;
     const reactionTimeMs = Date.now() - trialStartTime.current;
     if (correct) {
         setScore(prev => prev + 1);
@@ -178,7 +224,7 @@ export function FocusSwitchReactor() {
         if (ruleRef.current === 'pitch_direction') {
             targetSide = stimulus.pitch! > 71 ? 'left' : 'right'; // Higher than B4
         } else {
-             targetSide = stimulus.rhythm![0] === stimulus.rhythm![1] ? 'left' : 'right'; // Even vs. Uneven
+             targetSide = stimulus.rhythm! === 0 ? 'left' : 'right'; // Even vs. Uneven
         }
     }
 
@@ -204,9 +250,8 @@ export function FocusSwitchReactor() {
       meta: trialResult.telemetry
     });
     
-    const newState = adjustDifficulty(trialResult, adaptiveState, policy);
+    const newState = adjustDifficulty(trialResult, state, policy);
     updateAdaptiveState(GAME_ID, currentMode, newState);
-    setAdaptiveState(newState);
 
     const feedbackMessage = correct ? getSuccessFeedback('EF') : getFailureFeedback('EF');
     setInlineFeedback({ message: feedbackMessage, type: correct ? 'success' : 'failure' });
@@ -219,7 +264,7 @@ export function FocusSwitchReactor() {
             startNewTrial(newState);
         }
     }, 600);
-  }, [gameState, adaptiveState, logTrial, updateAdaptiveState, currentMode, startNewTrial, stimulus]);
+  }, [gameState, getAdaptiveState, logTrial, updateAdaptiveState, currentMode, startNewTrial, stimulus]);
   
   const handleAnswer = useCallback((answer: 'left' | 'right', source: 'click' | 'keyboard') => {
     if (gameState !== 'running' || !stimulus) return;
@@ -257,7 +302,7 @@ export function FocusSwitchReactor() {
             isCorrect = (answer === targetSide);
         }
         else {
-             targetSide = stimulus.rhythm![0] === stimulus.rhythm![1] ? 'left' : 'right'; // Even vs. Uneven
+             targetSide = stimulus.rhythm! === 0 ? 'left' : 'right'; // Even vs. Uneven
             isCorrect = (answer === targetSide);
         }
     }
@@ -280,14 +325,15 @@ export function FocusSwitchReactor() {
   
   useEffect(() => {
     let noGoTimer: NodeJS.Timeout;
+    const state = getAdaptiveState(GAME_ID, currentMode);
     if (gameState === 'running' && rule === 'no_go') {
-        const waitTime = adaptiveState ? (policy.levelMap[adaptiveState.currentLevel]?.mechanic_config.noGoWaitMs || 1500) : 1500;
+        const waitTime = state ? (policy.levelMap[state.currentLevel]?.mechanic_config.noGoWaitMs || 1500) : 1500;
         noGoTimer = setTimeout(() => {
             if(ruleRef.current === 'no_go') processNextTurn(true, 'timeout');
         }, waitTime);
     }
     return () => clearTimeout(noGoTimer);
-  }, [rule, stimulus, gameState, processNextTurn, adaptiveState]);
+  }, [rule, stimulus, gameState, processNextTurn, getAdaptiveState, currentMode]);
 
   const getRuleText = () => {
       let text = '';
@@ -317,14 +363,15 @@ export function FocusSwitchReactor() {
   }
 
   const renderContent = () => {
+      const state = getAdaptiveState(GAME_ID, currentMode);
       switch (gameState) {
         case 'loading':
           return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
         case 'start':
           return (
             <div className="flex flex-col items-center gap-4 text-center">
-              <div className="font-mono text-lg text-rose-300">Level: {adaptiveState?.currentLevel}</div>
-              <Button onClick={startNewSession} size="lg" className="bg-rose-600 hover:bg-rose-500 text-white" disabled={!adaptiveState}>Focus Switch Reactor</Button>
+              <div className="font-mono text-lg text-rose-300">Level: {state?.currentLevel}</div>
+              <Button onClick={startNewSession} size="lg" className="bg-rose-600 hover:bg-rose-500 text-white" disabled={!state}>Focus Switch Reactor</Button>
                <div className="flex items-center gap-2 text-muted-foreground mt-4">
                   <Keyboard className="w-5 h-5"/>
                   <p>Controls: Use (A / ←) and (L / →) keys</p>
@@ -362,7 +409,7 @@ export function FocusSwitchReactor() {
                     )}
                     {currentMode === 'music' && stimulus.pitch !== undefined && (
                         <div className="text-7xl font-bold text-primary flex items-center gap-2">
-                           <Music /> {stimulus.pitch}
+                           <Music />
                         </div>
                     )}
                   </div>
@@ -398,7 +445,7 @@ export function FocusSwitchReactor() {
       <CardHeader>
         <CardTitle className="text-rose-300 flex items-center justify-center gap-2">
            <span className="p-2 bg-rose-500/10 rounded-md"><domainIcons.EF className="w-6 h-6 text-rose-400" /></span>
-           (EF) Focus Switch Reactor
+           Focus Switch Reactor
         </CardTitle>
         <CardDescription className="text-rose-300/70">Inhibition & Task-Switching Challenge. Pay attention to the rule!</CardDescription>
       </CardHeader>
@@ -408,6 +455,3 @@ export function FocusSwitchReactor() {
     </Card>
   );
 }
-
-    
-    
