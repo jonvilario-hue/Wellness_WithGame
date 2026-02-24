@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button";
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { Puzzle, Loader2 } from 'lucide-react';
-import type { TrainingFocus, TrialResult, AdaptiveState, GameId } from "@/types";
+import type { TrainingFocus, TrialResult, GameId } from "@/types";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
-import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
+import { adjustDifficulty, startSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
 
 const GAME_ID: GameId = 'gv_visual_lab';
@@ -45,18 +45,17 @@ const shuffle = (array: any[]) => {
 };
 
 export function GvSpatialAssembly({ focus }: { focus: TrainingFocus }) {
-  const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
-  const [adaptiveState, setAdaptiveState] = useState<AdaptiveState | null>(null);
+  const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore.getState();
   const [gameState, setGameState] = useState<'loading' | 'start' | 'playing' | 'feedback' | 'finished'>('loading');
   const [currentTrialIndex, setCurrentTrialIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<any | null>(null);
   const trialStartTime = useRef(0);
   
   const puzzle = useMemo(() => {
-    if (!adaptiveState) return null;
-    const level = adaptiveState.currentLevel;
+    const state = getAdaptiveState(GAME_ID, focus);
+    if (!state) return null;
     
-    const policyForLevel = policy.levelMap[level] || policy.levelMap[Object.keys(policy.levelMap).pop() as any];
+    const policyForLevel = policy.levelMap[state.currentLevel] || policy.levelMap[Object.keys(policy.levelMap).pop() as any];
     const policyTier = policyForLevel?.content_config?.[focus]?.params?.puzzle_tier || 1;
 
     const puzzlesInTier = PUZZLE_BANK.filter(p => p.tier === policyTier);
@@ -66,29 +65,27 @@ export function GvSpatialAssembly({ focus }: { focus: TrainingFocus }) {
     }
     
     return puzzlesInTier[currentTrialIndex % puzzlesInTier.length];
-  }, [adaptiveState, currentTrialIndex, focus]);
+  }, [currentTrialIndex, focus, getAdaptiveState]);
 
   const answerOptions = useMemo(() => puzzle ? shuffle([puzzle.solution, ...puzzle.distractors]) : [], [puzzle]);
 
   useEffect(() => {
-    const initialState = getAdaptiveState(GAME_ID, focus);
-    setAdaptiveState(initialState);
     setGameState('start');
-  }, [focus, getAdaptiveState]);
+  }, [focus]);
 
   const startNewSession = useCallback(() => {
-    if (!adaptiveState) return;
-    const sessionState = startSession(adaptiveState);
-    setAdaptiveState(sessionState);
+    const sessionState = startSession(getAdaptiveState(GAME_ID, focus));
+    updateAdaptiveState(GAME_ID, focus, sessionState);
     setCurrentTrialIndex(0);
     setGameState('playing');
     trialStartTime.current = Date.now();
-  }, [adaptiveState]);
+  }, [focus, getAdaptiveState, updateAdaptiveState]);
 
   const handleAnswer = (option: { d: string }) => {
-    if (gameState !== 'playing' || !puzzle || !adaptiveState) return;
+    if (gameState !== 'playing' || !puzzle) return;
     
-    const levelPlayed = adaptiveState.currentLevel;
+    const currentState = getAdaptiveState(GAME_ID, focus);
+    const levelPlayed = currentState.currentLevel;
     const reactionTimeMs = Date.now() - trialStartTime.current;
     const isCorrect = option.d === puzzle.solution.d;
 
@@ -113,9 +110,8 @@ export function GvSpatialAssembly({ focus }: { focus: TrainingFocus }) {
       meta: trialResult.telemetry
     });
 
-    const newState = adjustDifficulty(trialResult, adaptiveState, policy);
+    const newState = adjustDifficulty(trialResult, currentState, policy);
     updateAdaptiveState(GAME_ID, focus, newState);
-    setAdaptiveState(newState);
     
     setSelectedAnswer(option);
     setGameState('feedback');
@@ -134,24 +130,26 @@ export function GvSpatialAssembly({ focus }: { focus: TrainingFocus }) {
   };
   
   const renderContent = () => {
-    if (gameState === 'loading' || !adaptiveState) return <Loader2 className="h-12 w-12 animate-spin text-lime-400" />;
+    const state = getAdaptiveState(GAME_ID, focus);
+    if (gameState === 'loading' || !state) return <Loader2 className="h-12 w-12 animate-spin text-lime-400" />;
     
     if (gameState === 'start') {
       return (
         <div className="flex flex-col items-center gap-4">
-          <Button onClick={startNewSession} size="lg" variant="outline" className="border-lime-400 text-lime-400 hover:bg-lime-400/10 hover:text-lime-300">Visual Processing Lab</Button>
+           <div className="font-mono text-lg">Level: {state.currentLevel}</div>
+          <Button onClick={startNewSession} size="lg" className="bg-teal-600 hover:bg-teal-500 text-white">Visual Processing Lab</Button>
         </div>
       );
     }
     
     if (gameState === 'finished') {
-      const sessionTrials = getAdaptiveState(GAME_ID, focus).recentTrials.slice(-policy.sessionLength);
+      const sessionTrials = state.recentTrials.slice(-currentTrialIndex);
       const score = sessionTrials.filter(r => r.correct).length;
       return (
         <div className="text-center space-y-4">
           <CardTitle>Session Complete!</CardTitle>
-          <p>Score: {score} / {policy.sessionLength}</p>
-          <Button onClick={startNewSession} size="lg" variant="outline" className="border-lime-400 text-lime-400 hover:bg-lime-400/10 hover:text-lime-300">Play Again</Button>
+          <p>Score: {score} / {currentTrialIndex}</p>
+          <Button onClick={startNewSession} size="lg" className="bg-teal-600 hover:bg-teal-500 text-white">Play Again</Button>
         </div>
       );
     }

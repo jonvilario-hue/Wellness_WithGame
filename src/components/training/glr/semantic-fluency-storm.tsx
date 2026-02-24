@@ -28,7 +28,7 @@ export function SemanticFluencyStorm() {
     const [currentMode, setCurrentMode] = useState<'associative' | 'spaced' | 'category' | null>(null);
     const [lastScore, setLastScore] = useState(0);
     const { getNextMode } = useGlrStore();
-    const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
+    const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore.getState();
 
     const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
     const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
@@ -79,7 +79,7 @@ export function SemanticFluencyStorm() {
             return (
                 <div className="flex flex-col items-center gap-4">
                     <p className="text-center text-muted-foreground">This game trains your ability to store and retrieve information efficiently. It rotates through different modes each time you play.</p>
-                    <Button onClick={handleStart} size="lg">Retrieval Trainer</Button>
+                    <Button onClick={handleStart} size="lg" className="bg-emerald-600 hover:bg-emerald-500 text-white">Retrieval Trainer</Button>
                 </div>
             );
         }
@@ -88,7 +88,7 @@ export function SemanticFluencyStorm() {
                 <div className="text-center space-y-4">
                     <CardTitle>Session Complete!</CardTitle>
                     <p className="text-xl">Your score for this mode was: <span className="font-bold text-primary">{lastScore}</span></p>
-                    <Button onClick={handleStart} size="lg">Play Next Mode</Button>
+                    <Button onClick={handleStart} size="lg" className="bg-emerald-600 hover:bg-emerald-500 text-white">Play Next Mode</Button>
                 </div>
             );
         }
@@ -134,8 +134,7 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (result: { sc
         return generalWordList;
     }, [focus]);
 
-    const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
-    const adaptiveState = getAdaptiveState(GLR_GAME_ID, focus);
+    const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore.getState();
 
     const [chain, setChain] = useState<string[]>([]);
     const [trials, setTrials] = useState<TrialResult[]>([]);
@@ -185,6 +184,7 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (result: { sc
 
         let isValid = (currentRule === "ASSOCIATE") || (currentRule === "RHYME" && submittedWord.slice(-2) === currentWord.slice(-2) && submittedWord !== currentWord) || (currentRule === "ANTONYM" && (generalAntonyms[currentWord] === submittedWord || generalAntonyms[submittedWord] === currentWord)) || (currentRule === "FIRST LETTER MATCH" && submittedWord[0] === currentWord[0]);
 
+        const currentState = getAdaptiveState(GLR_GAME_ID, focus);
         const trial: TrialResult = {
             correct: isValid,
             reactionTimeMs,
@@ -198,14 +198,14 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (result: { sc
         logTrial({
             userId: 'local_user',
             module_id: GLR_GAME_ID,
-            currentLevel: adaptiveState.currentLevel,
+            currentLevel: currentState.currentLevel,
             isCorrect: trial.correct,
             responseTime_ms: trial.reactionTimeMs,
             meta: trial.telemetry,
         });
 
         setTrials(prev => [...prev, trial]);
-        const newState = adjustDifficulty(trial, adaptiveState, glrPolicy);
+        const newState = adjustDifficulty(trial, currentState, glrPolicy);
         updateAdaptiveState(GLR_GAME_ID, focus, newState);
 
         if (isValid) {
@@ -233,7 +233,7 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (result: { sc
             </div>
             <form onSubmit={handleSubmit} className="w-full flex gap-2">
                 <Input value={userInput} onChange={(e) => setUserInput(e.target.value)} placeholder="Type related word..." autoFocus className="text-center text-lg h-12"/>
-                <Button type="submit" className="h-12">Link</Button>
+                <Button type="submit" className="h-12 bg-emerald-600 hover:bg-emerald-500 text-white">Link</Button>
             </form>
             <p className="text-xs text-muted-foreground h-4">{chain.slice(-5).join(' → ')}</p>
         </div>
@@ -243,7 +243,7 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (result: { sc
 // --- MODE 3: CATEGORY SWITCHING SPRINT ---
 function CategorySwitchingMode({ onComplete, focus }: { onComplete: (result: { score: number, trials: TrialResult[] }) => void, focus: TrainingFocus }) {
     const { logSubmittedWord, isWordSubmitted } = useGlrStore();
-    const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
+    const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore.getState();
     
     const [categoryIndex, setCategoryIndex] = useState(0);
     const [timeLeft, setTimeLeft] = useState(10);
@@ -311,18 +311,18 @@ function CategorySwitchingMode({ onComplete, focus }: { onComplete: (result: { s
             }
         };
 
-        const adaptiveState = getAdaptiveState(GLR_GAME_ID, focus);
+        const currentState = getAdaptiveState(GLR_GAME_ID, focus);
         logTrial({
             userId: 'local_user',
             module_id: GLR_GAME_ID,
-            currentLevel: adaptiveState.currentLevel,
+            currentLevel: currentState.currentLevel,
             isCorrect: trial.correct,
             responseTime_ms: trial.reactionTimeMs,
             meta: trial.telemetry,
         });
 
         setTrials(prev => [...prev, trial]);
-        const newState = adjustDifficulty(trial, adaptiveState, glrPolicy);
+        const newState = adjustDifficulty(trial, currentState, glrPolicy);
         updateAdaptiveState(GLR_GAME_ID, focus, newState);
 
         if (alreadySubmitted) {
@@ -349,7 +349,7 @@ function CategorySwitchingMode({ onComplete, focus }: { onComplete: (result: { s
             </div>
             <form onSubmit={handleSubmit} className="w-full flex gap-2">
                 <Input value={userInput} onChange={e => setUserInput(e.target.value)} autoFocus placeholder="Type item in category..."/>
-                <Button type="submit">Submit</Button>
+                <Button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white">Submit</Button>
             </form>
             <p className="text-xs text-muted-foreground h-4">Pro-tip: Try to think of sub-categories (e.g., 'farm animals').</p>
         </div>

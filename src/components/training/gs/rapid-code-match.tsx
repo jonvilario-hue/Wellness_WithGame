@@ -10,9 +10,9 @@ import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
 import { getFailureFeedback } from "@/lib/feedback-system";
 import { Loader2 } from "lucide-react";
-import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
+import { adjustDifficulty, startSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
-import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
+import type { TrialResult, GameId } from "@/types";
 import { realWords, pseudowords } from "@/data/verbal-content";
 import { GameStub } from "../game-stub";
 import { GateSpeed } from '../logic/gate-speed';
@@ -48,11 +48,10 @@ const NoiseOverlay = () => (
 );
 
 export function RapidCodeMatch() {
-  const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
+  const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore.getState();
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
   const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
 
-  const [adaptiveState, setAdaptiveState] = useState<AdaptiveState | null>(null);
   const [gameState, setGameState] = useState<'loading' | 'start' | 'running' | 'feedback' | 'finished'>('loading');
 
   const [problem, setProblem] = useState<Problem | null>(null);
@@ -106,7 +105,8 @@ export function RapidCodeMatch() {
     return { type: 'symbol', keyMap: currentKeyMap, stimulus, classificationRule: 'symbol_digit' };
   }, [symbolPool, problem]);
 
-  const startNewTrial = useCallback((state: AdaptiveState) => {
+  const startNewTrial = useCallback(() => {
+      const state = getAdaptiveState(GAME_ID, currentMode);
       const onRamp = state.uncertainty > 0.7;
       const loadedLevel = onRamp
           ? Math.max(state.levelFloor, state.currentLevel - 2)
@@ -120,34 +120,32 @@ export function RapidCodeMatch() {
       
       setGameState('running');
       trialStartTime.current = Date.now();
-  }, [currentMode, generateLexicalProblem, generateSymbolProblem]);
+  }, [currentMode, generateLexicalProblem, generateSymbolProblem, getAdaptiveState]);
 
   const startNewSession = useCallback(() => {
-    if (!adaptiveState) return;
-    const sessionState = startSession(adaptiveState);
-    setAdaptiveState(sessionState);
+    const sessionState = startSession(getAdaptiveState(GAME_ID, currentMode));
     updateAdaptiveState(GAME_ID, currentMode, sessionState);
     currentTrialIndex.current = 0;
     keyChangeCounter.current = 0;
     mistakes.current = 0;
-    startNewTrial(sessionState);
-  }, [adaptiveState, startNewTrial, updateAdaptiveState, currentMode]);
+    startNewTrial();
+  }, [startNewTrial, updateAdaptiveState, currentMode, getAdaptiveState]);
 
   useEffect(() => {
     if (isComponentLoaded) {
-      const initialState = getAdaptiveState(GAME_ID, currentMode);
-      setAdaptiveState(initialState);
       setGameState('start');
     }
-  }, [isComponentLoaded, currentMode, getAdaptiveState]);
+  }, [isComponentLoaded]);
 
   const handleAnswer = useCallback((answer: number | string | boolean) => {
-    if (gameState !== 'running' || !adaptiveState || !problem) return;
+    const currentState = getAdaptiveState(GAME_ID, currentMode);
+    if (gameState !== 'running' || !currentState || !problem) return;
     
     setGameState('feedback');
     const reactionTimeMs = Date.now() - trialStartTime.current;
+    const levelPlayed = currentState.currentLevel;
 
-    const levelDef = policy.levelMap[adaptiveState.currentLevel] || policy.levelMap[1];
+    const levelDef = policy.levelMap[levelPlayed] || policy.levelMap[1];
     const { mechanic_config } = levelDef;
     
     let isCorrect = false;
@@ -171,24 +169,21 @@ export function RapidCodeMatch() {
         reactionTimeMs, 
         telemetry: {
             ...telemetry,
-            symbolsCompleted: currentTrialIndex.current + 1,
+            itemsAttempted: currentTrialIndex.current + 1,
             errorsCommitted: mistakes.current,
-            trialDuration_ms: reactionTimeMs,
+            timeLimit_ms: mechanic_config.responseWindowMs,
         }
     };
     logTrial({
-      id: crypto.randomUUID(),
-      userId: 'local_user', // Placeholder
-      timestamp: Date.now(),
+      userId: 'local_user',
       module_id: GAME_ID,
-      currentLevel: adaptiveState.currentLevel,
+      currentLevel: levelPlayed,
       isCorrect: trialResult.correct,
       responseTime_ms: trialResult.reactionTimeMs,
       meta: trialResult.telemetry
     });
     
-    const newState = adjustDifficulty(trialResult, adaptiveState, policy);
-    setAdaptiveState(newState);
+    const newState = adjustDifficulty(trialResult, currentState, policy);
     updateAdaptiveState(GAME_ID, currentMode, newState);
 
     if (isCorrect) {
@@ -203,10 +198,10 @@ export function RapidCodeMatch() {
         if (currentTrialIndex.current >= policy.sessionLength) {
             setGameState('finished');
         } else {
-            startNewTrial(newState);
+            startNewTrial();
         }
     }, 500);
-  }, [gameState, problem, adaptiveState, startNewTrial, updateAdaptiveState, currentMode, logTrial]);
+  }, [gameState, problem, startNewTrial, updateAdaptiveState, currentMode, logTrial, getAdaptiveState]);
 
   if (currentMode === 'spatial') {
     return <GameStub 
@@ -242,32 +237,36 @@ export function RapidCodeMatch() {
       return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
     }
     if (gameState === 'start') {
+        const state = getAdaptiveState(GAME_ID, currentMode);
         return (
             <div className="flex flex-col items-center gap-4">
-              <div className="font-mono text-lg">Level: {adaptiveState?.currentLevel}</div>
-              <Button onClick={startNewSession} size="lg">Rapid Code Match</Button>
+              <div className="font-mono text-lg">Level: {state?.currentLevel}</div>
+              <Button onClick={startNewSession} size="lg" className="bg-orange-600 hover:bg-orange-500 text-white">Rapid Code Match</Button>
             </div>
           );
     }
     if (gameState === 'finished') {
-      const accuracy = currentTrialIndex.current > 0 ? getAdaptiveState(GAME_ID, currentMode).recentTrials.slice(-currentTrialIndex.current).filter(r => r.correct).length / currentTrialIndex.current : 0;
-      const score = getAdaptiveState(GAME_ID, currentMode).recentTrials.slice(-currentTrialIndex.current).filter(t => t.correct).length;
+      const finalState = getAdaptiveState(GAME_ID, currentMode);
+      const accuracy = currentTrialIndex.current > 0 ? finalState.recentTrials.slice(-currentTrialIndex.current).filter(r => r.correct).length / currentTrialIndex.current : 0;
+      const score = finalState.recentTrials.slice(-currentTrialIndex.current).filter(t => t.correct).length;
       return (
         <div className="flex flex-col items-center gap-4">
           <CardTitle>Game Over!</CardTitle>
           <p className="text-xl">Score: {score}</p>
           <p>Accuracy: {isNaN(accuracy) ? 'N/A' : (accuracy * 100).toFixed(0) + '%'}</p>
-          <Button onClick={() => setGameState('start')} size="lg">Play Again</Button>
+          <Button onClick={() => setGameState('start')} size="lg" className="bg-orange-600 hover:bg-orange-500 text-white">Play Again</Button>
         </div>
       );
     }
     if (!problem) return <Loader2 className="animate-spin"/>;
     
     if (problem.type === 'lexical') {
+        const state = getAdaptiveState(GAME_ID, currentMode);
+        const score = state?.recentTrials.filter(r => r.correct).length ?? 0;
         return (
             <div className="w-full">
                 <div className="flex justify-between w-full text-lg font-mono mb-4 text-orange-200">
-                    <span>Score: {getAdaptiveState(GAME_ID, currentMode).recentTrials.filter(r => r.correct).length}</span>
+                    <span>Score: {score}</span>
                     <span>Trial: {currentTrialIndex.current + 1} / {policy.sessionLength}</span>
                 </div>
                 <div className="relative mb-6 h-24 flex flex-col items-center justify-center">
@@ -286,10 +285,12 @@ export function RapidCodeMatch() {
     }
 
     // Symbol Problem
+    const state = getAdaptiveState(GAME_ID, currentMode);
+    const score = state?.recentTrials.filter(r => r.correct).length ?? 0;
     return (
       <div className="w-full">
         <div className="flex justify-between w-full text-lg font-mono mb-4 text-orange-200">
-            <span>Score: {getAdaptiveState(GAME_ID, currentMode).recentTrials.filter(r => r.correct).length}</span>
+            <span>Score: {score}</span>
             <span>Trial: {currentTrialIndex.current + 1} / {policy.sessionLength}</span>
         </div>
         

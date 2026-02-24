@@ -1,7 +1,6 @@
 
 'use client';
 
-import Link from 'next/link';
 import {
   Card,
   CardContent,
@@ -13,7 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
-import { Info, Lock } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
@@ -22,29 +21,26 @@ import {
 } from '@/components/ui/tooltip';
 import { usePerformanceStore } from '@/hooks/use-performance-store';
 import { useTrainingFocus } from '@/hooks/use-training-focus';
-import { DOMAIN_META, MODE_INCOMPATIBILITY_MAP } from '@/lib/domain-constants';
+import { MODE_INCOMPATIBILITY_MAP } from '@/lib/domain-constants';
 import type { CHCDomain, TrainingFocus } from '@/types';
 
 // This is a simplified progress data retrieval. In a real app,
 // this would come from a more complex state or API call.
-const useDomainProgress = (domainKey: CHCDomain, focus: TrainingFocus) => {
+const useDomainProgress = (domainId: string, focus: TrainingFocus) => {
     const getAdaptiveState = usePerformanceStore(state => state.getAdaptiveState);
-    const domainId = DOMAIN_META[domainKey].id;
-    const gameState = getAdaptiveState(domainId, focus);
+    const gameState = getAdaptiveState(domainId as any, focus);
     
     const score = gameState ? Math.round((gameState.currentLevel / gameState.levelCeiling) * 100) : Math.random() * 25 + 20;
-    const trend = gameState ? (gameState.levelHistory.at(-1)?.endLevel ?? 0) - (gameState.levelHistory.at(-2)?.endLevel ?? 0) : Math.random() * 10 - 5;
     
-    return { score, trend };
+    return { score };
 };
 
 
-export function ChcDomainCard({ domain, onPlay }: { domain: CHCDomain, onPlay: (domain: CHCDomain) => void }) {
+export function ChcDomainCard({ domain, onPlay }: { domain: (typeof import('@/lib/domain-constants').chcDomains)[0], onPlay: (domain: CHCDomain) => void }) {
   const { focus: currentMode } = useTrainingFocus();
-  const { score, trend } = useDomainProgress(domain, currentMode);
+  const { score } = useDomainProgress(domain.id, currentMode);
   
-  const domainMeta = DOMAIN_META[domain];
-  const incompatibilityReason = MODE_INCOMPATIBILITY_MAP[currentMode as TrainingFocus]?.[domain];
+  const incompatibilityReason = MODE_INCOMPATIBILITY_MAP[currentMode as TrainingFocus]?.[domain.key];
   const isLocked = !!incompatibilityReason;
 
   const cardContent = (
@@ -57,12 +53,12 @@ export function ChcDomainCard({ domain, onPlay }: { domain: CHCDomain, onPlay: (
       )}
     >
       <CardHeader className="flex-row items-start gap-4 space-y-0 pb-2">
-        <div className={cn('p-3 rounded-lg', domainMeta.color)}>
-          <domainMeta.icon className="w-6 h-6" />
+        <div className={cn('p-3 rounded-lg', domain.color)}>
+          <domain.icon className="w-6 h-6" />
         </div>
         <div className="flex-1">
-          <CardTitle className="font-headline text-base">{domainMeta.name}</CardTitle>
-          <CardDescription className="text-xs">{domainMeta.description}</CardDescription>
+          <CardTitle className="font-headline text-base">{domain.name}</CardTitle>
+          <CardDescription className="text-xs">{domain.description}</CardDescription>
         </div>
       </CardHeader>
       <CardContent className="flex-grow space-y-4 py-4">
@@ -73,16 +69,16 @@ export function ChcDomainCard({ domain, onPlay }: { domain: CHCDomain, onPlay: (
             </span>
             <span className="text-sm font-bold text-primary">{score.toFixed(0)}</span>
           </div>
-          <Progress value={score} aria-label={`${domainMeta.name} skill score`} />
+          <Progress value={score} aria-label={`${domain.name} skill score`} />
         </div>
       </CardContent>
       <CardFooter>
         <Button
-          className="w-full"
+          className={cn("w-full", domain.color.replace('bg-', 'hover:bg-').replace('/10', '/20'))}
           disabled={isLocked}
-          onClick={() => !isLocked && onPlay(domain)}
+          onClick={() => !isLocked && onPlay(domain.key)}
         >
-          {isLocked ? 'Unavailable in Core' : domainMeta.gameTitle}
+          {isLocked ? 'Unavailable in Core' : domain.gameTitle}
         </Button>
       </CardFooter>
     </Card>

@@ -10,9 +10,9 @@ import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
 import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
-import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
+import { adjustDifficulty, startSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
-import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
+import type { TrialResult, GameId } from "@/types";
 import { morphologyWordPairs } from "@/data/verbal-content";
 import { GameStub } from "../game-stub";
 import { RuleInductionEngine } from '../logic/rule-induction-engine';
@@ -73,7 +73,7 @@ const getNextInSequence = <T,>(val: T, collection: T[]) => {
   return collection[(currentIndex + 1) % collection.length];
 };
 
-const generatePuzzleForLevel = (level: number, focus: TrainingFocus) => {
+const generatePuzzleForLevel = (level: number, focus: GameVariant) => {
     const levelDef = policy.levelMap[level] || policy.levelMap[20];
     const { mechanic_config, content_config } = levelDef;
     const size = mechanic_config.gridSize === "3x3" ? 3 : 2;
@@ -179,11 +179,10 @@ const generatePuzzleForLevel = (level: number, focus: TrainingFocus) => {
 };
 
 export function PatternMatrix() {
-    const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
+    const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore.getState();
     const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
     const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
 
-    const [adaptiveState, setAdaptiveState] = useState<AdaptiveState | null>(null);
     const [gameState, setGameState] = useState<'loading' | 'start' | 'playing' | 'feedback' | 'finished'>('loading');
     
     const [puzzle, setPuzzle] = useState<any | null>(null);
@@ -198,38 +197,37 @@ export function PatternMatrix() {
 
     useEffect(() => {
         if (isComponentLoaded) {
-            setAdaptiveState(getAdaptiveState(GAME_ID, currentMode));
             setGameState('start');
         }
-    }, [isComponentLoaded, currentMode, getAdaptiveState]);
+    }, [isComponentLoaded]);
 
-    const startNewTrial = useCallback((state: AdaptiveState) => {
+    const startNewTrial = useCallback(() => {
+        const state = getAdaptiveState(GAME_ID, currentMode);
         const onRamp = state.uncertainty > 0.7;
         const loadedLevel = onRamp
           ? Math.max(state.levelFloor, state.currentLevel - 2)
           : state.currentLevel;
         
-        setPuzzle(generatePuzzleForLevel(loadedLevel, currentMode));
+        setPuzzle(generatePuzzleForLevel(loadedLevel, currentMode as GameVariant));
         setSelectedOption(null);
         setFeedback('');
         setGameState('playing');
         trialStartTime.current = Date.now();
-    }, [currentMode]);
+    }, [currentMode, getAdaptiveState]);
 
     const startNewSession = useCallback(() => {
-        if (!adaptiveState) return;
-        const sessionState = startSession(adaptiveState);
+        const sessionState = startSession(getAdaptiveState(GAME_ID, currentMode));
         updateAdaptiveState(GAME_ID, currentMode, sessionState);
-        setAdaptiveState(sessionState);
         currentTrialIndex.current = 0;
-        startNewTrial(sessionState);
-    }, [adaptiveState, startNewTrial, updateAdaptiveState, currentMode]);
+        startNewTrial();
+    }, [startNewTrial, updateAdaptiveState, currentMode, getAdaptiveState]);
 
     const handleSelectOption = (option: any) => {
-        if (gameState !== 'playing' || !puzzle || !adaptiveState) return;
+        if (gameState !== 'playing' || !puzzle) return;
 
         setGameState('feedback');
-        const levelPlayed = adaptiveState.currentLevel;
+        const currentState = getAdaptiveState(GAME_ID, currentMode);
+        const levelPlayed = currentState.currentLevel;
         const reactionTimeMs = Date.now() - trialStartTime.current;
         const isCorrect = JSON.stringify(option) === JSON.stringify(puzzle.answer);
         
@@ -256,9 +254,8 @@ export function PatternMatrix() {
             meta: trialResult.telemetry
         });
         
-        const newState = adjustDifficulty(trialResult, adaptiveState, policy);
+        const newState = adjustDifficulty(trialResult, currentState, policy);
         updateAdaptiveState(GAME_ID, currentMode, newState);
-        setAdaptiveState(newState);
 
         setFeedback(isCorrect ? getSuccessFeedback('Gf') : getFailureFeedback('Gf'));
 
@@ -267,7 +264,7 @@ export function PatternMatrix() {
             if (currentTrialIndex.current >= policy.sessionLength) {
                 setGameState('finished');
             } else {
-                startNewTrial(newState);
+                startNewTrial();
             }
         }, 2000);
     };
@@ -305,8 +302,8 @@ export function PatternMatrix() {
             case 'start':
                 return (
                     <div className="flex flex-col items-center gap-4">
-                        <div className="font-mono text-lg">Level: {adaptiveState?.currentLevel}</div>
-                        <Button onClick={startNewSession} size="lg" disabled={!adaptiveState}>Pattern Matrix</Button>
+                        <div className="font-mono text-lg">Level: {getAdaptiveState(GAME_ID, currentMode)?.currentLevel}</div>
+                        <Button onClick={startNewSession} size="lg" className="bg-blue-600 hover:bg-blue-500 text-white">Pattern Matrix</Button>
                     </div>
                 );
             case 'finished':
@@ -314,7 +311,7 @@ export function PatternMatrix() {
                     <div className="flex flex-col items-center gap-4">
                         <CardTitle>Session Complete!</CardTitle>
                         <p>Your performance has been logged.</p>
-                        <Button onClick={() => setGameState('start')} size="lg">Play Again</Button>
+                        <Button onClick={() => setGameState('start')} size="lg" className="bg-blue-600 hover:bg-blue-500 text-white">Play Again</Button>
                     </div>
                 );
             case 'playing':
@@ -327,7 +324,7 @@ export function PatternMatrix() {
                         <div className="flex flex-col items-center gap-6 w-full">
                             <div className="flex justify-between w-full font-mono text-sm text-blue-200">
                                 <span>Trial: {currentTrialIndex.current + 1} / {policy.sessionLength}</span>
-                                <span>Level: {adaptiveState?.currentLevel}</span>
+                                <span>Level: {getAdaptiveState(GAME_ID, currentMode)?.currentLevel}</span>
                             </div>
                             <div className="text-center">
                                 <p className="text-slate-300 mb-2">A sample was drawn from a hidden population.</p>
@@ -367,7 +364,7 @@ export function PatternMatrix() {
                     <div className="flex flex-col items-center gap-6 w-full">
                          <div className="flex justify-between w-full font-mono text-sm text-blue-200">
                             <span>Trial: {currentTrialIndex.current + 1} / {policy.sessionLength}</span>
-                            <span>Level: {adaptiveState?.currentLevel}</span>
+                            <span>Level: {getAdaptiveState(GAME_ID, currentMode)?.currentLevel}</span>
                         </div>
                         <div className={cn("grid gap-2 p-3 bg-slate-700/50 rounded-lg", gridClass)}>
                         {puzzle.grid.map((cell: any, index: number) => (

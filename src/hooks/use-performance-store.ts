@@ -58,7 +58,6 @@ export const usePerformanceStore = create<PerformanceStateData & PerformanceActi
 
       getAdaptiveState: (gameId, focus) => {
         const key: GameStateKey = `${gameId}/${focus}`;
-        const neutralKey: GameStateKey = `${gameId}/neutral`;
         const gameStates = get().gameStates;
         const existingState = gameStates[key];
 
@@ -66,10 +65,7 @@ export const usePerformanceStore = create<PerformanceStateData & PerformanceActi
           return existingState;
         }
 
-        // If a specific state for the focus doesn't exist, we create a *transient*
-        // one for display purposes, seeded from the 'neutral' state. This avoids
-        // a "set state during render" error. The state will be formally created
-        // and saved when a game in this mode is actually started.
+        const neutralKey: GameStateKey = `${gameId}/neutral`;
         const neutralState = gameStates[neutralKey] || getDefaultState(gameId, 1);
         const newModeDefaultState = getDefaultState(gameId, neutralState.tier as Tier);
         const seededLevel = Math.max(newModeDefaultState.levelFloor, neutralState.currentLevel - 3);
@@ -115,9 +111,12 @@ export const usePerformanceStore = create<PerformanceStateData & PerformanceActi
 
       importLog: (data) => {
         if (data.gameStates && data.trialLog) {
+            const existingTrialIds = new Set(get().trialLog.map(t => t.id));
+            const newTrials = data.trialLog.filter(t => !existingTrialIds.has(t.id));
+
             set({
                 gameStates: { ...get().gameStates, ...data.gameStates },
-                trialLog: [...get().trialLog, ...data.trialLog],
+                trialLog: [...get().trialLog, ...newTrials],
             });
         }
       },

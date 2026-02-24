@@ -9,7 +9,7 @@ import type { TrainingFocus, AdaptiveState, TrialResult, GameId } from "@/types"
 import { useGlrStore, type SpacedPair } from "@/hooks/use-glr-store";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { mathWordList, musicWordList, generalWordList, verbalWordList } from "@/data/verbal-content";
-import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
+import { adjustDifficulty, startSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
 
 const GLR_GAME_ID: GameId = 'glr_fluency_storm';
@@ -45,7 +45,7 @@ function ActiveDistractor({ duration, onComplete }: { duration: number, onComple
              <p className="text-sm text-muted-foreground text-center">Click the moving button as many times as you can to clear your working memory.</p>
             <Button
                 onClick={handleButtonClick}
-                className="absolute transition-all duration-300"
+                className="absolute transition-all duration-300 bg-emerald-600 hover:bg-emerald-500 text-white"
                 style={{ top: position.top, left: position.left, transform: 'translate(-50%, -50%)' }}
             >
                 Click Me!
@@ -59,9 +59,8 @@ function ActiveDistractor({ duration, onComplete }: { duration: number, onComple
 export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result: { score: number, trials: TrialResult[] }) => void, focus: TrainingFocus }) {
     const { addSpacedPairs, getDueReviewPairs, updatePairOnResult } = useGlrStore();
     const store = usePerformanceStore.getState();
-    const { logTrial } = usePerformanceStore();
+    const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore.getState();
     
-    const [adaptiveState, setAdaptiveState] = useState<AdaptiveState | null>(null);
     const [phase, setPhase] = useState<'review' | 'learn' | 'distract' | 'recall' | 'finished'>('review');
     const [sessionTrials, setSessionTrials] = useState<TrialResult[]>([]);
     const [duePairs, setDuePairs] = useState<SpacedPair[]>([]);
@@ -74,17 +73,13 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
     const trialStartTime = useRef(0);
     
     const policyParams = useMemo(() => {
-        if (!adaptiveState) return glrPolicy.levelMap[1].content_config.neutral!.params;
-        return glrPolicy.levelMap[adaptiveState.currentLevel]?.content_config[focus]?.params || glrPolicy.levelMap[1].content_config.neutral!.params;
-    }, [adaptiveState, focus]);
+        const state = getAdaptiveState(GLR_GAME_ID, focus);
+        return glrPolicy.levelMap[state.currentLevel]?.content_config[focus]?.params || glrPolicy.levelMap[1].content_config.neutral!.params;
+    }, [focus, getAdaptiveState]);
 
     useEffect(() => {
-        setAdaptiveState(store.getAdaptiveState(GLR_GAME_ID, focus));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [focus, store]);
-
-    useEffect(() => {
-        if (!adaptiveState) return;
+        const state = getAdaptiveState(GLR_GAME_ID, focus);
+        if (!state) return;
 
         const pairsToReview = getDueReviewPairs();
         if (pairsToReview.length > 0) {
@@ -105,7 +100,7 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
         setCurrentIndex(0);
         setSessionTrials([]);
         trialStartTime.current = Date.now();
-    }, [adaptiveState, focus, getDueReviewPairs, addSpacedPairs, policyParams.pairs]);
+    }, [focus, getDueReviewPairs, addSpacedPairs, policyParams.pairs, getAdaptiveState]);
 
     const handleNext = () => {
         const currentList = phase === 'recall' ? (duePairs.length > 0 ? duePairs : newPairs) : newPairs;
@@ -124,8 +119,9 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
     
     const handleRecallSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!adaptiveState) return;
-        const levelPlayed = adaptiveState.currentLevel;
+        const currentState = getAdaptiveState(GLR_GAME_ID, focus);
+        if (!currentState) return;
+        const levelPlayed = currentState.currentLevel;
         const reactionTimeMs = Date.now() - trialStartTime.current;
         const pair = (duePairs.length > 0 ? duePairs : newPairs)[currentIndex];
         const isCorrect = userInput.trim().toLowerCase() === pair.word2.toLowerCase();
@@ -156,9 +152,8 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
             meta: trial.telemetry,
         });
 
-        const newState = adjustDifficulty(trial, adaptiveState, glrPolicy);
-        store.updateAdaptiveState(GLR_GAME_ID, focus, newState);
-        setAdaptiveState(newState);
+        const newState = adjustDifficulty(trial, currentState, glrPolicy);
+        updateAdaptiveState(GLR_GAME_ID, focus, newState);
         setSessionTrials(prev => [...prev, trial]);
         
         updatePairOnResult(pair.id || `${pair.word1}-${pair.word2}`, isCorrect);
@@ -184,7 +179,7 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
                     <p className="text-muted-foreground">Memorize this pair:</p>
                     <p className="text-4xl font-bold">{pairToShow.word1} - {pairToShow.word2}</p>
                     <p className="text-sm font-mono mt-4">Pair {currentIndex + 1} of {newPairs.length}</p>
-                    <Button onClick={handleNext} className="mt-4">Next</Button>
+                    <Button onClick={handleNext} className="mt-4 bg-emerald-600 hover:bg-emerald-500 text-white">Next</Button>
                 </div>
             )}
             {(phase === 'recall') && pairToShow && (
@@ -198,7 +193,7 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
                     ) : (
                         <form onSubmit={handleRecallSubmit} className="flex gap-2 justify-center">
                             <Input value={userInput} onChange={e => setUserInput(e.target.value)} autoFocus placeholder="Type the word" className="text-center"/>
-                            <Button type="submit">Submit</Button>
+                            <Button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white">Submit</Button>
                         </form>
                     )}
                 </div>

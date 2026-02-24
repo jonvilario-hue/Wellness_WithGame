@@ -8,9 +8,8 @@ import { useTheme } from '@/hooks/use-theme';
 import { GrowthDecoration } from '../ui/growth-decoration';
 import { useRouter } from 'next/navigation';
 import type { CHCDomain } from '@/types';
-import { DOMAIN_META } from '@/lib/domain-constants';
+import { chcDomains } from '@/lib/domain-constants';
 
-const allDomains = Object.keys(DOMAIN_META) as CHCDomain[];
 
 export function AllGames() {
   const { organicGrowth } = useTheme();
@@ -34,12 +33,11 @@ export function AllGames() {
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {allDomains.map((domainKey) => (
-            <ChcDomainCard key={domainKey} domain={domainKey} onPlay={handlePlay} />
+          {chcDomains.map((domain) => (
+            <ChcDomainCard key={domain.key} domain={domain} onPlay={handlePlay} />
           ))}
         </div>
       </CardContent>
     </Card>
   );
 }
-
