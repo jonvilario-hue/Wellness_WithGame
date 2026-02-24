@@ -55,7 +55,7 @@ export const DOMAIN_META: Record<
     gameTitle: 'Rapid Code Match',
     id: 'gs_rapid_code',
     icon: Zap,
-    color: 'bg-orange-500/10 text-orange-500',
+    color: 'bg-blue-500/10 text-blue-500',
   },
   Gv: {
     name: '(Gv) Visual Processing',
