@@ -1,4 +1,3 @@
-
 'use client';
 
 // This file is the single source of truth for all shared types in the application.
@@ -17,13 +16,14 @@ export type GameId =
   | 'glr_fluency_storm'
   | 'ef_focus_switch';
 
-// --- Local Cache & Telemetry ---
+// This type has been deprecated in favor of the more specific TelemetryEvent types
+// in `src/lib/telemetry-events.ts`. It is kept for historical reference during migration.
 export interface TrialRecord {
-  id: string; // UUID for the trial, e.g. `gwm-verbal-1672531200000-5`
+  id: string; 
   sessionId: string;
   gameId: GameId;
-  schemaVersion: 2; // For backward compatibility
-  seq: number; // Monotonic per-session sequence number
+  schemaVersion: 2;
+  seq: number; 
   trialIndex: number;
   condition?: string;
   stimulusParams: Record<string, any>;
@@ -36,8 +36,8 @@ export interface TrialRecord {
   deviceInfo?: any;
   timestamp: number;
   pausedDurationMs?: number;
-  wasFallback?: boolean; // True if the stimulus was a fallback
-  legacy?: boolean; // True if this record was normalized from an older schema
+  wasFallback?: boolean;
+  legacy?: boolean;
 }
 
 

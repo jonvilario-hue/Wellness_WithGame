@@ -3,10 +3,11 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, RefreshCcw } from 'lucide-react';
+import type { TelemetryEvent, ErrorEventPayload } from '@/lib/telemetry-events';
 
 interface Props {
   children: ReactNode;
-  logError: (error: Error, info: ErrorInfo) => void;
+  logEvent: (event: TelemetryEvent) => void;
   onReset: () => void;
 }
 
@@ -27,8 +28,19 @@ export class GameErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("Uncaught error in game component:", error, errorInfo);
-    // Log the error to our telemetry service
-    this.props.logError(error, errorInfo);
+    
+    // Log the error using the standardized telemetry system
+    const errorPayload: ErrorEventPayload = {
+        error: error.toString(),
+        stack: errorInfo.componentStack,
+        gameId: 'unknown', // This should be enriched by the parent component
+        trialIndex: -1, // Indicates an error outside a specific trial
+    };
+    
+    this.props.logEvent({
+        type: 'error',
+        payload: errorPayload,
+    });
   }
 
   public render() {

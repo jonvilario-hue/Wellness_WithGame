@@ -1,5 +1,4 @@
-
-import type { TrialRecord, SessionRecord } from '@/types';
+import type { TelemetryEvent, TrialCompletePayload } from './telemetry-events';
 
 const CURRENT_SCHEMA_VERSION = 2;
 
@@ -10,39 +9,37 @@ const CURRENT_SCHEMA_VERSION = 2;
  * @param record The trial or session record to normalize.
  * @returns A record conforming to the latest schema.
  */
-export const normalizeTelemetryRecord = (record: any): TrialRecord | SessionRecord => {
-    // Check if it's a TrialRecord
-    if (record && typeof record.trialIndex !== 'undefined') {
-        const trial = record as Partial<TrialRecord>;
-        if (!trial.schemaVersion || trial.schemaVersion < CURRENT_SCHEMA_VERSION) {
-            return {
-                ...trial,
-                id: trial.id || `${trial.sessionId}-${trial.trialIndex}`,
-                schemaVersion: CURRENT_SCHEMA_VERSION,
-                seq: trial.trialIndex || -1, // Use trialIndex as a fallback for seq
-                wasFallback: trial.wasFallback ?? false,
-                pausedDurationMs: trial.pausedDurationMs ?? 0,
-                legacy: true,
-            } as TrialRecord;
-        }
-        return trial as TrialRecord;
+export const normalizeTelemetryRecord = (record: any): TelemetryEvent => {
+    // This is a simplified check. A real implementation would be more robust.
+    if (!record.schemaVersion || record.schemaVersion < CURRENT_SCHEMA_VERSION) {
+        
+        // Assume it's an old TrialRecord and convert it to a trial_complete event
+        const trialPayload: TrialCompletePayload = {
+            id: record.id || `${record.sessionId}-${record.trialIndex}`,
+            sessionId: record.sessionId,
+            gameId: record.gameId,
+            trialIndex: record.trialIndex || -1,
+            seq: record.trialIndex || -1,
+            difficultyLevel: record.difficultyLevel,
+            stimulusParams: record.stimulusParams || {},
+            stimulusOnsetTs: record.stimulusOnsetTs || 0,
+            responseTs: record.responseTs || 0,
+            rtMs: record.rtMs || 0,
+            correct: record.correct,
+            responseType: record.responseType || 'unknown',
+            pausedDurationMs: record.pausedDurationMs ?? 0,
+            wasFallback: record.wasFallback ?? false,
+            legacy: true,
+        };
+        
+        return {
+            type: 'trial_complete',
+            eventId: trialPayload.id,
+            sessionId: trialPayload.sessionId,
+            timestamp: record.timestamp || 0,
+            schemaVersion: CURRENT_SCHEMA_VERSION,
+            payload: trialPayload,
+        };
     }
-    
-    // Assume it's a SessionRecord
-    if (record && typeof record.sessionId !== 'undefined') {
-        const session = record as Partial<SessionRecord>;
-         if (!session.replayInputs) {
-             session.replayInputs = {
-                 seed: 'unknown',
-                 buildVersion: 'pre-migration',
-                 gameId: session.gameId,
-                 focus: session.mode,
-                 difficultyConfig: {},
-                 samplerConfig: null
-             }
-         }
-        return session as SessionRecord;
-    }
-
-    return record; // Return as-is if type is unknown
+    return record as TelemetryEvent;
 };

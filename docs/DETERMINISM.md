@@ -54,17 +54,13 @@ The local storage eviction strategy is designed to prevent data loss.
 
 ## Section 6 — Session Recovery
 
-**Current Limitation:** In-progress training sessions are **NOT** currently recoverable across page reloads or full tab closures. While the adaptive state and completed trial data are persisted, the in-flight state of the current game (e.g., the PRNG sequence position, current trial index, active timers) is held in component memory and is lost.
+**Current Implementation:** In-progress training sessions are recoverable across page reloads.
 
-**Behavior on Reload:** A page refresh mid-game will return the user to the main dashboard or the start screen of the game, creating a new session. The interrupted session's data up to the last completed trial will be saved, but the session itself will be marked as incomplete.
-
-**Recommended Implementation Path (for future work):**
-1.  **Persist Session Context:** Upon starting a new game session, write a minimal `active_session` record to `sessionStorage`. This record should contain the `sessionId`, `gameId`, `focus`, the PRNG `seed`, and the current `trialIndex`.
-2.  **Detect on Load:** On application load, check for the existence of this `active_session` record in `sessionStorage`.
-3.  **Offer Resume:** If an active session is found, present the user with a UI prompt: "You have an incomplete session. Would you like to resume or start a new one?"
-4.  **Rehydrate State:** If the user chooses to resume, rehydrate the game component by:
+1.  **Persist Session Pointer:** Upon starting a new game session, a minimal `active_session` record is written to `sessionStorage`. This record contains the `sessionId`, `gameId`, the PRNG `seed`, and the current `trialIndex` (`seq`).
+2.  **Detect on Load:** On application load, the `usePerformanceStore` hydration logic checks for the existence of this `active_session` record.
+3.  **Offer Resume:** If an active session is found, the store automatically resumes the session from where it left off and shows a toast notification.
+4.  **Rehydrate State:** The store rehydrates the game state by:
     *   Re-instantiating the PRNG with the stored `seed`.
-    *   Fast-forwarding the PRNG by re-running stimulus generation for all trials up to the stored `trialIndex` but discarding the output.
-    *   Loading the stimulus for the current `trialIndex`.
-    *   This will restore the game to its exact state pre-reload, preserving determinism.
-5.  **Clear on Completion:** Delete the `active_session` record from `sessionStorage` only when a session is successfully completed or explicitly abandoned by the user.
+    *   Fast-forwarding the PRNG by re-running stimulus generation for all trials up to the stored `trialIndex` but discarding the output. This restores the PRNG to its exact state pre-reload, preserving determinism.
+    *   Loading the correct game at the correct trial index.
+5.  **Clear on Completion:** The `active_session` record is deleted from `sessionStorage` only when a session is successfully completed or explicitly abandoned by the user.

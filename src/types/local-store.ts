@@ -1,5 +1,5 @@
-
-import type { TrialRecord, AdaptiveState, GameId, TrainingFocus, DifficultyPolicy } from './index';
+import type { GameId, TrainingFocus, DifficultyPolicy } from './index';
+import type { TelemetryEvent } from '@/lib/telemetry-events';
 
 export interface LatencyInfo {
     baseLatency: number;
@@ -42,3 +42,6 @@ export type ProfileRecord = {
   id: string; // Composite key, e.g., "gwm_dynamic_sequence/music"
   state: AdaptiveState;
 }
+
+// Kept for migration reference, but TelemetryEvent is now the primary type.
+export type TrialRecord = TelemetryEvent & { type: 'trial_complete' };

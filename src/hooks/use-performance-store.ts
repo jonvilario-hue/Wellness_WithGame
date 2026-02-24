@@ -4,10 +4,11 @@ import { create } from 'zustand';
 import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import type { GameId, TrialRecord, TrainingFocus, AdaptiveState, TierSelection, DifficultyPolicy } from '@/types';
-import type { ReplayInputs } from '@/types/local-store';
+import type { ReplayInputs, SessionRecord } from '@/types/local-store';
 import { getDefaultState } from '@/lib/adaptive-engine';
 import * as idbStore from '@/lib/idb-store';
 import * as aggregator from '@/lib/local-aggregator';
+import type { TelemetryEvent, TrialCompletePayload } from '@/lib/telemetry-events';
 
 // Server-safe storage object for Zustand's persist middleware
 const storage: StateStorage = {
@@ -34,7 +35,8 @@ type PerformanceState = {
     globalTier: TierSelection;
     isHydrated: boolean;
     storageAvailable: boolean; // B2.4: New flag for IDB availability
-    failedWrites: TrialRecord[];
+    failedWrites: TelemetryEvent[];
+    activeSession: SessionRecord | null;
 };
 
 type PerformanceActions = {
@@ -43,11 +45,13 @@ type PerformanceActions = {
     setGameTier: (gameId: GameId, focus: TrainingFocus, tier: TierSelection) => void;
     setGlobalTier: (tier: TierSelection) => void;
     hydrate: () => Promise<void>;
-    logTrial: (record: Omit<TrialRecord, 'id' | 'seq' | 'schemaVersion'>) => Promise<void>;
+    logEvent: (event: Omit<TelemetryEvent, 'eventId' | 'timestamp' | 'schemaVersion'>) => Promise<void>;
     flushFailedWrites: () => Promise<void>;
     exportData: () => Promise<string>;
     importData: (json: string) => Promise<void>;
     clearAllData: () => Promise<void>;
+    startNewGameSession: (params: { gameId: GameId, focus: TrainingFocus, prngSeed: string, buildVersion: string, difficultyConfig: any, gameQueue?: GameId[] }) => void;
+    completeCurrentGameSession: () => void;
 };
 
 export const usePerformanceStore = create<PerformanceState & PerformanceActions>()(
@@ -56,10 +60,15 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
             gameStates: {},
             globalTier: 4,
             isHydrated: false,
-            storageAvailable: false, // B2.4: Default to false until hydration
+            storageAvailable: false,
             failedWrites: [],
+            activeSession: null,
 
             hydrate: async () => {
+                if (typeof window === 'undefined') {
+                    set({ isHydrated: true, storageAvailable: false });
+                    return;
+                }
                 // B2.4: Top-level guard for IDB availability
                 try {
                     await idbStore.initDB();
@@ -69,10 +78,26 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
                         newGameStates[profile.id] = profile.state;
                     }
                     set({ gameStates: newGameStates, isHydrated: true, storageAvailable: true });
+
+                    // B3 Session Recovery
+                    const sessionPointerJSON = window.sessionStorage.getItem('__cog_active_session');
+                    if (sessionPointerJSON) {
+                        const sessionPointer = JSON.parse(sessionPointerJSON);
+                        const trials = await idbStore.getEventsForSession(sessionPointer.sessionId);
+                        
+                        set({ activeSession: { ...sessionPointer, currentSeq: trials.length } });
+
+                        // Fast-forward PRNG and other state restoration would happen in the component layer
+                        // that uses this session data.
+                        if (get().isHydrated) { // Check if hydrate has finished
+                            console.log("Session resumed from where you left off.");
+                            // This would typically be a toast notification
+                        }
+                    }
                     get().flushFailedWrites();
                 } catch (e) {
                     console.error("Hydration from IndexedDB failed. The app may be in an environment where IndexedDB is not available. App will continue in memory-only mode.", e);
-                    set({ isHydrated: true, storageAvailable: false }); // Gracefully degrade
+                    set({ isHydrated: true, storageAvailable: false });
                 }
             },
 
@@ -115,17 +140,6 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
                          }
                     }
                 });
-                if (replayInputs && newState.sessionCount && get().storageAvailable) {
-                    idbStore.startOrUpdateSession({
-                        sessionId: `session-${gameId}-${focus}-${Date.now()}`,
-                        gameId,
-                        mode: focus,
-                        deviceInfo: { baseLatency: 0, outputLatency: 0, sampleRate: 0},
-                        startTimestamp: Date.now(),
-                        sessionComplete: false,
-                        replayInputs: replayInputs,
-                    });
-                }
             },
 
             setGlobalTier: (tier) => set({ globalTier: tier }),
@@ -148,44 +162,38 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
 
                 console.log(`[Storage] Flushing ${buffered.length} buffered trial records...`);
                 try {
-                    await idbStore.logTrialBatch(buffered);
+                    await idbStore.logEventBatch(buffered);
                     set({ failedWrites: [] });
                     console.log(`[Storage] Flush successful.`);
                 } catch (error) {
                     console.error("[Storage] Critical: Failed to flush telemetry buffer during retry. Data may be lost.", error);
                 }
             },
-            
-            // B2 OFFLINE RESILIENCE: This is the entry point for logging.
-            logTrial: async (record) => {
-                // FIX A1: Assign monotonic sequence number at creation time.
-                const fullRecord: TrialRecord = {
-                    ...record,
-                    id: `${record.sessionId}-${record.trialIndex}`,
-                    seq: record.trialIndex,
-                    schemaVersion: 2,
-                };
 
-                // B2.4: If storage is down, buffer immediately.
+            logEvent: async (event) => {
+                const fullEvent: TelemetryEvent = {
+                    ...event,
+                    eventId: `evt-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+                    timestamp: Date.now(),
+                    schemaVersion: 2,
+                } as TelemetryEvent; // Cast because Omit makes it tricky
+
                 if (!get().storageAvailable) {
-                    console.warn("[Storage] IDB not available. Buffering trial record.");
+                    console.warn("[Storage] IDB not available. Buffering event.");
                     set(state => {
-                        state.failedWrites.push(fullRecord);
+                        state.failedWrites.push(fullEvent);
                     });
                     return;
                 }
 
-                // B2.1 & B2.2: Wrap the call to the storage layer. If it fails,
-                // the record is added to the in-memory buffer for a later retry.
                 try {
-                    await idbStore.logTrial(fullRecord);
+                    await idbStore.logEvent(fullEvent);
                 } catch (error) {
-                    console.warn("[Storage] IDB write failed. Buffering trial record.", error);
+                    console.warn("[Storage] IDB write failed. Buffering event.", error);
                     set(state => {
-                        state.failedWrites.push(fullRecord);
-                        // B2.3: To prevent unbounded memory usage, cap the buffer.
+                        state.failedWrites.push(fullEvent);
                         if (state.failedWrites.length > 500) {
-                            console.warn(`[Storage] In-memory buffer full. Dropping oldest trial record.`);
+                            console.warn(`[Storage] In-memory buffer full. Dropping oldest event.`);
                             state.failedWrites.shift(); 
                         }
                     });
@@ -212,11 +220,75 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
 
             clearAllData: async () => {
                  if (!get().storageAvailable) {
-                     set({ gameStates: {}, failedWrites: [] });
+                     set({ gameStates: {}, failedWrites: [], activeSession: null });
                      return;
                  }
                 await idbStore.clearAllData();
-                set({ gameStates: {}, isHydrated: true, failedWrites: [] });
+                set({ gameStates: {}, isHydrated: true, failedWrites: [], activeSession: null });
+            },
+
+            startNewGameSession: (params) => {
+                const newSessionId = `session-${Date.now()}`;
+                const replayInputs: ReplayInputs = {
+                    seed: params.prngSeed,
+                    buildVersion: params.buildVersion,
+                    gameId: params.gameId,
+                    focus: params.focus,
+                    difficultyConfig: params.difficultyConfig,
+                    samplerConfig: null,
+                };
+                const newSession: SessionRecord = {
+                    sessionId: newSessionId,
+                    gameId: params.gameId,
+                    mode: params.focus,
+                    deviceInfo: { baseLatency: 0, outputLatency: 0, sampleRate: 0 }, // Placeholder
+                    startTimestamp: Date.now(),
+                    sessionComplete: false,
+                    replayInputs,
+                };
+                
+                set({ activeSession: newSession });
+                idbStore.startOrUpdateSession(newSession);
+                if (typeof window !== 'undefined') {
+                    window.sessionStorage.setItem('__cog_active_session', JSON.stringify(newSession));
+                }
+
+                get().logEvent({
+                    type: 'session_start',
+                    sessionId: newSessionId,
+                    seq: 0,
+                    payload: {
+                        gameId: params.gameId,
+                        focus: params.focus,
+                        prngSeed: params.prngSeed,
+                        buildVersion: params.buildVersion,
+                        difficultyConfig: params.difficultyConfig,
+                        samplerConfig: null
+                    }
+                });
+            },
+
+            completeCurrentGameSession: () => {
+                const session = get().activeSession;
+                if (!session) return;
+                
+                const endTime = Date.now();
+                idbStore.completeSession(session.sessionId, endTime);
+                set({ activeSession: null });
+
+                get().logEvent({
+                    type: 'session_complete',
+                    sessionId: session.sessionId,
+                    seq: -1, // Not a trial event
+                    payload: {
+                        gameId: session.gameId,
+                        finalSeq: session.trialCount || 0, // trialCount would need to be tracked
+                        durationMs: endTime - session.startTimestamp,
+                    }
+                });
+                if (typeof window !== 'undefined') {
+                    window.sessionStorage.removeItem('__cog_active_session');
+                }
             },
         })),
         {
