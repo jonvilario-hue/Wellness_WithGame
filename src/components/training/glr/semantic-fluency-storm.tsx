@@ -13,7 +13,7 @@ import { Archive, Loader2 } from "lucide-react";
 import type { TrainingFocus, AdaptiveState, TrialResult, GameId } from "@/types";
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
-import { generalCategories, mathCategories, musicCategories, verbalCategories, generalWordList, mathWordList, musicWordList, verbalWordList } from "@/data/verbal-content";
+import { generalCategories, mathCategories, musicCategories, verbalCategories, realWords } from "@/data/verbal-content";
 import { GameStub } from "../game-stub";
 import { AlgorithmFluency } from "../logic/algorithm-fluency";
 import { SpacedRetrievalMode } from "./spaced-retrieval-mode";
@@ -129,10 +129,7 @@ type RelationshipRule = typeof relationshipRules[number];
 
 function AssociativeChainMode({ onComplete, focus }: { onComplete: (result: { score: number, trials: TrialResult[] }) => void, focus: TrainingFocus }) {
     const wordList = useMemo(() => {
-        if (focus === 'math') return mathWordList;
-        if (focus === 'music') return musicWordList;
-        if (focus === 'verbal') return verbalWordList;
-        return generalWordList;
+        return realWords;
     }, [focus]);
 
     const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
@@ -356,7 +353,3 @@ function CategorySwitchingMode({ onComplete, focus }: { onComplete: (result: { s
         </div>
     );
 }
-
-    
-
-    

@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import type { TrainingFocus, AdaptiveState, TrialResult, GameId } from "@/types";
 import { useGlrStore, type SpacedPair } from "@/hooks/use-glr-store";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
-import { mathWordList, musicWordList, generalWordList, verbalWordList } from "@/data/verbal-content";
+import { realWords } from "@/data/verbal-content";
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import { useAudioEngine } from "@/hooks/use-audio-engine";
@@ -95,8 +95,8 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
             setDuePairs(pairsToReview);
             setPhase('recall');
         } else {
-            const wordList1 = (focus === 'math') ? mathWordList : (focus === 'music') ? musicWordList : (focus === 'verbal') ? verbalWordList : generalWordList;
-            let wordList2 = generalWordList;
+            const wordList1 = realWords;
+            let wordList2 = realWords;
             if(focus === 'music') wordList2 = Object.keys(icons);
 
             const generated = Array.from({ length: policyParams.pairs }).map(() => {
