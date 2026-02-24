@@ -1,14 +1,33 @@
-
 'use client';
 
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import type { GameId, TrialRecord, TrainingFocus, AdaptiveState, TierSelection, DifficultyPolicy } from '@/types';
 import type { ReplayInputs } from '@/types/local-store';
 import { getDefaultState } from '@/lib/adaptive-engine';
 import * as idbStore from '@/lib/idb-store';
 import * as aggregator from '@/lib/local-aggregator';
+
+// Server-safe storage object for Zustand's persist middleware
+const storage: StateStorage = {
+  getItem: (name) => {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+    return window.localStorage.getItem(name);
+  },
+  setItem: (name, value) => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(name, value);
+    }
+  },
+  removeItem: (name) => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(name);
+    }
+  },
+};
 
 type PerformanceState = {
     gameStates: Record<string, AdaptiveState>;
@@ -67,14 +86,17 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
                 const defaultState = getDefaultState(gameId, tierForNewGame);
                 const finalState = { ...defaultState, lastFocus: focus };
                 
-                setTimeout(() => {
-                    set(state => {
-                        if (!state.gameStates[key]) {
-                            state.gameStates[key] = finalState;
-                             idbStore.setProfile(key, finalState).catch(e => console.error("Failed to save new profile to IDB", e));
-                        }
-                    });
-                }, 0);
+                // Guard against server-side execution for side-effects
+                if (typeof window !== 'undefined') {
+                    setTimeout(() => {
+                        set(state => {
+                            if (!state.gameStates[key]) {
+                                state.gameStates[key] = finalState;
+                                 idbStore.setProfile(key, finalState).catch(e => console.error("Failed to save new profile to IDB", e));
+                            }
+                        });
+                    }, 0);
+                }
 
                 return finalState;
             },
@@ -174,7 +196,7 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
         })),
         {
             name: 'cognitune-adaptive-store-v4',
-            storage: createJSONStorage(() => localStorage),
+            storage: createJSONStorage(() => storage),
             partialize: (state) => ({ globalTier: state.globalTier }),
         }
     )
