@@ -16,7 +16,7 @@ import { GameStub } from "../game-stub";
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
 import { domainIcons } from "@/components/icons";
-import { useAudioEngine } from "@/hooks/use-audio-engine";
+import { useAudioEngine, midiToFreq } from "@/hooks/use-audio-engine";
 
 
 const GAME_ID: GameId = 'ef_focus_switch';
@@ -137,10 +137,10 @@ export function FocusSwitchReactor() {
   
   useEffect(() => {
       if(gameState === 'running' && stimulus.pitch && currentMode === 'music' && ruleRef.current === 'pitch_direction') {
-          playTone(440 * Math.pow(2, (stimulus.pitch - 69) / 12), 0.5);
+          playTone(midiToFreq(stimulus.pitch), 0.5);
       }
       if(gameState === 'running' && stimulus.rhythm !== undefined && currentMode === 'music' && ruleRef.current === 'rhythm_evenness') {
-          playSequence(stimulus.rhythm === 0 ? [60, 60] : [60, 0, 60], 0.2);
+          playSequence(stimulus.rhythm === 0 ? [60, 0, 60, 0] : [60, 60, 0, 0], 0.25);
       }
   }, [gameState, stimulus, currentMode, playTone, playSequence]);
 
@@ -195,12 +195,16 @@ export function FocusSwitchReactor() {
         correct, 
         reactionTimeMs,
         telemetry: {
-            inputMethod: source,
-            rule: ruleRef.current,
             switchTrial: ruleRef.current !== previousRuleRef.current,
+            currentRule: ruleRef.current,
+            previousRule: previousRuleRef.current,
             targetSide,
             responseSide: responseSide || null,
             congruent: isCongruent,
+            stimulusPitch: stimulus.pitch,
+            stimulusRhythm: stimulus.rhythm,
+            correctResponse: targetSide,
+            userResponse: responseSide,
         }
     };
     

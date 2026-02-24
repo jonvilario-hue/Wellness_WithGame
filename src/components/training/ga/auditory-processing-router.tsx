@@ -16,7 +16,7 @@ import { GameStub } from "../game-stub";
 import { AuditoryDebugger } from "../logic/auditory-debugger";
 import { domainIcons } from "@/components/icons";
 import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
-import { useAudioEngine } from "@/hooks/use-audio-engine";
+import { useAudioEngine, midiToFreq } from "@/hooks/use-audio-engine";
 
 
 const GAME_ID: GameId = 'ga_auditory_lab';
@@ -27,12 +27,11 @@ const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
     const { playTone, resumeContext, isAudioReady } = useAudioEngine();
     const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
 
-    const [gameState, setGameState] = useState<'idle' | 'playing' | 'feedback' | 'finished'>('idle');
+    const [gameState, setGameState] = useState<'loading' | 'playing' | 'feedback' | 'finished'>('loading');
     const [feedback, setFeedback] = useState<string>('');
     const trialStartTime = useRef(0);
     const answerRef = useRef<'higher' | 'lower'>('higher');
     const currentTrialIndex = useRef(0);
-    const sessionTrials = useRef<TrialResult[]>([]);
 
     const startNewTrial = useCallback(() => {
         const state = getAdaptiveState(GAME_ID, focus);
@@ -59,15 +58,14 @@ const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
         const sessionState = startSession(getAdaptiveState(GAME_ID, focus));
         updateAdaptiveState(GAME_ID, focus, sessionState);
         currentTrialIndex.current = 0;
-        sessionTrials.current = [];
         startNewTrial();
     }, [resumeContext, getAdaptiveState, updateAdaptiveState, focus, startNewTrial]);
     
     useEffect(() => {
-        if(gameState === 'idle' && isAudioReady) {
-            startNewSession();
+        if(isAudioReady) {
+           startNewSession();
         }
-    }, [gameState, isAudioReady, startNewSession])
+    }, [isAudioReady, startNewSession]);
 
     const handleAnswer = (userChoice: 'higher' | 'lower') => {
         const state = getAdaptiveState(GAME_ID, focus);
@@ -92,7 +90,6 @@ const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
                 correctAnswer: answerRef.current,
             }
         };
-        sessionTrials.current.push(trialResult);
 
         logTrial({
             module_id: GAME_ID,
@@ -112,6 +109,7 @@ const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
             currentTrialIndex.current++;
             if (currentTrialIndex.current >= policy.sessionLength) {
                 setGameState('finished');
+                endSession(newState, []); // Placeholder for session trials
             } else {
                 startNewTrial();
             }
@@ -120,8 +118,6 @@ const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
 
     if(gameState === 'finished') {
         const state = getAdaptiveState(GAME_ID, focus);
-        const finalState = endSession(state, sessionTrials.current);
-        updateAdaptiveState(GAME_ID, focus, finalState);
         return (
              <div className="text-center space-y-4">
                 <CardTitle>Session Complete!</CardTitle>
@@ -131,13 +127,16 @@ const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
     }
 
     const state = getAdaptiveState(GAME_ID, focus);
-    if (gameState === 'idle' || !state) {
-        return (
-            <div className="flex flex-col items-center gap-4 text-center">
-                <p className="text-muted-foreground">Audio required for this mode.</p>
-                <Button onClick={resumeContext} size="lg" className="bg-violet-600 hover:bg-violet-500 text-white">Tap to Enable Audio & Start</Button>
-            </div>
-        )
+    if (gameState === 'loading' || !state) {
+         if (!isAudioReady) {
+            return (
+                <div className="flex flex-col items-center gap-4 text-center">
+                    <p className="text-muted-foreground">Audio required for this mode.</p>
+                    <Button onClick={resumeContext} size="lg" className="bg-violet-600 hover:bg-violet-500 text-white">Tap to Enable Audio & Start</Button>
+                </div>
+            )
+        }
+        return <Loader2 className="w-12 h-12 animate-spin text-primary" />;
     }
 
     return (
@@ -173,11 +172,13 @@ const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
 
 // --- Main Lab Component ---
 export function AuditoryProcessingRouter() {
-    const { isAudioReady, resumeContext } = useAudioEngine();
-    
-    const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
-    const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
+    const { isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
+    const { isLoaded: isOverrideLoaded } = useTrainingOverride();
     const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
+    
+    // We can get the focus here, but the actual logic will be inside the routed component
+    const { focus: globalFocus } = useTrainingFocus();
+    const { override } = useTrainingOverride();
     const currentMode = isComponentLoaded ? (override || globalFocus) : 'neutral';
 
     if (currentMode === 'logic') {
@@ -202,7 +203,7 @@ export function AuditoryProcessingRouter() {
                     <span className="p-2 bg-violet-500/10 rounded-md"><domainIcons.Ga className="w-6 h-6 text-violet-400" /></span>
                     Auditory Processing Lab
                 </CardTitle>
-                <CardDescription className="text-violet-300/70">A rotating lab of exercises to sharpen your brain's ability to analyze and distinguish sounds.</CardDescription>
+                <CardDescription className="text-violet-300/70">A rotating lab of exercises to sharpen your brain's ability to analyze and distinguish sounds. Wired headphones recommended.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center justify-center gap-6 min-h-[350px]">
                 {!isComponentLoaded ? <Loader2 className="w-12 h-12 animate-spin text-primary" /> : <PitchDiscriminationModule focus={currentMode}/>}

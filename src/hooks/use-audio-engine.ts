@@ -16,6 +16,7 @@ const getAudioContext = () => {
     return audioContextInstance;
 };
 
+export const midiToFreq = (midi: number) => 440 * Math.pow(2, (midi - 69) / 12);
 
 export const useAudioEngine = () => {
     const context = getAudioContext();
@@ -62,6 +63,7 @@ export const useAudioEngine = () => {
         osc.type = 'sine';
         osc.frequency.setValueAtTime(freq, time);
         
+        // Envelope to prevent clicking
         gainNode.gain.setValueAtTime(0, time);
         gainNode.gain.linearRampToValueAtTime(0.5, time + 0.01); // 10ms attack, lowered volume
         gainNode.gain.linearRampToValueAtTime(0, time + duration - 0.01); // 10ms release
@@ -95,7 +97,7 @@ export const useAudioEngine = () => {
         let time = context.currentTime + 0.1; // Small delay to ensure scheduling
         
         notes.forEach(note => {
-            const freq = typeof note === 'number' ? 440 * Math.pow(2, (note - 69) / 12) : 440;
+            const freq = typeof note === 'number' ? midiToFreq(note) : 440;
             const osc = context.createOscillator();
             const gainNode = context.createGain();
 
