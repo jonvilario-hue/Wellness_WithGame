@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { chcDomains } from '@/types';
+import { chcDomains } from '@/lib/domain-constants';
 import type { CHCDomain } from '@/types';
 
 const FOCUS_BUILDER_KEY = 'focusBuilderState';

@@ -9,7 +9,7 @@
 
 import {z} from 'zod';
 import type {CHCDomain} from '@/types';
-import {chcDomains} from '@/types';
+import { chcDomains } from '@/lib/domain-constants';
 
 const CircuitDomainEnum = z.enum(['Gf', 'Gc', 'Gwm', 'Gs', 'Gv', 'Ga', 'Glr', 'EF']);
 

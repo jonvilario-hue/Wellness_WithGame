@@ -12,192 +12,107 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { domainIcons, SigmaIcon } from '@/components/icons';
-import type { CHCDomain, TrainingFocus } from '@/types';
-import { useState, useEffect, memo, useMemo } from 'react';
-import { ArrowDown, ArrowUp, Info, Minus, Brain, Music, MessageSquare, View, Smile, Share2 } from 'lucide-react';
-import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
-import { useTrainingFocus } from '@/hooks/use-training-focus';
 import { cn } from '@/lib/utils';
-import { Skeleton } from '../ui/skeleton';
+import { Info, Lock } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { usePerformanceStore } from '@/hooks/use-performance-store';
+import { useTrainingFocus } from '@/hooks/use-training-focus';
+import { DOMAIN_META, MODE_INCOMPATIBILITY_MAP } from '@/lib/domain-constants';
+import type { CHCDomain, TrainingFocus } from '@/types';
 
-interface ChcDomainCardProps {
-  domain: {
-    key: CHCDomain;
-    id: any;
-    name: string;
-    description: string;
-    gameTitle: string;
-    supportsMath: boolean;
-    supportsMusic: boolean;
-    supportsVerbal: boolean;
-    supportsSpatial: boolean;
-    supportsEq: boolean;
-    supportsLogic: boolean;
-  };
-}
-
-const getTrendInfo = (trend: number) => {
-    if (trend > 2) {
-      return { Icon: ArrowUp, color: 'text-green-500', text: 'Trending upward' };
-    }
-    if (trend < -2) {
-      return { Icon: ArrowDown, color: 'text-muted-foreground', text: 'Natural fluctuation' };
-    }
-    return { Icon: Minus, color: 'text-primary', text: 'Holding steady' };
+// This is a simplified progress data retrieval. In a real app,
+// this would come from a more complex state or API call.
+const useDomainProgress = (domainKey: CHCDomain, focus: TrainingFocus) => {
+    const getAdaptiveState = usePerformanceStore(state => state.getAdaptiveState);
+    const domainId = DOMAIN_META[domainKey].id;
+    const gameState = getAdaptiveState(domainId, focus);
+    
+    const score = gameState ? Math.round((gameState.currentLevel / gameState.levelCeiling) * 100) : Math.random() * 25 + 20;
+    const trend = gameState ? (gameState.levelHistory.at(-1)?.endLevel ?? 0) - (gameState.levelHistory.at(-2)?.endLevel ?? 0) : Math.random() * 10 - 5;
+    
+    return { score, trend };
 };
 
-const ChcDomainCardComponent = ({ domain }: ChcDomainCardProps) => {
-  const Icon = domainIcons[domain.key];
-  const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
-  
-  const getAdaptiveState = usePerformanceStore(state => state.getAdaptiveState);
-  
-  const [gameState, setGameState] = useState(() => getAdaptiveState(domain.id, globalFocus));
 
-  useEffect(() => {
-    if (isGlobalFocusLoaded) {
-      setGameState(getAdaptiveState(domain.id, globalFocus));
-    }
-  }, [globalFocus, isGlobalFocusLoaded, getAdaptiveState, domain.id]);
-
-
-  const [isClient, setIsClient] = useState(false);
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
-
-  const isDisabledByFocus = globalFocus === 'neutral' && domain.key === 'Gc';
+export function ChcDomainCard({ domain, onPlay }: { domain: CHCDomain, onPlay: (domain: CHCDomain) => void }) {
+  const { focus: currentMode } = useTrainingFocus();
+  const { score, trend } = useDomainProgress(domain, currentMode);
   
-  const focusInfo: Record<TrainingFocus, { Icon: any; label: string; color: string; supported: boolean; }> = {
-    neutral: { Icon: Brain, label: 'Core Thinking', color: 'text-muted-foreground', supported: true },
-    math: { Icon: SigmaIcon, label: 'Math Reasoning', color: 'text-energize', supported: domain.supportsMath },
-    music: { Icon: Music, label: 'Music Cognition', color: 'text-blue-500', supported: domain.supportsMusic },
-    verbal: { Icon: MessageSquare, label: 'Verbal Reasoning', color: 'text-purple-500', supported: domain.supportsVerbal },
-    spatial: { Icon: View, label: 'Spatial Reasoning', color: 'text-teal-500', supported: domain.supportsSpatial },
-    eq: { Icon: Smile, label: 'Emotional Intelligence', color: 'text-pink-500', supported: domain.supportsEq },
-    logic: { Icon: Share2, label: 'Logic & Coding', color: 'text-cyan-500', supported: domain.supportsLogic },
-  };
-  
-  const activeMode = focusInfo[globalFocus] || focusInfo.neutral;
-  
-  const isLoaded = isGlobalFocusLoaded && isClient;
-  
-  const score = useMemo(() => {
-    if (!isLoaded || !gameState) return 0;
-    return Math.round((gameState.currentLevel / gameState.levelCeiling) * 100);
-  }, [isLoaded, gameState]);
-  
-  const trend = useMemo(() => {
-    if (!isLoaded || !gameState || !gameState.levelHistory || gameState.levelHistory.length === 0) return 0;
-    const history = gameState.levelHistory;
-    if (history.length > 1) {
-        const last = history[history.length - 1].endLevel;
-        const prev = history[history.length - 2].endLevel;
-        if (prev > 0) return ((last - prev) / prev) * 100;
-    } else if (history.length === 1) {
-        const session = history[0];
-        if(session.startLevel > 0) return ((session.endLevel - session.startLevel) / session.startLevel) * 100;
-    }
-    return 0;
-  }, [isLoaded, gameState]);
-  
-  const { Icon: TrendIcon, color: trendColor, text: trendText } = getTrendInfo(trend);
+  const domainMeta = DOMAIN_META[domain];
+  const incompatibilityReason = MODE_INCOMPATIBILITY_MAP[currentMode as TrainingFocus]?.[domain];
+  const isLocked = !!incompatibilityReason;
 
   const cardContent = (
-    <Card className={cn("flex flex-col h-full hover:shadow-lg transition-shadow duration-300", isDisabledByFocus && "opacity-50 bg-muted/50")}>
-      <CardHeader className="flex flex-row items-start gap-4 space-y-0 pb-2 flex-grow">
-        <div className="p-3 bg-primary/10 rounded-lg">
-          <Icon className="w-6 h-6 text-primary" />
+    <Card
+      className={cn(
+        'flex flex-col h-full transition-all duration-300',
+        isLocked
+          ? 'bg-muted/50 opacity-60'
+          : 'hover:shadow-lg hover:-translate-y-1'
+      )}
+    >
+      <CardHeader className="flex-row items-start gap-4 space-y-0 pb-2">
+        <div className={cn('p-3 rounded-lg', domainMeta.color)}>
+          <domainMeta.icon className="w-6 h-6" />
         </div>
         <div className="flex-1">
-          <CardTitle className="font-headline text-base">{domain.name}</CardTitle>
-          <CardDescription className="text-xs">{domain.description}</CardDescription>
+          <CardTitle className="font-headline text-base">{domainMeta.name}</CardTitle>
+          <CardDescription className="text-xs">{domainMeta.description}</CardDescription>
         </div>
-        {isLoaded && activeMode.supported && !isDisabledByFocus && (
-           <TooltipProvider>
-             <Tooltip delayDuration={0}>
-               <TooltipTrigger>
-                  <activeMode.Icon className={cn("w-5 h-5", activeMode.color)} />
-               </TooltipTrigger>
-               <TooltipContent>
-                 <p>Current Focus: {activeMode.label}</p>
-               </TooltipContent>
-             </Tooltip>
-           </TooltipProvider>
-        )}
       </CardHeader>
-      <CardContent className="space-y-4 py-4 flex-grow">
-        {!isLoaded || !gameState ? (
-          <div className="space-y-3 pt-2">
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-2/3" />
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-3/4" />
+      <CardContent className="flex-grow space-y-4 py-4">
+        <div>
+          <div className="flex justify-between items-center mb-1">
+            <span className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+              Skill Score
+            </span>
+            <span className="text-sm font-bold text-primary">{score.toFixed(0)}</span>
           </div>
-        ) : (
-          <TooltipProvider>
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                  <Tooltip delayDuration={0}>
-                    <TooltipTrigger asChild>
-                      <span className="text-sm font-medium text-muted-foreground flex items-center gap-1 cursor-help">
-                        Skill Score <Info className="w-3 h-3"/>
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Unified adaptive skill rating (0-100)</p>
-                      <p className="font-bold">Cognitive Level: {gameState?.currentLevel ?? 'N/A'}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                <span className="text-sm font-bold text-primary">{score}</span>
-              </div>
-              <Progress value={score} />
-            </div>
-            <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <Tooltip delayDuration={0}>
-                  <TooltipTrigger asChild>
-                    <span className="flex items-center gap-1 cursor-help">
-                      Weekly Trend <Info className="w-3 h-3"/>
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>{trendText}</p>
-                  </TooltipContent>
-                </Tooltip>
-                <div className={`flex items-center font-bold ${trendColor}`}>
-                    <TrendIcon className="w-4 h-4 mr-1"/>
-                    {trend.toFixed(1)}%
-                </div>
-            </div>
-          </TooltipProvider>
-        )}
+          <Progress value={score} aria-label={`${domainMeta.name} skill score`} />
+        </div>
       </CardContent>
-      <CardFooter className="flex items-center gap-2 pt-0">
-        <Button asChild className="w-full" disabled={isDisabledByFocus}>
-          <Link href={`/training/${domain.key}`}>{domain.gameTitle}</Link>
+      <CardFooter>
+        <Button
+          className="w-full"
+          disabled={isLocked}
+          onClick={() => !isLocked && onPlay(domain)}
+        >
+          {isLocked ? 'Unavailable in Core' : `Start Assessment`}
         </Button>
       </CardFooter>
     </Card>
   );
 
-  if (isDisabledByFocus) {
+  if (isLocked) {
     return (
         <TooltipProvider>
             <Tooltip delayDuration={0}>
                 <TooltipTrigger asChild>
-                    {cardContent}
+                    {/* The div wrapper is essential for the tooltip to trigger on a disabled element group */}
+                    <div className="relative h-full"> 
+                        {cardContent}
+                        <div
+                            tabIndex={0}
+                            role="tooltip"
+                            className="absolute top-2 right-2 p-1.5 bg-background/50 rounded-full cursor-help"
+                        >
+                            <Lock className="w-4 h-4 text-muted-foreground" />
+                        </div>
+                    </div>
                 </TooltipTrigger>
-                <TooltipContent>
-                    <p>(Gc) Crystallized Intelligence cannot be trained in a 'neutral' mode as it relies on existing knowledge.</p>
+                <TooltipContent side="top" align="center" className="max-w-xs">
+                    <p className="font-bold text-base mb-2">Assessment Locked</p>
+                    <p>{incompatibilityReason}</p>
                 </TooltipContent>
             </Tooltip>
         </TooltipProvider>
-    )
+    );
   }
 
   return cardContent;
-};
-
-export const ChcDomainCard = memo(ChcDomainCardComponent);
+}

@@ -5,7 +5,9 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import type { GameId, Tier, AdaptiveState, TrainingFocus, TierSelection } from '@/types';
 import { getDefaultState, TIER_CONFIG } from '@/lib/adaptive-engine';
-import { chcDomains } from '@/types';
+import { DOMAIN_META } from '@/lib/domain-constants';
+
+const allDomainIds = Object.values(DOMAIN_META).map(meta => meta.id);
 
 // The key is now a composite: `${GameId}/${TrainingFocus}`
 type GameStateKey = `${GameId}/${TrainingFocus}`;
@@ -25,10 +27,10 @@ type PerformanceActions = {
 
 const initialGameStates = (): Record<GameStateKey, AdaptiveState> => {
   const state: Partial<Record<GameStateKey, AdaptiveState>> = {};
-  for (const domain of chcDomains) {
+  for (const domainId of allDomainIds) {
     // Only initialize the neutral state
-    const key: GameStateKey = `${domain.id}/neutral`;
-    state[key] = getDefaultState(domain.id, 1); // Default all games to Tier 1
+    const key: GameStateKey = `${domainId}/neutral`;
+    state[key] = getDefaultState(domainId, 1); // Default all games to Tier 1
   }
   return state as Record<GameStateKey, AdaptiveState>;
 };

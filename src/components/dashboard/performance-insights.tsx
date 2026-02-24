@@ -13,7 +13,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { GrowthDecoration } from '../ui/growth-decoration';
 import { usePerformanceStore } from '@/hooks/use-performance-store';
 import { useTrainingFocus } from '@/hooks/use-training-focus';
-import { chcDomains } from '@/types';
+import { chcDomains } from '@/lib/domain-constants';
 
 const recommendationIcons = {
   weakArea: TrendingUp,
@@ -43,7 +43,7 @@ export function PerformanceInsights() {
           trend: 0, // Trend is not used by the flow, pass 0
         };
       });
-      const result = await getTrainingRecommendationAction(flatPerformanceData as any);
+      const result = await getTrainingRecommendationAction(flatPerformanceData);
       setRecommendation(result);
     });
 
@@ -106,7 +106,7 @@ export function PerformanceInsights() {
           <div className="p-3 bg-primary/10 rounded-lg text-center relative mt-2">
             <p className="text-sm flex items-start gap-2 pr-6">
               <Lightbulb className="w-5 h-5 mt-0.5 text-primary shrink-0" />
-              <span className="text-foreground text-left"><span className="font-bold">Insight:</span> This card uses AI to analyze your recent activity and provide a smart suggestion for your next training session.</span>
+              <span className="text-foreground text-left"><span className="font-bold">Insight:</span> This AI tool analyzes your recent activity and provide a smart suggestion for your next training session.</span>
             </p>
             <Button
               variant="ghost"

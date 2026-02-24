@@ -9,7 +9,7 @@ import type { WeakAreaRecommendationOutput } from '@/ai/flows';
 import { Lightbulb, Loader2, Info, ArrowRight, Target, X } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { domainIcons } from '../icons';
-import { chcDomains } from '@/types';
+import { chcDomains } from '@/lib/domain-constants';
 import Link from 'next/link';
 import { Skeleton } from '../ui/skeleton';
 import { useTheme } from '@/hooks/use-theme';

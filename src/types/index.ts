@@ -14,28 +14,6 @@ export type GameId =
   | 'glr_fluency_storm'
   | 'ef_focus_switch';
 
-export const chcDomains: { 
-  key: CHCDomain; 
-  id: GameId;
-  name: string; 
-  description: string; 
-  gameTitle: string;
-  supportsMath: boolean;
-  supportsMusic: boolean;
-  supportsVerbal: boolean;
-  supportsSpatial: boolean;
-  supportsEq: boolean;
-  supportsLogic: boolean;
-}[] = [
-  { key: 'Gf', id: 'gf_pattern_matrix', name: '(Gf) Fluid Reasoning', description: 'Solve new problems', gameTitle: 'Pattern Matrix', supportsMath: true, supportsMusic: true, supportsVerbal: true, supportsSpatial: true, supportsEq: true, supportsLogic: true },
-  { key: 'Gc', id: 'gc_verbal_inference', name: '(Gc) Crystallized Intelligence', description: 'Use learned knowledge', gameTitle: 'Verbal Inference Builder', supportsMath: true, supportsMusic: true, supportsVerbal: true, supportsSpatial: true, supportsEq: true, supportsLogic: true },
-  { key: 'Gwm', id: 'gwm_dynamic_sequence', name: '(Gwm) Working Memory', description: 'Use and hold information', gameTitle: 'Dynamic Sequence', supportsMath: true, supportsMusic: true, supportsVerbal: true, supportsSpatial: true, supportsEq: true, supportsLogic: true },
-  { key: 'Gs', id: 'gs_rapid_code', name: '(Gs) Processing Speed', description: 'Work fast and accurately', gameTitle: 'Rapid Code Match', supportsMath: true, supportsMusic: true, supportsVerbal: true, supportsSpatial: true, supportsEq: true, supportsLogic: true },
-  { key: 'Gv', id: 'gv_visual_lab', name: '(Gv) Visual Processing', description: 'Visualize and manipulate objects', gameTitle: 'Visual Processing Lab', supportsMath: true, supportsMusic: true, supportsVerbal: true, supportsSpatial: true, supportsEq: true, supportsLogic: true },
-  { key: 'Ga', id: 'ga_auditory_lab', name: '(Ga) Auditory Processing', description: 'Analyze and distinguish sounds', gameTitle: 'Auditory Processing Lab', supportsMath: true, supportsMusic: true, supportsVerbal: true, supportsSpatial: true, supportsEq: true, supportsLogic: true },
-  { key: 'Glr', id: 'glr_fluency_storm', name: '(Glr) Long-Term Retrieval', description: 'Store and retrieve information', gameTitle: 'Retrieval Trainer', supportsMath: true, supportsMusic: true, supportsVerbal: true, supportsSpatial: true, supportsEq: true, supportsLogic: true },
-  { key: 'EF', id: 'ef_focus_switch', name: '(EF) Executive Function', description: 'Focus, switch, and control tasks', gameTitle: 'Focus Switch Reactor', supportsMath: true, supportsMusic: true, supportsVerbal: true, supportsSpatial: true, supportsEq: true, supportsLogic: true },
-];
 
 // --- Difficulty & Adaptive Engine Types ---
 export type Tier = 0 | 1 | 2 | 3;

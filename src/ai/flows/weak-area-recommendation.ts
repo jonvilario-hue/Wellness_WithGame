@@ -13,7 +13,7 @@
  */
 
 import { z } from 'zod';
-import { chcDomains } from '@/types';
+import { chcDomains } from '@/lib/domain-constants';
 import { getWeakAreaTemplate } from '@/lib/prompt-templates';
 
 const CHCDomainSchema = z.enum([

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,9 +13,10 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { chcDomains } from '@/types';
+import { chcDomains } from '@/lib/domain-constants';
 import { GrowthDecoration } from '../ui/growth-decoration';
 import { useTheme } from '@/hooks/use-theme';
+import type { CHCDomain } from '@/types';
 
 export function HyperfocusBuilder() {
   const { currentFocus, daysCompleted, cycleLength, progress, isLoaded, setManualFocus } = useFocusBuilder();
@@ -82,7 +82,7 @@ export function HyperfocusBuilder() {
             <DropdownMenuContent className="w-64">
                 <DropdownMenuRadioGroup 
                     value={currentFocus.key} 
-                    onValueChange={(value) => setManualFocus(value as any)}
+                    onValueChange={(value) => setManualFocus(value as CHCDomain)}
                 >
                     {chcDomains.map(domain => (
                         <DropdownMenuRadioItem key={domain.key} value={domain.key}>

@@ -2,14 +2,23 @@
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { chcDomains } from '@/types';
 import { ChcDomainCard } from './chc-domain-card';
 import { Gamepad2 } from 'lucide-react';
 import { useTheme } from '@/hooks/use-theme';
 import { GrowthDecoration } from '../ui/growth-decoration';
+import { useRouter } from 'next/navigation';
+import type { CHCDomain } from '@/types';
+import { DOMAIN_META } from '@/lib/domain-constants';
+
+const allDomains = Object.keys(DOMAIN_META) as CHCDomain[];
 
 export function AllGames() {
   const { organicGrowth } = useTheme();
+  const router = useRouter();
+
+  const handlePlay = (domainKey: CHCDomain) => {
+    router.push(`/training/${domainKey}`);
+  };
 
   return (
     <Card className="relative overflow-hidden">
@@ -25,11 +34,12 @@ export function AllGames() {
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {chcDomains.map((domain) => (
-            <ChcDomainCard key={domain.key} domain={domain} />
+          {allDomains.map((domainKey) => (
+            <ChcDomainCard key={domainKey} domain={domainKey} onPlay={handlePlay} />
           ))}
         </div>
       </CardContent>
     </Card>
   );
 }
+

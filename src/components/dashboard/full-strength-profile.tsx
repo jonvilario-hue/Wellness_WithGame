@@ -13,7 +13,7 @@ import {
 } from 'recharts';
 import { Card, CardContent } from '../ui/card';
 import { Skeleton } from '../ui/skeleton';
-import { chcDomains } from '@/types';
+import { chcDomains } from '@/lib/domain-constants';
 import { domainIcons } from '../icons';
 import { cn } from '@/lib/utils';
 import { usePerformanceStore } from '@/hooks/use-performance-store';
@@ -36,7 +36,7 @@ export function FullStrengthProfile() {
   const chartData = useMemo(() => {
     if (!isComponentLoaded) return [];
     return chcDomains.map(domain => {
-      const gameState = gameStates[domain.id];
+      const gameState = gameStates[`${domain.id}/neutral`];
       const score = gameState ? Math.round((gameState.currentLevel / gameState.levelCeiling) * 100) : 0;
       const displayScore = score > 0 ? score : Math.round(Math.random() * 20 + 20); // Use real score or fallback for display
 
