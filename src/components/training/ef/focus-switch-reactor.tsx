@@ -15,6 +15,7 @@ import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types"
 import { GameStub } from "../game-stub";
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
+import { domainIcons } from "@/components/icons";
 
 
 const GAME_ID: GameId = 'ef_focus_switch';
@@ -408,4 +409,5 @@ export function FocusSwitchReactor() {
   );
 }
 
+    
     

@@ -134,11 +134,9 @@ export function VisualMusicMatch({ focus }: { focus: TrainingFocus }) {
         
         const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs, telemetry: {} };
         logTrial({
-            id: crypto.randomUUID(),
-            userId: 'local_user',
-            timestamp: Date.now(),
             module_id: GAME_ID,
-            currentLevel: adaptiveState.currentLevel,
+            mode: focus,
+            levelPlayed: adaptiveState.currentLevel,
             isCorrect,
             responseTime_ms: reactionTimeMs,
             meta: {
@@ -173,7 +171,7 @@ export function VisualMusicMatch({ focus }: { focus: TrainingFocus }) {
              return (
                 <div className="flex flex-col items-center gap-4">
                   <div className="font-mono text-lg">Level: {adaptiveState.currentLevel}</div>
-                  <Button onClick={startNewSession} size="lg">Visual Processing Lab</Button>
+                  <Button onClick={startNewSession} size="lg">Visual Music Match</Button>
                 </div>
             );
         }
@@ -245,3 +243,5 @@ export function VisualMusicMatch({ focus }: { focus: TrainingFocus }) {
         </Card>
     )
 }
+
+    

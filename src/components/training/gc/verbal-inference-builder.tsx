@@ -146,7 +146,8 @@ export function VerbalInferenceBuilder() {
     const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs, telemetry: {} };
     logTrial({
       module_id: GAME_ID,
-      currentLevel: adaptiveState.currentLevel,
+      mode: currentMode,
+      levelPlayed: adaptiveState.currentLevel,
       isCorrect,
       responseTime_ms: reactionTimeMs,
       meta: {
@@ -287,3 +288,5 @@ export function VerbalInferenceBuilder() {
     </Card>
   );
 }
+
+    

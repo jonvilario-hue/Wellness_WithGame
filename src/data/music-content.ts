@@ -59,3 +59,5 @@ export const musicTheoryQuestions = [
     explanation: "Ternary form consists of an opening section (A), a contrasting section (B), and a return to the opening section's material (A)."
   }
 ];
+
+    

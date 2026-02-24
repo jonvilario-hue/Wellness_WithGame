@@ -177,8 +177,8 @@ const PhonemeInNoiseModule = ({ onComplete, level, focus }: { onComplete: (resul
                 {feedback === 'incorrect' && <p className="text-destructive font-bold text-2xl flex items-center gap-2"><X /> Incorrect</p>}
             </div>
             <div className="grid grid-cols-2 gap-4">
-                <Button onClick={() => handleResponse(false, speech.speaking)} disabled={!isAnswering} size="lg" className="h-24 text-2xl">NO</Button>
-                <Button onClick={() => handleResponse(true, speech.speaking)} disabled={!isAnswering} size="lg" className="h-24 text-2xl">YES</Button>
+                <Button onClick={() => handleResponse(false, false)} disabled={!isAnswering} size="lg" className="h-24 text-2xl">NO</Button>
+                <Button onClick={() => handleResponse(true, true)} disabled={!isAnswering} size="lg" className="h-24 text-2xl">YES</Button>
             </div>
             <p className="text-sm text-muted-foreground">Trial: {trials + 1} / 15 | Score: {score}</p>
         </div>
@@ -210,7 +210,7 @@ export function AuditoryProcessingRouter() {
     const startSessionFlow = () => {
         if (!adaptiveState) return;
         resumeContext();
-        setGameState('calibration');
+        setGameState('headphoneCheck');
     };
 
     const startTraining = () => {
@@ -224,6 +224,12 @@ export function AuditoryProcessingRouter() {
     }
 
     if (currentMode === 'neutral') {
+        return <GaAbstractAuditoryTasks focus={currentMode} />;
+    }
+    
+    if (currentMode === 'music') {
+        // In a real app, this would be a dedicated music component.
+        // Re-using abstract tasks as a placeholder for music mode.
         return <GaAbstractAuditoryTasks focus={currentMode} />;
     }
 
@@ -263,7 +269,7 @@ export function AuditoryProcessingRouter() {
 
         switch (gameState) {
             case 'idle':
-                return <Button onClick={() => setGameState('headphoneCheck')} size="lg" className="bg-violet-600 hover:bg-violet-500 text-white">Auditory Processing Lab</Button>;
+                return <Button onClick={startSessionFlow} size="lg" className="bg-violet-600 hover:bg-violet-500 text-white">Auditory Processing Lab</Button>;
             
             case 'headphoneCheck':
                 return (
@@ -275,7 +281,7 @@ export function AuditoryProcessingRouter() {
                                     For accurate training, please use headphones. Results without headphones may be unreliable.
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
-                            <AlertDialogAction onClick={startSessionFlow}>I am using headphones</AlertDialogAction>
+                            <AlertDialogAction onClick={() => setGameState('calibration')}>I am using headphones</AlertDialogAction>
                         </AlertDialogContent>
                     </AlertDialog>
                 );
@@ -325,4 +331,5 @@ export function AuditoryProcessingRouter() {
     );
 }
 
+    
     

@@ -57,14 +57,7 @@ export function SemanticFluencyStorm() {
     };
 
     if (currentTrainingFocus === 'music') {
-        return <GameStub 
-            name="Spaced Musical Associative Memory"
-            chcFactor="Long-Term Retrieval (Glr)"
-            description="First, you will learn pairs of short musical motifs and abstract icons. After a delay filled with a distractor task, you will be cued with an icon and must recall or recognize the associated musical motif."
-            techStack={['Web Audio API', 'SVG Icons']}
-            complexity="High"
-            fallbackPlan="If audio synthesis fails, motifs are represented visually as simple text strings (e.g., 'C-E-G') or simple graphical contours. This preserves the associative memory task, shifting the recall modality from auditory to visual."
-        />;
+        return <SpacedRetrievalMode onComplete={handleGameComplete} focus={currentTrainingFocus} />;
     }
 
     if (currentTrainingFocus === 'spatial') {

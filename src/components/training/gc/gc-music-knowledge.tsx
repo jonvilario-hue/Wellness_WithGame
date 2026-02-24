@@ -76,7 +76,8 @@ export function GcMusicKnowledge({ focus = 'music' }: { focus: TrainingFocus }) 
 
     logTrial({
       module_id: GAME_ID,
-      currentLevel: levelPlayed,
+      mode: focus,
+      levelPlayed: levelPlayed,
       isCorrect,
       responseTime_ms: reactionTimeMs,
       meta: trialResult.telemetry
@@ -218,3 +219,5 @@ export function GcMusicKnowledge({ focus = 'music' }: { focus: TrainingFocus }) 
     </Card>
   );
 }
+
+    
