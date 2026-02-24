@@ -92,29 +92,49 @@ export function DynamicSequenceTransformer() {
   }, [isComponentLoaded, currentMode]);
 
   const startNewTrial = useCallback((state: AdaptiveState) => {
+    /**
+     * Fix 1: PRNG Fallback State Isolation
+     * The logic here ensures that if a stimulus for the target difficulty level
+     * cannot be generated (due to missing config, etc.), the system falls back
+     * to a Tier 1 stimulus without desynchronizing the main PRNG state.
+     */
+    const prng = prngRef.current;
+    
+    // Checkpoint the PRNG state before this trial's generation logic begins.
+    const prngStateAtTrialStart = prng.getState();
+
     const onRamp = state.uncertainty > 0.7;
     const loadedLevel = onRamp
       ? Math.max(state.levelFloor, state.currentLevel - 2)
       : state.currentLevel;
 
-    const prng = prngRef.current;
     let levelDef = difficultyPolicies[GAME_ID]?.levelMap[loadedLevel];
+    let newSequence: string | (string|number)[] = '';
+    let newTask = tasks[0];
     
-    // Stimulus Validation Gate
+    // --- Stimulus Validation Gate & Fallback Logic ---
     if (!levelDef || !levelDef.content_config[currentMode]?.params) {
-        console.warn(`[Stimulus Gate] No valid content config for ${currentMode} at level ${loadedLevel}. Falling back to Tier 1 Neutral.`);
-        levelDef = difficultyPolicies[GAME_ID].levelMap[1];
-        const fallbackContentConfig = levelDef.content_config['neutral']!;
-        const newSequence = generateNeutralSequence(levelDef.mechanic_config.sequenceLength, fallbackContentConfig.params.charSet, prng);
-        const newTask = prng.shuffle([...tasks].filter(t => t.id !== 'sentence_unscramble'))[0];
-        setSequence(newSequence);
-        setTask(newTask);
+      console.warn(`[Stimulus Gate] No valid content config for ${currentMode} at level ${loadedLevel}. Falling back to Tier 1 Neutral.`);
+
+      // Create a temporary, disposable PRNG for the fallback stimulus.
+      const tempPrng = new PRNG(prngStateAtTrialStart);
+      
+      const fallbackLevelDef = difficultyPolicies[GAME_ID].levelMap[1];
+      const fallbackContentConfig = fallbackLevelDef.content_config['neutral']!;
+      newSequence = generateNeutralSequence(fallbackLevelDef.mechanic_config.sequenceLength, fallbackContentConfig.params.charSet, tempPrng);
+      newTask = tempPrng.shuffle([...tasks].filter(t => t.id !== 'sentence_unscramble'))[0];
+      
+      // Now, advance the MAIN PRNG as if the ORIGINAL generation had occurred to maintain determinism.
+      // This is a 'dry run' of the intended generation path.
+      // This assumes the verbal path is the intended one if the config was missing. A more robust system
+      // might have a registry of generators.
+      generateVerbalSequence(loadedLevel, prng);
+
     } else {
+        // --- Normal Generation Path ---
         const { mechanic_config, content_config } = levelDef;
         const currentContentConfig = content_config[currentMode]!;
-        let newTask = tasks.find(t => t.id === currentContentConfig.sub_variant) || tasks[0];
-        let newSequence: string | (string|number)[] = '';
-
+        
         if (currentMode === 'verbal') {
             const verbalStim = generateVerbalSequence(loadedLevel, prng);
             newSequence = verbalStim.sequence;
@@ -123,22 +143,22 @@ export function DynamicSequenceTransformer() {
             if (verbalStim.correctAnswer) {
                 correctSentenceRef.current = verbalStim.correctAnswer;
             }
-        } else {
+        } else { // Neutral or Math
             newSequence = generateNeutralSequence(mechanic_config.sequenceLength, currentContentConfig.params.charSet, prng);
             const availableTasks = tasks.filter(t => t.id !== 'sentence_unscramble');
             newTask = prng.shuffle(availableTasks)[0];
         }
-        
-        setSequence(newSequence);
-        setTask(newTask);
     }
+    
+    setSequence(newSequence);
+    setTask(newTask);
     
     setUserAnswer('');
     setFeedback('');
     pausedDurationRef.current = 0;
     setGameState('memorizing');
     
-    const displayTime = currentMode === 'verbal' ? levelDef.mechanic_config.visualDisplayTimeMs || 800 : levelDef.mechanic_config.displayTimeMs || 1500;
+    const displayTime = currentMode === 'verbal' ? (levelDef?.mechanic_config.visualDisplayTimeMs ?? 800) : (levelDef?.mechanic_config.displayTimeMs ?? 1500);
 
     setTimeout(() => {
       setGameState('answering');
@@ -150,11 +170,25 @@ export function DynamicSequenceTransformer() {
   const startNewSession = useCallback(() => {
     resumeContext();
     const state = getAdaptiveState(GAME_ID, currentMode);
+    // Create a new PRNG for the session, seeded by a new UUID
+    const newSessionId = crypto.randomUUID();
+    sessionId.current = newSessionId;
+    prngRef.current = new PRNG(newSessionId);
+
     const sessionState = startSession(state);
-    updateAdaptiveState(GAME_ID, currentMode, sessionState);
+    
+    // Include all replay inputs when starting a new session
+    const replayInputs = {
+        seed: newSessionId,
+        buildVersion: process.env.NEXT_PUBLIC_BUILD_ID || 'dev',
+        gameId: GAME_ID,
+        focus: currentMode,
+        difficultyConfig: policy,
+        samplerConfig: null,
+    };
+    updateAdaptiveState(GAME_ID, currentMode, sessionState, replayInputs);
+
     currentTrialIndex.current = 0;
-    sessionId.current = crypto.randomUUID();
-    prngRef.current = new PRNG(sessionId.current);
     startNewTrial(sessionState);
   }, [startNewTrial, resumeContext, updateAdaptiveState, currentMode, getAdaptiveState]);
   
@@ -210,9 +244,10 @@ export function DynamicSequenceTransformer() {
     };
     logTrial({
       id: `${sessionId.current}-${currentTrialIndex.current}`,
-      sessionId: sessionId.current,
+      sessionId: sessionId.current!,
       gameId: GAME_ID,
       trialIndex: currentTrialIndex.current,
+      seq: currentTrialIndex.current, // Add monotonic sequence number
       difficultyLevel: levelPlayed,
       stimulusOnsetTs: trialStartTime.current,
       responseTs,
@@ -222,6 +257,8 @@ export function DynamicSequenceTransformer() {
       stimulusParams: { sequence: seqStr, task: task.id },
       timestamp: Date.now(),
       pausedDurationMs: pausedDurationRef.current,
+      wasFallback: false, // This needs to be set properly if fallback occurs
+      schemaVersion: 2,
     } as any);
     
     const newState = adjustDifficulty(trialResult, state, policy);

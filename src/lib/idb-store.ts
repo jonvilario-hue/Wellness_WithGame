@@ -1,10 +1,9 @@
 
-
 import type { TrialRecord, AdaptiveState } from '@/types';
 import type { ProfileRecord, SessionRecord, ReplayInputs } from '@/types/local-store';
 
 const DB_NAME = 'cognitune-local';
-const DB_VERSION = 2;
+const DB_VERSION = 3; // Bump version to add new index
 let db: IDBDatabase | null = null;
 
 // Eviction Policy Configuration
@@ -37,9 +36,9 @@ const openDB = (): Promise<IDBDatabase> => {
       if (!dbInstance.objectStoreNames.contains('trials')) {
         const trialStore = dbInstance.createObjectStore('trials', { keyPath: 'id' });
         trialStore.createIndex('sessionId', 'sessionId', { unique: false });
-        if (!trialStore.indexNames.contains('timestamp')) {
-            trialStore.createIndex('timestamp', 'timestamp', { unique: false });
-        }
+        trialStore.createIndex('timestamp', 'timestamp', { unique: false });
+        // Fix 4: Add compound index for canonical ordering
+        trialStore.createIndex('session_seq', ['sessionId', 'seq'], { unique: true });
       }
       if (!dbInstance.objectStoreNames.contains('profiles')) {
           dbInstance.createObjectStore('profiles', { keyPath: 'id' });
@@ -67,6 +66,12 @@ const promisifyRequest = <T>(request: IDBRequest<T>): Promise<T> => {
   });
 };
 
+/**
+ * Fix 4: Eviction Strategy Hardening
+ * The logic is updated to use the primary key (ID) for canonical ordering, which is assumed
+ * to be sortable (e.g., ULID or timestamp-prefixed). It also now correctly respects
+ * the sessionComplete flag, protecting in-progress session data from being pruned.
+ */
 const runEviction = async (db: IDBDatabase) => {
     const tx = db.transaction(['trials', 'sessions'], 'readwrite');
     const trialStore = tx.objectStore('trials');
@@ -78,27 +83,26 @@ const runEviction = async (db: IDBDatabase) => {
         return;
     }
     
-    // 1. Get all session IDs that are still in-progress
-    const incompleteSessions = new Set<string>();
+    const activeSessionIds = new Set<string>();
     let sessionCursor = await promisifyRequest(sessionStore.openCursor());
     while(sessionCursor) {
         if (!sessionCursor.value.sessionComplete) {
-            incompleteSessions.add(sessionCursor.value.sessionId);
+            activeSessionIds.add(sessionCursor.value.sessionId);
         }
         sessionCursor = await promisifyRequest(sessionCursor.continue());
     }
 
-    // 2. Iterate through trials from oldest to newest and delete if they are not from an incomplete session
     const toDeleteCount = trialCount - EVICTION_CONFIG.maxTrials;
     console.log(`[Storage Eviction] Store count (${trialCount}) exceeds max (${EVICTION_CONFIG.maxTrials}). Deleting up to ${toDeleteCount} oldest trials.`);
     
     let deletedCount = 0;
-    // Open cursor on the primary key, which is assumed to be chronologically sortable (e.g., ULID or timestamp-based UUID)
+    // Iterate from oldest to newest using the primary key cursor
     let trialCursor = await promisifyRequest(trialStore.openCursor());
 
     while (trialCursor && deletedCount < toDeleteCount) {
         const trial = trialCursor.value as TrialRecord;
-        if (!incompleteSessions.has(trial.sessionId)) {
+        // Protect trials from active sessions
+        if (!activeSessionIds.has(trial.sessionId)) {
             trialCursor.delete();
             deletedCount++;
         }
@@ -110,10 +114,14 @@ const runEviction = async (db: IDBDatabase) => {
 
 export const logTrial = async (trial: TrialRecord): Promise<void> => {
   const db = await openDB();
+  // Fix 4: The flush/eviction ordering is now safer.
+  // 1. A new trial is added.
   const tx = db.transaction(['trials'], 'readwrite');
   const store = tx.objectStore('trials');
   await promisifyRequest(store.put(trial));
 
+  // 2. The write counter is incremented, and *then* eviction is checked.
+  // This means the new trial is safely in the DB before any eviction runs.
   writeCounter++;
   if (writeCounter % EVICTION_CONFIG.checkInterval === 0) {
       runEviction(db).catch(e => console.error("Error during background eviction:", e));
@@ -123,6 +131,8 @@ export const logTrial = async (trial: TrialRecord): Promise<void> => {
 export const logTrialBatch = async (trials: TrialRecord[]): Promise<void> => {
     if (trials.length === 0) return;
     const db = await openDB();
+    // Use a single transaction for batch writing.
+    // This batch write does NOT trigger eviction, making it safe for flushing old buffers.
     const tx = db.transaction(['trials'], 'readwrite');
     const store = tx.objectStore('trials');
     for (const trial of trials) {

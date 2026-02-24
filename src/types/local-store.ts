@@ -1,5 +1,5 @@
 
-import type { TrialRecord, AdaptiveState, GameId, TrainingFocus } from './index';
+import type { TrialRecord, AdaptiveState, GameId, TrainingFocus, DifficultyPolicy } from './index';
 
 export interface LatencyInfo {
     baseLatency: number;
@@ -12,9 +12,8 @@ export interface ReplayInputs {
     buildVersion: string;
     gameId: GameId;
     focus: TrainingFocus;
-    // A snapshot of the difficulty policy for this session
-    difficultyConfig: any; 
-    samplerConfig?: any;
+    difficultyConfig: Partial<DifficultyPolicy>; 
+    samplerConfig: Record<string, unknown> | null;
 }
 
 export interface SessionRecord {

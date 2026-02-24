@@ -53,10 +53,18 @@ export class PRNG {
     return newArray;
   }
 
+  /**
+   * Returns the current internal state of the PRNG.
+   * @returns The current seed value.
+   */
   public getState(): number {
     return this.seed;
   }
 
+  /**
+   * Sets the internal state of the PRNG to a specific value.
+   * @param seed The seed value to restore.
+   */
   public setState(seed: number): void {
     this.seed = seed;
   }

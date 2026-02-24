@@ -26,6 +26,10 @@ import { PRNG } from "@/lib/rng";
 const GLR_GAME_ID: GameId = 'glr_fluency_storm';
 const glrPolicy = difficultyPolicies[GLR_GAME_ID];
 
+/**
+ * Fix 2: CategorySampler is now a local utility within the component that uses it,
+ * removing the abstraction leak from the shared rng.ts module.
+ */
 class CategorySampler {
     private categories: string[];
     private prng: PRNG;
@@ -155,7 +159,6 @@ export function SemanticFluencyStorm() {
 
 function AssociativeChainMode({ onComplete, focus }: { onComplete: (result: { score: number, trials: TrialResult[] }) => void, focus: TrainingFocus }) {
     const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
-    const wordList = useMemo(() => realWords, []);
     
     const [chain, setChain] = useState<string[]>([]);
     const [trials, setTrials] = useState<TrialResult[]>([]);
@@ -170,7 +173,7 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (result: { sc
     const sessionId = useRef(crypto.randomUUID());
     const prngRef = useRef<PRNG>(new PRNG(sessionId.current));
 
-    const [currentWord, setCurrentWord] = useState(() => wordList[prngRef.current.nextIntRange(0, wordList.length)]);
+    const [currentWord, setCurrentWord] = useState(() => prngRef.current.shuffle(realWords)[0]);
     const [currentRule, setCurrentRule] = useState<any>(() => prngRef.current.shuffle(["ASSOCIATE", "RHYME", "ANTONYM", "FIRST LETTER MATCH"])[0]);
 
     const handleTimeout = useCallback(() => {
@@ -212,7 +215,7 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (result: { sc
         const currentState = getAdaptiveState(GLR_GAME_ID, focus);
         const trial: TrialResult = { correct: isValid, reactionTimeMs, telemetry: { mode: 'associative', rule: currentRule, word: currentWord } };
         
-        logTrial({ sessionId: sessionId.current, gameId: GLR_GAME_ID, ...trial} as any);
+        logTrial({ sessionId: sessionId.current, gameId: GLR_GAME_ID, seq: trials.length, ...trial} as any);
         setTrials(prev => [...prev, trial]);
 
         const newState = adjustDifficulty(trial, currentState, glrPolicy);
@@ -314,7 +317,7 @@ function CategorySwitchingMode({ onComplete, focus }: { onComplete: (result: { s
         const trial: TrialResult = { correct: !alreadySubmitted, reactionTimeMs, telemetry: { mode: 'category', category: currentCategory, word } };
 
         const currentState = getAdaptiveState(GLR_GAME_ID, focus);
-        logTrial({ sessionId: sessionId.current, gameId: GLR_GAME_ID, ...trial } as any);
+        logTrial({ sessionId: sessionId.current, gameId: GLR_GAME_ID, seq: trials.length, ...trial } as any);
         setTrials(prev => [...prev, trial]);
 
         const newState = adjustDifficulty(trial, currentState, glrPolicy);

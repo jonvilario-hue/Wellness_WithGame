@@ -1,11 +1,11 @@
 
-
 'use client';
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
-import type { GameId, TrialRecord, TrainingFocus, AdaptiveState, TierSelection } from '@/types';
+import type { GameId, TrialRecord, TrainingFocus, AdaptiveState, TierSelection, DifficultyPolicy } from '@/types';
+import type { ReplayInputs } from '@/types/local-store';
 import { getDefaultState } from '@/lib/adaptive-engine';
 import * as idbStore from '@/lib/idb-store';
 import * as aggregator from '@/lib/local-aggregator';
@@ -19,11 +19,11 @@ type PerformanceState = {
 
 type PerformanceActions = {
     getAdaptiveState: (gameId: GameId, focus: TrainingFocus) => AdaptiveState;
-    updateAdaptiveState: (gameId: GameId, focus: TrainingFocus, newState: Partial<AdaptiveState>) => void;
+    updateAdaptiveState: (gameId: GameId, focus: TrainingFocus, newState: Partial<AdaptiveState>, replayInputs?: ReplayInputs) => void;
     setGameTier: (gameId: GameId, focus: TrainingFocus, tier: TierSelection) => void;
     setGlobalTier: (tier: TierSelection) => void;
     hydrate: () => Promise<void>;
-    logTrial: (record: TrialRecord) => Promise<void>;
+    logTrial: (record: Omit<TrialRecord, 'id' | 'sessionId' | 'schemaVersion'> & { sessionId: string }) => Promise<void>;
     flushFailedWrites: () => Promise<void>;
     exportData: () => Promise<string>;
     importData: (json: string) => Promise<void>;
@@ -79,7 +79,7 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
                 return finalState;
             },
 
-            updateAdaptiveState: (gameId, focus, newState) => {
+            updateAdaptiveState: (gameId, focus, newState, replayInputs) => {
                 const key = `${gameId}/${focus}`;
                 set(state => {
                     if (state.gameStates[key]) {
@@ -87,6 +87,17 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
                         idbStore.setProfile(key, state.gameStates[key]).catch(e => console.error("Failed to update profile in IDB", e));
                     }
                 });
+                if (replayInputs && newState.sessionCount) {
+                    idbStore.startOrUpdateSession({
+                        sessionId: `session-${gameId}-${focus}-${Date.now()}`,
+                        gameId,
+                        mode: focus,
+                        deviceInfo: { baseLatency: 0, outputLatency: 0, sampleRate: 0},
+                        startTimestamp: Date.now(),
+                        sessionComplete: false,
+                        replayInputs: replayInputs,
+                    });
+                }
             },
 
             setGlobalTier: (tier) => set({ globalTier: tier }),
@@ -116,13 +127,18 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
             },
 
             logTrial: async (record) => {
+                const fullRecord: TrialRecord = {
+                    ...record,
+                    id: `${record.sessionId}-${record.trialIndex}`,
+                    schemaVersion: 2,
+                };
                  // First, try to log the new record. This may trigger an eviction run.
                 try {
-                    await idbStore.logTrial(record);
+                    await idbStore.logTrial(fullRecord);
                 } catch (error) {
                     console.warn("[Storage] IDB write failed. Buffering trial record.", error);
                     set(state => {
-                        state.failedWrites.push(record);
+                        state.failedWrites.push(fullRecord);
                         if (state.failedWrites.length > 500) {
                             console.warn(`[Storage] In-memory buffer full. Dropping oldest trial record.`);
                             state.failedWrites.shift(); 

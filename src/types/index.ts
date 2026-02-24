@@ -1,5 +1,4 @@
 
-
 'use client';
 
 // This file is the single source of truth for all shared types in the application.
@@ -24,6 +23,7 @@ export interface TrialRecord {
   sessionId: string;
   gameId: GameId;
   schemaVersion: 2; // For backward compatibility
+  seq: number; // Monotonic per-session sequence number
   trialIndex: number;
   condition?: string;
   stimulusParams: Record<string, any>;

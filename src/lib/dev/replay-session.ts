@@ -1,6 +1,6 @@
 
 /**
- * @fileoverview Development-only empirical replay validator.
+ * @fileoverview Fix 5: Development-only empirical replay validator.
  * This script allows developers to verify the determinism of the stimulus
  * generation pipeline by re-running a recorded session and comparing the output.
  */
@@ -28,7 +28,7 @@ const getStimulusGenerator = (gameId: GameId, focus: TrainingFocus) => {
     return generatorMap[gameId]?.[focus];
 }
 
-export async function replayAndValidateSession(replayInputs: ReplayInput, recordedTrials: TrialRecord[]): Promise<{ valid: boolean, mismatches: any[] }> {
+export async function replayAndValidateSession(replayInputs: ReplayInputs, recordedTrials: TrialRecord[]): Promise<{ valid: boolean, mismatches: any[] }> {
     if (process.env.NODE_ENV !== 'development') {
         console.warn("Replay validation is only available in development mode.");
         return { valid: true, mismatches: [] };
