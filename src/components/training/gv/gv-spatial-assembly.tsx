@@ -14,8 +14,6 @@ import { difficultyPolicies } from "@/data/difficulty-policies";
 const GAME_ID: GameId = 'gv_visual_lab';
 const policy = difficultyPolicies[GAME_ID];
 
-const TOTAL_TRIALS = 15;
-
 const PUZZLE_BANK = [
   // Tier 1: Simple Assembly, No Rotation
   { tier: 1, fragments: [{ d: "M 0 0 L 100 0 L 100 100 L 0 100 Z", t: "translate(0, 0)" }, { d: "M 100 0 L 200 0 L 200 100 L 100 100 Z", t: "translate(10, 0)" }], solution: { d: "M 0 0 L 200 0 L 200 100 L 0 100 Z" }, distractors: [{ d: "M 0 0 L 150 0 L 150 100 L 0 100 Z" }, { d: "M 0 0 L 200 0 L 200 80 L 0 80 Z" }] },
@@ -56,12 +54,24 @@ export function GvSpatialAssembly({ focus }: { focus: TrainingFocus }) {
   const trialStartTime = useRef(0);
   
   const puzzle = useMemo(() => {
-      if (!adaptiveState) return null;
-      const level = adaptiveState.currentLevel;
-      const policyTier = Math.ceil(level / (policy.levelMap[10].mechanic_config.distractor_similarity / 3)); 
-      const puzzlesInTier = PUZZLE_BANK.filter(p => p.tier === policyTier);
-      return puzzlesInTier[currentTrialIndex % puzzlesInTier.length];
-  }, [adaptiveState, currentTrialIndex]);
+    if (!adaptiveState) return null;
+    const level = adaptiveState.currentLevel;
+    
+    // Get the policy for the current level, or the last defined level as a fallback
+    const policyForLevel = policy.levelMap[level] || policy.levelMap[Object.keys(policy.levelMap).pop() as any];
+    
+    // Get puzzle_tier from the policy, defaulting to 1
+    const policyTier = policyForLevel?.content_config?.[focus]?.params?.puzzle_tier || 1;
+
+    const puzzlesInTier = PUZZLE_BANK.filter(p => p.tier === policyTier);
+    if (puzzlesInTier.length === 0) {
+      // Fallback to a tier 1 puzzle if no puzzles are found for the current tier
+      const fallbackPuzzles = PUZZLE_BANK.filter(p => p.tier === 1);
+      return fallbackPuzzles[currentTrialIndex % fallbackPuzzles.length];
+    }
+    
+    return puzzlesInTier[currentTrialIndex % puzzlesInTier.length];
+  }, [adaptiveState, currentTrialIndex, focus]);
 
   const answerOptions = useMemo(() => puzzle ? shuffle([puzzle.solution, ...puzzle.distractors]) : [], [puzzle]);
 
