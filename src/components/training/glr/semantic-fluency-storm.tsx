@@ -21,6 +21,7 @@ import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engin
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import { domainIcons } from "@/components/icons";
 import { usePageVisibility } from "@/hooks/use-page-visibility";
+import { PRNG, CategorySampler } from "@/lib/rng";
 
 const GLR_GAME_ID: GameId = 'glr_fluency_storm';
 const glrPolicy = difficultyPolicies[GLR_GAME_ID];
@@ -259,32 +260,36 @@ function CategorySwitchingMode({ onComplete, focus }: { onComplete: (result: { s
     const { logSubmittedWord, isWordSubmitted } = useGlrStore();
     const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
     
-    const [categoryIndex, setCategoryIndex] = useState(0);
     const [timeLeft, setTimeLeft] = useState(10);
     const [totalTimeLeft, setTotalTimeLeft] = useState(60);
     const [score, setScore] = useState(0);
     const [userInput, setUserInput] = useState('');
     const [trials, setTrials] = useState<TrialResult[]>([]);
     const { toast } = useToast();
+    
     const categoryTimerRef = useRef<NodeJS.Timeout>();
     const totalTimerRef = useRef<NodeJS.Timeout>();
     const trialStartTime = useRef<number>(0);
     const isVisible = usePageVisibility();
 
-    const categories = useMemo(() => {
+    const sessionId = useRef(crypto.randomUUID());
+    const prng = useMemo(() => new PRNG(sessionId.current), [sessionId.current]);
+
+    const categoryList = useMemo(() => {
         if (focus === 'math') return mathCategories;
         if (focus === 'music') return musicCategories;
         if (focus === 'verbal') return verbalCategories;
         if (focus === 'eq') return ['Positive Emotions', 'Negative Emotions', 'Social Roles', 'Causes of Joy'];
         return generalCategories;
     }, [focus]);
-
-    const currentCategory = categories[categoryIndex];
+    
+    const categorySampler = useMemo(() => new CategorySampler(categoryList, prng), [categoryList, prng]);
+    const [currentCategory, setCurrentCategory] = useState(() => categorySampler.next());
 
     const switchCategory = useCallback(() => {
-        setCategoryIndex(prev => (prev + 1) % categories.length);
+        setCurrentCategory(categorySampler.next());
         setTimeLeft(10);
-    }, [categories.length]);
+    }, [categorySampler]);
     
     const stopTimers = useCallback(() => {
         if(categoryTimerRef.current) clearInterval(categoryTimerRef.current);
