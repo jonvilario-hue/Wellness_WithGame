@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { ArrowLeft, Brain, Settings, Music, MessageSquare, View, Smile, Share2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { chcDomains, type CHCDomain, type TrainingFocus } from '@/types';
+import { type CHCDomain, type TrainingFocus } from '@/types';
+import { chcDomains } from '@/lib/domain-constants';
 import { domainIcons, SigmaIcon } from '@/components/icons';
 import { notFound, useParams } from 'next/navigation';
 import { gameComponents } from '@/components/training/game-components';
