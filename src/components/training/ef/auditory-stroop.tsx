@@ -24,7 +24,7 @@ type Trial = {
 
 export function AuditoryStroop() {
     const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
-    const { playTone, resumeContext, isAudioReady } = useAudioEngine();
+    const { playTone, resumeContext, isAudioReady, audioContext } = useAudioEngine();
 
     const [gameState, setGameState] = useState<'loading' | 'start' | 'running' | 'feedback' | 'finished'>('loading');
     const [trial, setTrial] = useState<Trial | null>(null);
@@ -32,6 +32,7 @@ export function AuditoryStroop() {
 
     const trialCount = useRef(0);
     const sessionTrials = useRef<TrialResult[]>([]);
+    const trialStartTime = useRef(0);
     
     const startNewTrial = useCallback(() => {
         if (trialCount.current >= 20) {
@@ -53,14 +54,16 @@ export function AuditoryStroop() {
         }
         
         setTrial({ word, pitch, isCongruent });
-        // This is a simplified "sung word" for now. A real implementation
-        // would use a speech synthesizer with pitch control.
         const freq = pitch === 'High' ? 880 : 220;
-        playTone(freq, 0.5);
+        
+        if (audioContext) {
+            const { scheduledTime } = playTone(freq, 0.5);
+            trialStartTime.current = scheduledTime;
+        }
 
         trialCount.current++;
         setGameState('running');
-    }, [getAdaptiveState, playTone]);
+    }, [getAdaptiveState, playTone, audioContext]);
 
     const startNewSession = useCallback(() => {
         resumeContext();
@@ -72,19 +75,30 @@ export function AuditoryStroop() {
     }, [resumeContext, getAdaptiveState, updateAdaptiveState, startNewTrial]);
 
     const handleResponse = (response: 'High' | 'Low') => {
-        if (!trial) return;
+        if (!trial || !audioContext) return;
+        const reactionTimeMs = (audioContext.currentTime - trialStartTime.current) * 1000;
         const isCorrect = response === trial.pitch;
         
         const state = getAdaptiveState(GAME_ID, 'music');
-        const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs: 500, telemetry: {} };
+        const trialResult: TrialResult = { 
+            correct: isCorrect, 
+            reactionTimeMs, 
+            telemetry: { 
+                congruent: trial.isCongruent,
+                word: trial.word,
+                pitch: trial.pitch,
+                correctResponse: trial.pitch,
+                userResponse: response,
+            } 
+        };
         sessionTrials.current.push(trialResult);
         logTrial({
             module_id: GAME_ID,
             mode: 'music',
             levelPlayed: state.currentLevel,
             isCorrect,
-            responseTime_ms: 500,
-            meta: { congruent: trial.isCongruent }
+            responseTime_ms: reactionTimeMs,
+            meta: trialResult.telemetry
         });
         const newState = adjustDifficulty(trialResult, state, policy);
         updateAdaptiveState(GAME_ID, 'music', newState);
@@ -117,8 +131,11 @@ export function AuditoryStroop() {
             return (
                 <div className="flex flex-col items-center gap-8">
                      <div className="text-center">
-                        <p className="text-muted-foreground">You will hear the word "High" or "Low".</p>
+                        <p className="text-muted-foreground">You will hear a tone and see a word.</p>
                         <p className="font-bold text-2xl">Identify the PITCH, ignore the word.</p>
+                     </div>
+                     <div className="h-10 text-4xl font-bold text-rose-300">
+                         {trial?.word}
                      </div>
                      <div className="h-10 text-xl font-bold">
                          {gameState === 'feedback' && <p className={cn(feedback === 'Correct!' ? 'text-green-400' : 'text-red-400')}>{feedback}</p>}
@@ -141,7 +158,7 @@ export function AuditoryStroop() {
                 </CardTitle>
                 <CardDescription className="text-rose-300/70">Ignore the word, classify the pitch. A test of auditory inhibition. Wired headphones recommended.</CardDescription>
             </CardHeader>
-            <CardContent className="flex flex-col items-center gap-6 min-h-[250px] justify-center">
+            <CardContent className="flex flex-col items-center gap-6 min-h-[300px] justify-center">
                 {renderContent()}
             </CardContent>
         </Card>

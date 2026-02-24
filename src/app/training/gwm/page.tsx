@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -19,7 +20,6 @@ import { DualNBack } from '@/components/training/gwm/dual-n-back';
 
 export default function TrainingPage() {
   const params = useParams();
-  // The official domain for this page is Gwm, but we allow routing to other games for simplicity
   const domain = 'Gwm' as CHCDomain;
   const domainInfo = chcDomains.find(d => d.key === domain);
   

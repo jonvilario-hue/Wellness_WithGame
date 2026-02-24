@@ -22,17 +22,20 @@ type Trial = {
 
 export function DualNBack() {
     const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
-    const { playNote, resumeContext, isAudioReady } = useAudioEngine();
+    const { playNote, resumeContext, isAudioReady, audioContext } = useAudioEngine();
 
     const [gameState, setGameState] = useState<'loading' | 'start' | 'running' | 'finished'>('loading');
     const [history, setHistory] = useState<Trial[]>([]);
     const [nBack, setNBack] = useState(2);
+    const [feedback, setFeedback] = useState<{ type: 'pitch' | 'timbre', correct: boolean } | null>(null);
 
     const trialTimer = useRef<NodeJS.Timeout | null>(null);
     const trialCount = useRef(0);
     const sessionTrials = useRef<TrialResult[]>([]);
+    const trialStartTime = useRef(0);
 
     const startNewTrial = useCallback(() => {
+        if (!audioContext) return;
         if (trialCount.current >= 20) {
             setGameState('finished');
             return;
@@ -40,18 +43,20 @@ export function DualNBack() {
 
         const state = getAdaptiveState(GAME_ID, 'music');
         const levelParams = policy.levelMap[state.currentLevel]?.content_config['music']?.params || policy.levelMap[1].content_config['music']!.params;
-        const { pitch_palette, timbre_palette } = levelParams;
-        setNBack(levelParams.n_back);
+        const { pitch_palette, timbre_palette, n_back } = levelParams;
+        setNBack(n_back);
 
         const newTrial: Trial = {
             pitch: pitch_palette[Math.floor(Math.random() * pitch_palette.length)],
             timbre: timbre_palette[Math.floor(Math.random() * timbre_palette.length)],
         };
-
+        
+        trialStartTime.current = audioContext.currentTime;
         playNote(newTrial.pitch, newTrial.timbre, 300);
-        setHistory(prev => [...prev, newTrial].slice(-nBack -1));
+        setHistory(prev => [...prev, newTrial].slice(-n_back -1));
+        setFeedback(null);
         trialCount.current++;
-    }, [playNote, getAdaptiveState, nBack]);
+    }, [playNote, getAdaptiveState, audioContext]);
 
     const startNewSession = useCallback(() => {
         resumeContext();
@@ -79,7 +84,9 @@ export function DualNBack() {
     }, [isAudioReady]);
 
     const handleResponse = (matchType: 'pitch' | 'timbre') => {
-        if (history.length < nBack) return;
+        if (history.length < nBack + 1 || !audioContext) return;
+
+        const reactionTimeMs = (audioContext.currentTime - trialStartTime.current) * 1000;
 
         const currentTrial = history[history.length - 1];
         const nBackTrial = history[history.length - 1 - nBack];
@@ -90,17 +97,23 @@ export function DualNBack() {
         } else {
             isCorrect = currentTrial.timbre === nBackTrial.timbre;
         }
+        
+        setFeedback({ type: matchType, correct: isCorrect });
 
         const state = getAdaptiveState(GAME_ID, 'music');
-        const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs: 500, telemetry: {} };
+        const trialResult: TrialResult = { 
+            correct: isCorrect, 
+            reactionTimeMs, 
+            telemetry: { matchType, nBack } 
+        };
         sessionTrials.current.push(trialResult);
         logTrial({
             module_id: GAME_ID,
             mode: 'music',
             levelPlayed: state.currentLevel,
             isCorrect,
-            responseTime_ms: 500,
-            meta: { matchType, nBack }
+            responseTime_ms: reactionTimeMs,
+            meta: { matchType, nBack, sequence: history.map(h => `${h.pitch}/${h.timbre}`) }
         });
         const newState = adjustDifficulty(trialResult, state, policy);
         updateAdaptiveState(GAME_ID, 'music', newState);
@@ -138,7 +151,7 @@ export function DualNBack() {
                     <span className="p-2 bg-cyan-500/10 rounded-md"><domainIcons.Gwm className="w-6 h-6 text-cyan-400" /></span>
                     Dual N-Back
                 </CardTitle>
-                <CardDescription className="text-cyan-300/70">Press 'Pitch' if the note's pitch matches the one {nBack} steps back. Press 'Timbre' if the instrument sound matches.</CardDescription>
+                <CardDescription className="text-cyan-300/70">Press 'Pitch' if the note's pitch matches the one {nBack} steps back. Press 'Timbre' if the instrument sound matches. Wired headphones recommended.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center gap-6 min-h-[250px] justify-center">
                 {gameState === 'start' ? (

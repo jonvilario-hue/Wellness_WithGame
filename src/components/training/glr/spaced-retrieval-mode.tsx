@@ -12,7 +12,7 @@ import { mathWordList, musicWordList, generalWordList, verbalWordList } from "@/
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import { useAudioEngine } from "@/hooks/use-audio-engine";
-import { Music2, Brain } from "lucide-react";
+import { Music2, Brain, Check, X } from "lucide-react";
 
 const GLR_GAME_ID: GameId = 'glr_fluency_storm';
 const glrPolicy = difficultyPolicies[GLR_GAME_ID];
@@ -24,7 +24,7 @@ const icons: Record<string, React.ElementType> = {
     "tempo": Brain,
 };
 
-function ActiveDistractor({ duration, onComplete }: { duration: number, onComplete: () => void }) {
+function ActiveDistractor({ duration, onComplete }: { duration: number, onComplete: (performance: { clicks: number }) => void }) {
     const [timeLeft, setTimeLeft] = useState(duration);
     const [position, setPosition] = useState({ top: '50%', left: '50%' });
     const [score, setScore] = useState(0);
@@ -34,9 +34,9 @@ function ActiveDistractor({ duration, onComplete }: { duration: number, onComple
             const timer = setTimeout(() => setTimeLeft(t => t - 1), 1000);
             return () => clearTimeout(timer);
         } else {
-            onComplete();
+            onComplete({ clicks: score });
         }
-    }, [timeLeft, onComplete]);
+    }, [timeLeft, onComplete, score]);
 
     const handleButtonClick = () => {
         setScore(s => s + 1);
@@ -49,16 +49,16 @@ function ActiveDistractor({ duration, onComplete }: { duration: number, onComple
     return (
         <div className="w-full h-64 bg-muted/50 rounded-lg relative flex flex-col items-center justify-center p-4">
              <div className="absolute top-2 right-2 font-mono text-lg">Time: {timeLeft}</div>
-             <p className="text-lg font-semibold mb-2">Active Distractor</p>
+             <p className="text-lg font-semibold mb-2">Active Distractor Task</p>
              <p className="text-sm text-muted-foreground text-center">Click the moving button as many times as you can to clear your working memory.</p>
             <Button
                 onClick={handleButtonClick}
                 className="absolute transition-all duration-300 bg-emerald-600 hover:bg-emerald-500 text-white"
                 style={{ top: position.top, left: position.left, transform: 'translate(-50%, -50%)' }}
             >
-                Click Me!
+                Click!
             </Button>
-            <div className="absolute bottom-2 right-2 font-mono text-lg">Score: {score}</div>
+            <div className="absolute bottom-2 right-2 font-mono text-lg">Clicks: {score}</div>
         </div>
     );
 };
@@ -182,7 +182,15 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
     };
 
     if (phase === 'distract') {
-        return <ActiveDistractor duration={policyParams.distractorDuration} onComplete={() => { setCurrentIndex(0); setPhase('recall'); if(audioContext) trialStartTime.current = audioContext.currentTime; }} />;
+        return <ActiveDistractor 
+            duration={policyParams.distractorDuration} 
+            onComplete={(perf) => { 
+                setDistractorPerformance(perf);
+                setCurrentIndex(0); 
+                setPhase('recall'); 
+                if(audioContext) trialStartTime.current = audioContext.currentTime; 
+            }} 
+        />;
     }
     
     const pairToShow = (phase === 'recall' ? (duePairs.length > 0 ? duePairs : newPairs) : newPairs)[currentIndex];
@@ -210,7 +218,7 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
                     <p className="text-5xl font-bold">{pairToShow.word1}</p>
                     {feedback[pairToShow.word1] ? (
                         <div className="text-2xl font-bold flex items-center justify-center gap-2">
-                            {feedback[pairToShow.word1] === 'correct' ? <span className="text-green-500">Correct!</span> : <span className="text-destructive">Incorrect. It was {Icon ? <Icon className="w-8 h-8 inline-block"/> : pairToShow.word2}</span>}
+                            {feedback[pairToShow.word1] === 'correct' ? <span className="text-green-500 flex items-center gap-2"><Check/> Correct!</span> : <span className="text-destructive flex items-center gap-2"><X/> Incorrect. It was {Icon ? <Icon className="w-8 h-8 inline-block"/> : pairToShow.word2}</span>}
                         </div>
                     ) : (
                         <form onSubmit={handleRecallSubmit} className="flex gap-2 justify-center">

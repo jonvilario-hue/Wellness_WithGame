@@ -13,7 +13,7 @@ import type { AdaptiveState, TrialResult, GameId } from "@/types";
 import { domainIcons } from "@/components/icons";
 import { cn } from "@/lib/utils";
 
-const GAME_ID: GameId = 'glr_fluency_storm';
+const GAME_ID: GameId = 'ga_auditory_lab'; // This is a Ga task
 const policy = difficultyPolicies[GAME_ID];
 
 type Trial = {
@@ -24,7 +24,7 @@ type Trial = {
 
 export function AuditorySceneSubtraction() {
     const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
-    const { playSimultaneous, stopAll, resumeContext, isAudioReady } = useAudioEngine();
+    const { playSimultaneous, stopAll, resumeContext, isAudioReady, audioContext } = useAudioEngine();
 
     const [gameState, setGameState] = useState<'loading' | 'start' | 'running' | 'feedback' | 'finished'>('loading');
     const [trial, setTrial] = useState<Trial | null>(null);
@@ -32,6 +32,7 @@ export function AuditorySceneSubtraction() {
 
     const trialCount = useRef(0);
     const sessionTrials = useRef<TrialResult[]>([]);
+    const trialStartTime = useRef(0);
     
     const startNewTrial = useCallback(() => {
         if (trialCount.current >= 10) {
@@ -41,7 +42,7 @@ export function AuditorySceneSubtraction() {
 
         const state = getAdaptiveState(GAME_ID, 'music');
         const levelParams = policy.levelMap[state.currentLevel]?.content_config['music']?.params || policy.levelMap[1].content_config['music']!.params;
-        const { layer_count, instrument_similarity } = levelParams;
+        const { layer_count } = levelParams;
         
         const instruments = ['drums', 'bass', 'piano', 'flute', 'guitar'];
         const reference_scene_instruments = instruments.slice(0, layer_count);
@@ -51,17 +52,20 @@ export function AuditorySceneSubtraction() {
 
         setTrial({ reference_scene_instruments, comparison_scene_instruments, correct_answer });
         
-        playSimultaneous(reference_scene_instruments);
-        setTimeout(() => {
-            stopAll();
+        if (audioContext) {
+            playSimultaneous(reference_scene_instruments, 3000);
+            trialStartTime.current = audioContext.currentTime + 3.5; // Start time is when comparison plays
             setTimeout(() => {
-                 playSimultaneous(comparison_scene_instruments);
-            }, 500)
-        }, 3000);
+                stopAll();
+                setTimeout(() => {
+                    playSimultaneous(comparison_scene_instruments, 3000);
+                }, 500)
+            }, 3000);
+        }
 
         trialCount.current++;
         setGameState('running');
-    }, [getAdaptiveState, playSimultaneous, stopAll]);
+    }, [getAdaptiveState, playSimultaneous, stopAll, audioContext]);
 
     const startNewSession = useCallback(() => {
         resumeContext();
@@ -73,20 +77,30 @@ export function AuditorySceneSubtraction() {
     }, [resumeContext, getAdaptiveState, updateAdaptiveState, startNewTrial]);
 
     const handleResponse = (response: string) => {
-        if (!trial) return;
+        if (!trial || !audioContext) return;
         stopAll();
+        const reactionTimeMs = (audioContext.currentTime - trialStartTime.current) * 1000;
         const isCorrect = response === trial.correct_answer;
         
         const state = getAdaptiveState(GAME_ID, 'music');
-        const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs: 500, telemetry: {} };
+        const trialResult: TrialResult = { 
+            correct: isCorrect, 
+            reactionTimeMs, 
+            telemetry: {
+                trialType: 'scene_subtraction',
+                layer_count: trial.reference_scene_instruments.length,
+                correctAnswer: trial.correct_answer,
+                userResponse: response,
+            }
+        };
         sessionTrials.current.push(trialResult);
         logTrial({
             module_id: GAME_ID,
             mode: 'music',
             levelPlayed: state.currentLevel,
             isCorrect,
-            responseTime_ms: 500,
-            meta: { layer_count: trial.reference_scene_instruments.length }
+            responseTime_ms: reactionTimeMs,
+            meta: trialResult.telemetry
         });
         const newState = adjustDifficulty(trialResult, state, policy);
         updateAdaptiveState(GAME_ID, 'music', newState);
@@ -143,7 +157,7 @@ export function AuditorySceneSubtraction() {
                     <span className="p-2 bg-emerald-500/10 rounded-md"><Ear className="w-6 h-6 text-emerald-400" /></span>
                     Auditory Scene Subtraction
                 </CardTitle>
-                <CardDescription className="text-emerald-300/70">Listen to the full mix, then identify which instrument is removed.</CardDescription>
+                <CardDescription className="text-emerald-300/70">Listen to the full mix, then identify which instrument is removed. Wired headphones recommended.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center gap-6 min-h-[250px] justify-center">
                 {renderContent()}
