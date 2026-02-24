@@ -33,6 +33,7 @@ type PerformanceState = {
     gameStates: Record<string, AdaptiveState>;
     globalTier: TierSelection;
     isHydrated: boolean;
+    storageAvailable: boolean; // B2.4: New flag for IDB availability
     failedWrites: TrialRecord[];
 };
 
@@ -55,9 +56,11 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
             gameStates: {},
             globalTier: 4,
             isHydrated: false,
+            storageAvailable: false, // B2.4: Default to false until hydration
             failedWrites: [],
 
             hydrate: async () => {
+                // B2.4: Top-level guard for IDB availability
                 try {
                     await idbStore.initDB();
                     const profiles = await idbStore.getAllProfiles();
@@ -65,12 +68,11 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
                     for (const profile of profiles) {
                         newGameStates[profile.id] = profile.state;
                     }
-                    set({ gameStates: newGameStates, isHydrated: true });
-                    // On hydration, try to flush any writes that failed from the last session
+                    set({ gameStates: newGameStates, isHydrated: true, storageAvailable: true });
                     get().flushFailedWrites();
                 } catch (e) {
-                    console.error("Hydration from IndexedDB failed. The app may be in an environment where IndexedDB is not available.", e);
-                    set({ isHydrated: true });
+                    console.error("Hydration from IndexedDB failed. The app may be in an environment where IndexedDB is not available. App will continue in memory-only mode.", e);
+                    set({ isHydrated: true, storageAvailable: false }); // Gracefully degrade
                 }
             },
 
@@ -92,7 +94,9 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
                         set(state => {
                             if (!state.gameStates[key]) {
                                 state.gameStates[key] = finalState;
-                                 idbStore.setProfile(key, finalState).catch(e => console.error("Failed to save new profile to IDB", e));
+                                 if (state.storageAvailable) {
+                                    idbStore.setProfile(key, finalState).catch(e => console.error("Failed to save new profile to IDB", e));
+                                 }
                             }
                         });
                     }, 0);
@@ -106,10 +110,12 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
                 set(state => {
                     if (state.gameStates[key]) {
                         state.gameStates[key] = { ...state.gameStates[key], ...newState };
-                        idbStore.setProfile(key, state.gameStates[key]).catch(e => console.error("Failed to update profile in IDB", e));
+                         if (state.storageAvailable) {
+                            idbStore.setProfile(key, state.gameStates[key]).catch(e => console.error("Failed to update profile in IDB", e));
+                         }
                     }
                 });
-                if (replayInputs && newState.sessionCount) {
+                if (replayInputs && newState.sessionCount && get().storageAvailable) {
                     idbStore.startOrUpdateSession({
                         sessionId: `session-${gameId}-${focus}-${Date.now()}`,
                         gameId,
@@ -130,17 +136,15 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
                 
                 set(state => {
                     state.gameStates[key] = { ...currentState, tier };
-                    idbStore.setProfile(key, state.gameStates[key]).catch(e => console.error("Failed to set game tier in IDB", e));
+                    if (state.storageAvailable) {
+                        idbStore.setProfile(key, state.gameStates[key]).catch(e => console.error("Failed to set game tier in IDB", e));
+                    }
                 });
             },
             
-            // B2 OFFLINE RESILIENCE:
-            // This function runs on page hide/unload events. It attempts to synchronously
-            // write any trials that failed to save earlier (e.g., due to the browser's
-            // IDB being temporarily locked or unavailable) from an in-memory buffer.
             flushFailedWrites: async () => {
                 const buffered = get().failedWrites;
-                if (buffered.length === 0) return;
+                if (buffered.length === 0 || !get().storageAvailable) return;
 
                 console.log(`[Storage] Flushing ${buffered.length} buffered trial records...`);
                 try {
@@ -148,53 +152,69 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
                     set({ failedWrites: [] });
                     console.log(`[Storage] Flush successful.`);
                 } catch (error) {
-                    console.error("[Storage] Critical: Failed to flush telemetry buffer. Data may be lost.", error);
+                    console.error("[Storage] Critical: Failed to flush telemetry buffer during retry. Data may be lost.", error);
                 }
             },
-
-            // B2 OFFLINE RESILIENCE:
-            // This is the primary entry point for logging a trial. It includes offline
-            // resilience by wrapping the IndexedDB write in a try/catch block. If the
-            // write fails, the trial record is pushed to an in-memory buffer (`failedWrites`)
-            // for a later retry attempt, which is triggered by `flushFailedWrites`.
+            
+            // B2 OFFLINE RESILIENCE: This is the entry point for logging.
             logTrial: async (record) => {
+                // FIX A1: Assign monotonic sequence number at creation time.
                 const fullRecord: TrialRecord = {
                     ...record,
                     id: `${record.sessionId}-${record.trialIndex}`,
-                    seq: record.trialIndex, // FIX A1: Ensure monotonic sequence number is assigned.
+                    seq: record.trialIndex,
                     schemaVersion: 2,
                 };
-                 // First, try to log the new record. This may trigger an eviction run.
+
+                // B2.4: If storage is down, buffer immediately.
+                if (!get().storageAvailable) {
+                    console.warn("[Storage] IDB not available. Buffering trial record.");
+                    set(state => {
+                        state.failedWrites.push(fullRecord);
+                    });
+                    return;
+                }
+
+                // B2.1 & B2.2: Wrap the call to the storage layer. If it fails,
+                // the record is added to the in-memory buffer for a later retry.
                 try {
-                    // IndexedDB can be unavailable in some browser modes (e.g., private browsing)
                     await idbStore.logTrial(fullRecord);
                 } catch (error) {
                     console.warn("[Storage] IDB write failed. Buffering trial record.", error);
-                    // Add to the in-memory buffer for later retry.
                     set(state => {
                         state.failedWrites.push(fullRecord);
-                        // To prevent unbounded memory usage, cap the buffer.
+                        // B2.3: To prevent unbounded memory usage, cap the buffer.
                         if (state.failedWrites.length > 500) {
                             console.warn(`[Storage] In-memory buffer full. Dropping oldest trial record.`);
                             state.failedWrites.shift(); 
                         }
                     });
                 }
-                // After the new record is handled, try flushing any older failed writes.
-                // This prevents a flush from triggering an eviction that deletes the record we just added.
+                
                 if (get().failedWrites.length > 0) {
                     await get().flushFailedWrites();
                 }
             },
 
-            exportData: idbStore.exportAllData,
+            exportData: async () => {
+                if (!get().storageAvailable) return "{}";
+                return idbStore.exportAllData();
+            },
             
             importData: async (json) => {
+                if (!get().storageAvailable) {
+                     console.error("Cannot import data: storage is not available.");
+                     return;
+                }
                 await idbStore.importData(json);
                 get().hydrate();
             },
 
             clearAllData: async () => {
+                 if (!get().storageAvailable) {
+                     set({ gameStates: {}, failedWrites: [] });
+                     return;
+                 }
                 await idbStore.clearAllData();
                 set({ gameStates: {}, isHydrated: true, failedWrites: [] });
             },
