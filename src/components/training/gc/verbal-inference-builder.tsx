@@ -18,7 +18,7 @@ import { GcSpatialLexicon } from "./gc-spatial-lexicon";
 import { RegulationArchitect } from "./regulation-architect";
 import { LogicLibrary } from '../logic/logic-library';
 import { GcNovelConceptLearner } from "./gc-novel-concept-learner";
-import { GcMathConcepts } from "./gc-math-concepts";
+import GcMathConcepts from "./gc-math-concepts";
 
 
 const GAME_ID: GameId = 'gc_verbal_inference';
@@ -179,7 +179,26 @@ export function VerbalInferenceBuilder() {
   }
 
   if (currentMode === 'math') {
-    return <GcMathConcepts focus={currentMode} />;
+    return <GcMathConcepts onGameComplete={(result) => {
+        const { score, accuracy, trials, avgResponseTimeMs } = result;
+        const currentState = getAdaptiveState(GAME_ID, 'math');
+        const finalState: AdaptiveState = {
+            ...currentState,
+            lastSessionAt: Date.now(),
+            sessionCount: currentState.sessionCount + 1,
+            levelHistory: [
+                ...currentState.levelHistory,
+                {
+                    sessionDate: Date.now(),
+                    startLevel: currentState.currentLevel,
+                    endLevel: currentState.currentLevel, // Math concepts don't have levels, so keep it flat
+                    avgAccuracy: accuracy,
+                    avgRT: avgResponseTimeMs,
+                }
+            ]
+        };
+        updateAdaptiveState(GAME_ID, 'math', finalState);
+    }} />;
   }
 
   if (currentMode === 'spatial') {
