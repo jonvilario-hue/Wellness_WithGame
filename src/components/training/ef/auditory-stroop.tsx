@@ -56,7 +56,7 @@ export function AuditoryStroop() {
         // This is a simplified "sung word" for now. A real implementation
         // would use a speech synthesizer with pitch control.
         const freq = pitch === 'High' ? 880 : 220;
-        playTone(freq, 500);
+        playTone(freq, 0.5);
 
         trialCount.current++;
         setGameState('running');
@@ -84,7 +84,7 @@ export function AuditoryStroop() {
             levelPlayed: state.currentLevel,
             isCorrect,
             responseTime_ms: 500,
-            meta: { isCongruent: trial.isCongruent }
+            meta: { congruent: trial.isCongruent }
         });
         const newState = adjustDifficulty(trialResult, state, policy);
         updateAdaptiveState(GAME_ID, 'music', newState);
@@ -139,7 +139,7 @@ export function AuditoryStroop() {
                     <span className="p-2 bg-rose-500/10 rounded-md"><Ear className="w-6 h-6 text-rose-400" /></span>
                     Auditory Stroop
                 </CardTitle>
-                <CardDescription className="text-rose-300/70">Ignore the word, classify the pitch. A test of auditory inhibition.</CardDescription>
+                <CardDescription className="text-rose-300/70">Ignore the word, classify the pitch. A test of auditory inhibition. Wired headphones recommended.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center gap-6 min-h-[250px] justify-center">
                 {renderContent()}

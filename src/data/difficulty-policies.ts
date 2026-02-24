@@ -9,56 +9,11 @@ const policies: Record<GameId, DifficultyPolicy> = {
     targetAccuracyHigh: 0.88,
     targetAccuracyLow: 0.65,
     levelMap: {
-      1: { 
-        mechanic_config: { sequenceLength: 3, displayTimeMs: 2000, visualDisplayTimeMs: 1000 }, 
-        content_config: { 
-          neutral: { params: { charSet: "alpha" } }, 
-          math: { params: { charSet: "numeric" } }, 
-          music: { sub_variant: 'sequence_recall', params: { charSet: "notes", complexity: 1 } },
-          verbal: { sub_variant: 'phonological_loop', params: { charSet: 'phonological_distinct' } },
-          spatial: { sub_variant: 'spatial_span', params: { gridSize: '2d', itemCount: 2 } }
-        } 
-      },
-      2: { 
-        mechanic_config: { sequenceLength: 4, displayTimeMs: 2000, visualDisplayTimeMs: 1200 }, 
-        content_config: { 
-          neutral: { params: { charSet: "alpha" } }, 
-          math: { params: { charSet: "numeric" } }, 
-          music: { sub_variant: 'sequence_recall', params: { charSet: "notes", complexity: 1 } },
-          verbal: { sub_variant: 'phonological_loop', params: { charSet: 'phonological_distinct' } },
-          spatial: { sub_variant: 'spatial_span', params: { gridSize: '2d', itemCount: 3 } }
-        } 
-      },
-      3: { 
-        mechanic_config: { sequenceLength: 4, displayTimeMs: 1800, visualDisplayTimeMs: 1200 }, 
-        content_config: { 
-          neutral: { params: { charSet: "alphanumeric" } }, 
-          math: { params: { charSet: "numeric_ops" } }, 
-          music: { sub_variant: 'rhythm_span', params: { subdivisions: ['quarter'], complexity: 2 } },
-          verbal: { sub_variant: 'phonological_loop', params: { charSet: 'phonological_similar' } },
-          spatial: { sub_variant: 'spatial_span', params: { gridSize: '3d', itemCount: 3 } }
-        } 
-      },
-      4: { 
-        mechanic_config: { sequenceLength: 5, displayTimeMs: 1800, visualDisplayTimeMs: 1500 }, 
-        content_config: { 
-          neutral: { params: { charSet: "alphanumeric" } }, 
-          math: { params: { charSet: "numeric_ops" } }, 
-          music: { sub_variant: 'sequence_recall', params: { charSet: "notes_symbols", complexity: 2 } },
-          verbal: { sub_variant: 'phonological_loop', params: { charSet: 'phonological_similar' } },
-          spatial: { sub_variant: 'spatial_span', params: { gridSize: '3d', itemCount: 4 } }
-        } 
-      },
-      5: { 
-        mechanic_config: { sequenceLength: 5, displayTimeMs: 1500, visualDisplayTimeMs: 1500 }, 
-        content_config: { 
-          neutral: { params: { charSet: "alphanumeric" } }, 
-          math: { params: { charSet: "numeric_ops" } }, 
-          music: { sub_variant: 'rhythm_span', params: { subdivisions: ['quarter', 'eighth'], complexity: 3 } },
-          verbal: { sub_variant: 'grammatical_recall', params: { error_type: 'tense' } },
-          spatial: { sub_variant: 'spatial_span', params: { gridSize: '3d', itemCount: 4, distractors: true } }
-        } 
-      },
+      1: { mechanic_config: { sequenceLength: 3, displayTimeMs: 2000, visualDisplayTimeMs: 1000 }, content_config: { neutral: { params: { charSet: "alpha" } }, math: { params: { charSet: "numeric" } }, music: { sub_variant: 'sequence_recall', params: { charSet: "notes", complexity: 1 } }, verbal: { sub_variant: 'phonological_loop', params: { charSet: 'phonological_distinct' } }, spatial: { sub_variant: 'spatial_span', params: { gridSize: '2d', itemCount: 2 } } } },
+      2: { mechanic_config: { sequenceLength: 4, displayTimeMs: 2000, visualDisplayTimeMs: 1200 }, content_config: { neutral: { params: { charSet: "alpha" } }, math: { params: { charSet: "numeric" } }, music: { sub_variant: 'sequence_recall', params: { charSet: "notes", complexity: 1 } }, verbal: { sub_variant: 'phonological_loop', params: { charSet: 'phonological_distinct' } }, spatial: { sub_variant: 'spatial_span', params: { gridSize: '2d', itemCount: 3 } } } },
+      3: { mechanic_config: { sequenceLength: 4, displayTimeMs: 1800, visualDisplayTimeMs: 1200 }, content_config: { neutral: { params: { charSet: "alphanumeric" } }, math: { params: { charSet: "numeric_ops" } }, music: { sub_variant: 'rhythm_span', params: { subdivisions: ['quarter'], complexity: 2 } }, verbal: { sub_variant: 'phonological_loop', params: { charSet: 'phonological_similar' } }, spatial: { sub_variant: 'spatial_span', params: { gridSize: '3d', itemCount: 3 } } } },
+      4: { mechanic_config: { sequenceLength: 5, displayTimeMs: 1800, visualDisplayTimeMs: 1500 }, content_config: { neutral: { params: { charSet: "alphanumeric" } }, math: { params: { charSet: "numeric_ops" } }, music: { sub_variant: 'sequence_recall', params: { charSet: "notes_symbols", complexity: 2 } }, verbal: { sub_variant: 'phonological_loop', params: { charSet: 'phonological_similar' } }, spatial: { sub_variant: 'spatial_span', params: { gridSize: '3d', itemCount: 4 } } } },
+      5: { mechanic_config: { sequenceLength: 5, displayTimeMs: 1500, visualDisplayTimeMs: 1500 }, content_config: { neutral: { params: { charSet: "alphanumeric" } }, math: { params: { charSet: "numeric_ops" } }, music: { sub_variant: 'rhythm_span', params: { subdivisions: ['quarter', 'eighth'], complexity: 3 } }, verbal: { sub_variant: 'grammatical_recall', params: { error_type: 'tense' } }, spatial: { sub_variant: 'spatial_span', params: { gridSize: '3d', itemCount: 4, distractors: true } } } },
       6: { mechanic_config: { sequenceLength: 6, displayTimeMs: 1500, visualDisplayTimeMs: 1800 }, content_config: { neutral: {}, math: {}, music: { sub_variant: 'sentence_unscramble'}, verbal: { sub_variant: 'sentence_unscramble'}, spatial: {} } },
       7: { mechanic_config: { sequenceLength: 6, displayTimeMs: 1200, visualDisplayTimeMs: 1800 }, content_config: { neutral: {}, math: {}, music: {}, verbal: {}, spatial: {} } },
       8: { mechanic_config: { sequenceLength: 7, displayTimeMs: 1200, visualDisplayTimeMs: 2100 }, content_config: { neutral: {}, math: {}, music: {}, verbal: {}, spatial: {} } },
@@ -150,6 +105,16 @@ const policies: Record<GameId, DifficultyPolicy> = {
       8: { mechanic_config: {}, content_config: { music: { params: { pitchDelta: 35 } }, math: { sub_variant: "magnitude_comparison", params: { digits: 5, speechRate: 1.5, pitchDelta: 30 } } } },
       9: { mechanic_config: {}, content_config: { music: { params: { pitchDelta: 25 } }, math: { sub_variant: "magnitude_comparison", params: { digits: 5, speechRate: 1.8, pitchDelta: 20 } } } },
       10: { mechanic_config: {}, content_config: { music: { params: { pitchDelta: 15 } }, math: { sub_variant: "magnitude_comparison", params: { digits: 6, speechRate: 1.8, pitchDelta: 15 } } } },
+      11: { mechanic_config: {}, content_config: { music: { params: { pitchDelta: 12 } }, math: {} } },
+      12: { mechanic_config: {}, content_config: { music: { params: { pitchDelta: 10 } }, math: {} } },
+      13: { mechanic_config: {}, content_config: { music: { params: { pitchDelta: 8 } }, math: {} } },
+      14: { mechanic_config: {}, content_config: { music: { params: { pitchDelta: 6 } }, math: {} } },
+      15: { mechanic_config: {}, content_config: { music: { params: { pitchDelta: 5 } }, math: {} } },
+      16: { mechanic_config: {}, content_config: { music: { params: { pitchDelta: 4 } }, math: {} } },
+      17: { mechanic_config: {}, content_config: { music: { params: { pitchDelta: 3 } }, math: {} } },
+      18: { mechanic_config: {}, content_config: { music: { params: { pitchDelta: 2 } }, math: {} } },
+      19: { mechanic_config: {}, content_config: { music: { params: { pitchDelta: 1 } }, math: {} } },
+      20: { mechanic_config: {}, content_config: { music: { params: { pitchDelta: 1 } }, math: {} } },
     }
   },
   glr_fluency_storm: {

@@ -67,7 +67,7 @@ function ActiveDistractor({ duration, onComplete }: { duration: number, onComple
 export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result: { score: number, trials: TrialResult[] }) => void, focus: TrainingFocus }) {
     const { addSpacedPairs, getDueReviewPairs, updatePairOnResult } = useGlrStore();
     const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
-    const { playSequence } = useAudioEngine();
+    const { playSequence, audioContext } = useAudioEngine();
     
     const [phase, setPhase] = useState<'review' | 'learn' | 'distract' | 'recall' | 'finished'>('review');
     const [sessionTrials, setSessionTrials] = useState<TrialResult[]>([]);
@@ -111,14 +111,14 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
         }
         setCurrentIndex(0);
         setSessionTrials([]);
-        trialStartTime.current = Date.now();
-    }, [focus, getDueReviewPairs, addSpacedPairs, policyParams.pairs, getAdaptiveState]);
+        if (audioContext) trialStartTime.current = audioContext.currentTime;
+    }, [focus, getDueReviewPairs, addSpacedPairs, policyParams.pairs, getAdaptiveState, audioContext]);
 
     const handleNext = () => {
         const currentList = phase === 'recall' ? (duePairs.length > 0 ? duePairs : newPairs) : newPairs;
         if (currentIndex < currentList.length - 1) {
             setCurrentIndex(i => i + 1);
-            trialStartTime.current = Date.now();
+            if (audioContext) trialStartTime.current = audioContext.currentTime;
         } else {
             if (phase === 'learn') setPhase('distract');
             else if (phase === 'recall') {
@@ -132,9 +132,9 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
     const handleRecallSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         const currentState = getAdaptiveState(GLR_GAME_ID, focus);
-        if (!currentState) return;
-        const levelPlayed = currentState.currentLevel;
-        const reactionTimeMs = Date.now() - trialStartTime.current;
+        if (!currentState || !audioContext) return;
+        
+        const reactionTimeMs = (audioContext.currentTime - trialStartTime.current) * 1000;
         const pair = (duePairs.length > 0 ? duePairs : newPairs)[currentIndex];
         const isCorrect = userInput.trim().toLowerCase() === pair.word2.toLowerCase();
         
@@ -148,18 +148,21 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
                 pairCount: (duePairs.length > 0 ? duePairs : newPairs).length,
                 distractorDuration_s: policyParams.distractorDuration,
                 distractorPerformance: distractorPerformance,
-                encodingTime_s: 0, // Not tracked, can be added
+                encodingTime_s: 0, 
                 pairIndex: currentIndex,
                 cue: pair.word1,
                 expectedResponse: pair.word2,
                 userResponse: userInput.trim(),
+                perPairResults: [],
+                pairsCorrect: 0,
+                pairsAttempted: 0
             }
         };
 
         logTrial({
             module_id: GLR_GAME_ID,
             mode: focus,
-            levelPlayed: levelPlayed,
+            levelPlayed: currentState.currentLevel,
             isCorrect,
             responseTime_ms: reactionTimeMs,
             meta: trial.telemetry,
@@ -179,7 +182,7 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
     };
 
     if (phase === 'distract') {
-        return <ActiveDistractor duration={policyParams.distractorDuration} onComplete={() => { setCurrentIndex(0); setPhase('recall'); trialStartTime.current = Date.now(); }} />;
+        return <ActiveDistractor duration={policyParams.distractorDuration} onComplete={() => { setCurrentIndex(0); setPhase('recall'); if(audioContext) trialStartTime.current = audioContext.currentTime; }} />;
     }
     
     const pairToShow = (phase === 'recall' ? (duePairs.length > 0 ? duePairs : newPairs) : newPairs)[currentIndex];

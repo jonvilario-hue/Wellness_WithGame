@@ -56,7 +56,7 @@ export function FocusSwitchReactor() {
   const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
   const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
-  const { playTone, playSequence, resumeContext, isAudioReady } = useAudioEngine();
+  const { playTone, playSequence, resumeContext, isAudioReady, audioContext } = useAudioEngine();
 
   const [gameState, setGameState] = useState<'loading' | 'start' | 'running' | 'feedback' | 'finished'>('loading');
   
@@ -132,8 +132,8 @@ export function FocusSwitchReactor() {
     
     setInlineFeedback({ message: '', type: '' });
     setGameState('running');
-    trialStartTime.current = Date.now();
-  }, [generateStimulus, currentMode]);
+    if (audioContext) trialStartTime.current = audioContext.currentTime;
+  }, [generateStimulus, currentMode, audioContext]);
   
   useEffect(() => {
       if(gameState === 'running' && stimulus.pitch && currentMode === 'music' && ruleRef.current === 'pitch_direction') {
@@ -157,11 +157,11 @@ export function FocusSwitchReactor() {
 
   const processNextTurn = useCallback((correct: boolean, source: 'click' | 'keyboard' | 'timeout', responseSide?: 'left' | 'right') => {
     const state = getAdaptiveState(GAME_ID, currentMode);
-    if (gameState !== 'running' || !state) return;
+    if (gameState !== 'running' || !state || !audioContext) return;
 
     setGameState('feedback');
     const levelPlayed = state.currentLevel;
-    const reactionTimeMs = Date.now() - trialStartTime.current;
+    const reactionTimeMs = (audioContext.currentTime - trialStartTime.current) * 1000;
     if (correct) {
         setScore(prev => prev + 1);
     }
@@ -198,13 +198,12 @@ export function FocusSwitchReactor() {
             switchTrial: ruleRef.current !== previousRuleRef.current,
             currentRule: ruleRef.current,
             previousRule: previousRuleRef.current,
-            targetSide,
-            responseSide: responseSide || null,
             congruent: isCongruent,
             stimulusPitch: stimulus.pitch,
             stimulusRhythm: stimulus.rhythm,
             correctResponse: targetSide,
             userResponse: responseSide,
+            responseSide,
         }
     };
     
@@ -231,7 +230,7 @@ export function FocusSwitchReactor() {
             startNewTrial(newState);
         }
     }, 600);
-  }, [gameState, getAdaptiveState, logTrial, updateAdaptiveState, currentMode, startNewTrial, stimulus]);
+  }, [gameState, getAdaptiveState, logTrial, updateAdaptiveState, currentMode, startNewTrial, stimulus, audioContext]);
   
   const handleAnswer = useCallback((answer: 'left' | 'right', source: 'click' | 'keyboard') => {
     if (gameState !== 'running' || !stimulus) return;
@@ -425,7 +424,7 @@ export function FocusSwitchReactor() {
            <span className="p-2 bg-rose-500/10 rounded-md"><domainIcons.EF className="w-6 h-6 text-rose-400" /></span>
            Focus Switch Reactor
         </CardTitle>
-        <CardDescription className="text-rose-300/70">Inhibition & Task-Switching Challenge. Pay attention to the rule! Wired headphones recommended.</CardDescription>
+        <CardDescription className="text-rose-300/70">Inhibition & Task-Switching Challenge. Pay attention to the rule! Wired headphones recommended for best results.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-6 min-h-[500px] justify-center">
         {renderContent()}

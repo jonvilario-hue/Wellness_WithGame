@@ -208,7 +208,7 @@ export function PatternMatrix() {
     const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
     const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
     const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
-    const { playSequence, resumeContext, isAudioReady } = useAudioEngine();
+    const { playSequence, resumeContext, isAudioReady, audioContext } = useAudioEngine();
 
     const [gameState, setGameState] = useState<'loading' | 'start' | 'playing' | 'feedback' | 'finished'>('loading');
     
@@ -235,12 +235,13 @@ export function PatternMatrix() {
           ? Math.max(state.levelFloor, state.currentLevel - 2)
           : state.currentLevel;
         
-        setPuzzle(generatePuzzleForLevel(loadedLevel, currentMode as GameVariant));
+        const newPuzzle = generatePuzzleForLevel(loadedLevel, currentMode as GameVariant);
+        setPuzzle(newPuzzle);
         setSelectedOption(null);
         setFeedback('');
         setGameState('playing');
-        trialStartTime.current = Date.now();
-    }, [currentMode, getAdaptiveState]);
+        if (audioContext) trialStartTime.current = audioContext.currentTime;
+    }, [currentMode, getAdaptiveState, audioContext]);
     
      useEffect(() => {
         if (gameState === 'playing' && puzzle && puzzle.type === 'music') {
@@ -258,12 +259,12 @@ export function PatternMatrix() {
     }, [startNewTrial, resumeContext, updateAdaptiveState, currentMode, getAdaptiveState]);
 
     const handleSelectOption = (option: any) => {
-        if (gameState !== 'playing' || !puzzle) return;
+        if (gameState !== 'playing' || !puzzle || !audioContext) return;
 
         setGameState('feedback');
         const currentState = getAdaptiveState(GAME_ID, currentMode);
         const levelPlayed = currentState.currentLevel;
-        const reactionTimeMs = Date.now() - trialStartTime.current;
+        const reactionTimeMs = (audioContext.currentTime - trialStartTime.current) * 1000;
         const isCorrect = JSON.stringify(option) === JSON.stringify(puzzle.answer);
         
         setSelectedOption(option);
@@ -278,6 +279,7 @@ export function PatternMatrix() {
                 selectedAnswer: option,
                 correctAnswer: puzzle.answer,
                 dimsUsed: puzzle.type,
+                stimulusNotes: puzzle.type === 'music' ? puzzle.grid.map((c: any) => c?.notes?.[0]) : [],
             }
         };
 
@@ -462,7 +464,7 @@ export function PatternMatrix() {
             <span className="p-2 bg-blue-500/10 rounded-md"><domainIcons.Gf className="w-6 h-6 text-blue-400" /></span>
             Pattern Matrix
         </CardTitle>
-        <CardDescription className="text-center text-blue-300/70">Identify the logical rule and find the missing piece. Wired headphones recommended for audio tasks.</CardDescription>
+        <CardDescription className="text-center text-blue-300/70">Identify the logical rule and find the missing piece. Wired headphones recommended for best results.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-6 min-h-[500px] justify-center">
         {renderContent()}

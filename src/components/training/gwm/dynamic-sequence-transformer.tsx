@@ -70,7 +70,7 @@ export function DynamicSequenceTransformer() {
   const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
   const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
-  const { playSequence, resumeContext, isAudioReady } = useAudioEngine();
+  const { playSequence, resumeContext, isAudioReady, audioContext } = useAudioEngine();
 
   const [gameState, setGameState] = useState<'loading' | 'start' | 'memorizing' | 'answering' | 'feedback' | 'finished'>('loading');
   
@@ -128,15 +128,15 @@ export function DynamicSequenceTransformer() {
     if (currentMode === 'music' && Array.isArray(newSequence)) {
         playSequence(newSequence as number[], 0.3, () => {
              setGameState('answering');
-             trialStartTime.current = Date.now();
+             if (audioContext) trialStartTime.current = audioContext.currentTime;
         });
     } else {
         setTimeout(() => {
           setGameState('answering');
-          trialStartTime.current = Date.now();
+          if (audioContext) trialStartTime.current = audioContext.currentTime;
         }, displayTime);
     }
-  }, [currentMode, playSequence]);
+  }, [currentMode, playSequence, audioContext]);
 
   const startNewSession = useCallback(() => {
     resumeContext();
@@ -170,11 +170,11 @@ export function DynamicSequenceTransformer() {
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     const state = getAdaptiveState(GAME_ID, currentMode);
-    if (gameState !== 'answering' || !state) return;
+    if (gameState !== 'answering' || !state || !audioContext) return;
     
     setGameState('feedback');
     const levelPlayed = state.currentLevel;
-    const reactionTimeMs = Date.now() - trialStartTime.current;
+    const reactionTimeMs = (audioContext.currentTime - trialStartTime.current) * 1000;
     
     let isCorrect = userAnswer.trim().toUpperCase() === correctAnswer.toUpperCase();
     if (task.id === 'sentence_unscramble') {
@@ -191,10 +191,11 @@ export function DynamicSequenceTransformer() {
         reactionTimeMs,
         telemetry: {
             sequenceLength: seqStr.length,
-            recallDirection: task.id,
+            transformationType: task.id,
             userSequence: userAnswer.trim().toUpperCase(),
             correctSequence: correctAnswer.toUpperCase(),
             sequenceType: content_config?.params.charSet,
+            scaleType: 'pentatonic' // Placeholder
         }
     };
     logTrial({
@@ -220,7 +221,7 @@ export function DynamicSequenceTransformer() {
         }
     }, 2500);
 
-  }, [gameState, userAnswer, correctAnswer, getAdaptiveState, updateAdaptiveState, startNewTrial, task.id, currentMode, sequence, logTrial]);
+  }, [gameState, userAnswer, correctAnswer, getAdaptiveState, updateAdaptiveState, startNewTrial, task.id, currentMode, sequence, logTrial, audioContext]);
   
   if (currentMode === 'spatial') {
     return <GameStub 
@@ -315,7 +316,7 @@ export function DynamicSequenceTransformer() {
             <span className="p-2 bg-cyan-500/10 rounded-md"><domainIcons.Gwm className="w-6 h-6 text-cyan-400" /></span>
             Dynamic Sequence
         </CardTitle>
-        <CardDescription className="text-cyan-400/70">Memorize the sequence, then transform it as instructed. Wired headphones recommended.</CardDescription>
+        <CardDescription className="text-cyan-400/70">Memorize the sequence, then transform it as instructed. Wired headphones recommended for best results.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-6 min-h-[250px] justify-center">
         {renderContent()}

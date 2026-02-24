@@ -24,7 +24,7 @@ const policy = difficultyPolicies[GAME_ID];
 
 
 const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
-    const { playTone, resumeContext, isAudioReady } = useAudioEngine();
+    const { playTone, resumeContext, isAudioReady, audioContext } = useAudioEngine();
     const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
 
     const [gameState, setGameState] = useState<'loading' | 'playing' | 'feedback' | 'finished'>('loading');
@@ -47,10 +47,10 @@ const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
         answerRef.current = isHigher ? 'higher' : 'lower';
         const secondFreq = isHigher ? baseFreq * Math.pow(2, params.pitchDelta / 1200) : baseFreq / Math.pow(2, params.pitchDelta / 1200);
 
-        playTone(baseFreq, 0.3);
+        const { scheduledTime } = playTone(baseFreq, 0.3);
+        trialStartTime.current = scheduledTime; // Set start time based on audio scheduling
         setTimeout(() => playTone(secondFreq, 0.3), 500);
 
-        trialStartTime.current = Date.now();
     }, [playTone, getAdaptiveState, focus]);
     
     const startNewSession = useCallback(() => {
@@ -69,12 +69,13 @@ const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
 
     const handleAnswer = (userChoice: 'higher' | 'lower') => {
         const state = getAdaptiveState(GAME_ID, focus);
-        if (gameState !== 'playing' || !state) return;
+        if (gameState !== 'playing' || !state || !audioContext) return;
         
         setGameState('feedback');
         
+        // Use audioContext.currentTime for precise reaction time
+        const reactionTimeMs = (audioContext.currentTime - trialStartTime.current) * 1000;
         const isCorrect = userChoice === answerRef.current;
-        const reactionTimeMs = Date.now() - trialStartTime.current;
         const levelPlayed = state.currentLevel;
         const levelDef = policy.levelMap[levelPlayed] || policy.levelMap[1];
         const params = levelDef.content_config[focus]?.params;
@@ -181,6 +182,10 @@ export function AuditoryProcessingRouter() {
     const { override } = useTrainingOverride();
     const currentMode = isComponentLoaded ? (override || globalFocus) : 'neutral';
 
+    if (!isComponentLoaded) {
+        return <Card className="w-full max-w-2xl min-h-[400px] flex items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-primary" /></Card>;
+    }
+    
     if (currentMode === 'logic') {
         return <AuditoryDebugger />;
     }
@@ -203,10 +208,10 @@ export function AuditoryProcessingRouter() {
                     <span className="p-2 bg-violet-500/10 rounded-md"><domainIcons.Ga className="w-6 h-6 text-violet-400" /></span>
                     Auditory Processing Lab
                 </CardTitle>
-                <CardDescription className="text-violet-300/70">A rotating lab of exercises to sharpen your brain's ability to analyze and distinguish sounds. Wired headphones recommended.</CardDescription>
+                <CardDescription className="text-violet-300/70">A rotating lab of exercises to sharpen your brain's ability to analyze and distinguish sounds. Wired headphones recommended for best results.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center justify-center gap-6 min-h-[350px]">
-                {!isComponentLoaded ? <Loader2 className="w-12 h-12 animate-spin text-primary" /> : <PitchDiscriminationModule focus={currentMode}/>}
+                {<PitchDiscriminationModule focus={currentMode}/>}
             </CardContent>
         </Card>
     );

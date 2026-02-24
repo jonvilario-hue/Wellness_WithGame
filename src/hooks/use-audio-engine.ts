@@ -53,51 +53,48 @@ export const useAudioEngine = () => {
     }, [resumeContext]);
 
 
-    const playTone = useCallback((freq: number, duration: number, onEnd?: () => void) => {
-        if (!context || context.state !== 'running') { onEnd?.(); return; }
+    const playTone = useCallback((freq: number, duration: number, onEnd?: () => void): { scheduledTime: number } => {
+        if (!context || context.state !== 'running') { onEnd?.(); return { scheduledTime: 0 }; }
         
         const time = context.currentTime;
+        const scheduledTime = time + 0.01; // Schedule slightly in the future for precision
         const osc = context.createOscillator();
         const gainNode = context.createGain();
 
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, time);
+        osc.frequency.setValueAtTime(freq, scheduledTime);
         
-        // Envelope to prevent clicking
-        gainNode.gain.setValueAtTime(0, time);
-        gainNode.gain.linearRampToValueAtTime(0.5, time + 0.01); // 10ms attack, lowered volume
-        gainNode.gain.linearRampToValueAtTime(0, time + duration - 0.01); // 10ms release
+        gainNode.gain.setValueAtTime(0, scheduledTime);
+        gainNode.gain.linearRampToValueAtTime(0.5, scheduledTime + 0.01);
+        gainNode.gain.linearRampToValueAtTime(0, scheduledTime + duration - 0.01);
 
         osc.connect(gainNode);
         gainNode.connect(context.destination);
         
-        osc.start(time);
-        osc.stop(time + duration);
-
-        const endTimer = setTimeout(() => {
-            try {
-                if (osc.context.state !== "closed") {
-                    osc.disconnect();
-                }
-                gainNode.disconnect();
-            } catch (e) {
-                // Ignore errors from trying to disconnect already disconnected nodes
-            }
-            if(onEnd) onEnd();
-        }, duration * 1000 + 50);
-            
-        // Clean up the timer if component unmounts
-        return () => clearTimeout(endTimer);
+        osc.start(scheduledTime);
+        osc.stop(scheduledTime + duration);
         
+        if (onEnd) {
+            const endTimer = setTimeout(onEnd, duration * 1000 + 50);
+            return () => clearTimeout(endTimer);
+        }
+        
+        return { scheduledTime };
     }, [context]);
     
-    const playSequence = useCallback((notes: (string | number)[], intervalSeconds: number, onEnd?: () => void) => {
-        if (!context || context.state !== 'running') { onEnd?.(); return; }
+    const playSequence = useCallback((notes: (string | number)[], intervalSeconds: number, onEnd?: () => void): { scheduledTime: number } => {
+        if (!context || context.state !== 'running') { onEnd?.(); return { scheduledTime: 0 }; }
         
-        let time = context.currentTime + 0.1; // Small delay to ensure scheduling
+        let time = context.currentTime + 0.1;
+        const scheduledTime = time;
         
         notes.forEach(note => {
-            const freq = typeof note === 'number' ? midiToFreq(note) : 440;
+            if (typeof note !== 'number' || note === 0) { // Handle rests
+                time += intervalSeconds;
+                return;
+            }
+
+            const freq = midiToFreq(note);
             const osc = context.createOscillator();
             const gainNode = context.createGain();
 
@@ -105,7 +102,7 @@ export const useAudioEngine = () => {
             osc.frequency.setValueAtTime(freq, time);
             
             gainNode.gain.setValueAtTime(0, time);
-            gainNode.gain.linearRampToValueAtTime(0.5, time + 0.01); // 10ms attack, lowered volume
+            gainNode.gain.linearRampToValueAtTime(0.5, time + 0.01);
             const releaseTime = time + intervalSeconds - 0.02;
             if (releaseTime > time) {
                 gainNode.gain.setValueAtTime(0.5, releaseTime);
@@ -122,10 +119,13 @@ export const useAudioEngine = () => {
         });
 
         if (onEnd) {
-            const totalDuration = (time - (context.currentTime + 0.1) + 0.1) * 1000;
+            const totalDuration = (time - scheduledTime) * 1000;
             setTimeout(onEnd, totalDuration);
         }
+        return { scheduledTime };
     }, [context]);
 
-    return { playTone, playSequence, resumeContext, isAudioReady };
+    // Other methods like playChord, playSimultaneous would be here...
+
+    return { playTone, playSequence, resumeContext, isAudioReady, audioContext: context };
 };
