@@ -16,7 +16,6 @@ import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types"
 import { realWords, pseudowords } from "@/data/verbal-content";
 import { GameStub } from "../game-stub";
 import { GateSpeed } from '../logic/gate-speed';
-import { logTrialResult } from "@/lib/analytics";
 
 const GAME_ID: GameId = 'gs_rapid_code';
 const policy = difficultyPolicies[GAME_ID];
@@ -49,7 +48,7 @@ const NoiseOverlay = () => (
 );
 
 export function RapidCodeMatch() {
-  const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
+  const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
   const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
 
@@ -178,7 +177,14 @@ export function RapidCodeMatch() {
             trialDuration_ms: reactionTimeMs,
         }
     };
-    logTrialResult(GAME_ID, adaptiveState.currentLevel, trialResult);
+    logTrial({
+      userId: 'local_user', // Placeholder
+      module_id: GAME_ID,
+      currentLevel: adaptiveState.currentLevel,
+      isCorrect: trialResult.correct,
+      responseTime_ms: trialResult.reactionTimeMs,
+      meta: trialResult.telemetry
+    });
     setSessionTrials(prev => [...prev, trialResult]);
     
     const newState = adjustDifficulty(trialResult, adaptiveState, policy);
@@ -201,7 +207,7 @@ export function RapidCodeMatch() {
             startNewTrial(newState);
         }
     }, 500);
-  }, [gameState, problem, adaptiveState, sessionTrials, startNewTrial, updateAdaptiveState, currentMode]);
+  }, [gameState, problem, adaptiveState, sessionTrials, startNewTrial, updateAdaptiveState, currentMode, logTrial]);
 
   if (currentMode === 'spatial') {
     return <GameStub 
