@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -272,11 +271,12 @@ export function PatternMatrix() {
             correct: isCorrect, 
             reactionTimeMs,
             telemetry: {
-                gridSize: puzzle.size,
-                patternRule: puzzle.params.rule,
+                patternLength: puzzle.grid.length,
+                ruleType: puzzle.params?.rule,
+                ruleShifts: puzzle.params?.ruleShifts || 0,
                 selectedAnswer: option,
                 correctAnswer: puzzle.answer,
-                distractorCount: puzzle.options.length,
+                dimsUsed: puzzle.type,
             }
         };
 
@@ -346,7 +346,7 @@ export function PatternMatrix() {
                 }
                 return (
                     <div className="flex flex-col items-center gap-4">
-                        <div className="font-mono text-lg">Level: {state?.currentLevel}</div>
+                        <div className="font-mono text-lg text-blue-300">Level: {state?.currentLevel}</div>
                         <Button onClick={startNewSession} size="lg" className="bg-blue-600 hover:bg-blue-500 text-white">Pattern Matrix</Button>
                     </div>
                 );

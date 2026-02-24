@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useRef, useCallback, useState } from 'react';
@@ -55,18 +54,20 @@ export const useAudioEngine = () => {
         osc.start(time);
         osc.stop(time + duration);
 
-        if (onEnd) {
-             const endTimer = setTimeout(() => {
+        const endTimer = setTimeout(() => {
+            try {
                 if (osc.context.state !== "closed") {
                     osc.disconnect();
                 }
                 gainNode.disconnect();
-                onEnd();
-            }, duration * 1000);
+            } catch (e) {
+                // Ignore errors from trying to disconnect already disconnected nodes
+            }
+            if(onEnd) onEnd();
+        }, duration * 1000 + 50);
             
-            // Clean up the timer if component unmounts
-            return () => clearTimeout(endTimer);
-        }
+        // Clean up the timer if component unmounts
+        return () => clearTimeout(endTimer);
         
     }, [context]);
     

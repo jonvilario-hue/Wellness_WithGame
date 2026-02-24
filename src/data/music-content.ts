@@ -39,6 +39,20 @@ export const musicTheoryQuestions = [
     answer: "Loud",
     explanation: "'Forte' is Italian for 'loud' or 'strong'."
   },
+  {
+    id: 'gcm-music-def-06', level: 1,
+    question: "What is the term for the speed of a piece of music?",
+    options: ["Tempo", "Rhythm", "Meter", "Key"],
+    answer: "Tempo",
+    explanation: "Tempo, from the Italian word for 'time', dictates how fast or slow the music should be played."
+  },
+  {
+    id: 'gcm-music-def-07', level: 1,
+    question: "Which of these is a percussion instrument?",
+    options: ["Viola", "Oboe", "Timpani", "Harp"],
+    answer: "Timpani",
+    explanation: "Timpani, or kettledrums, are large drums that are part of the percussion section of an orchestra."
+  },
 
   // Level 2: Intermediate Concepts
   {
@@ -75,6 +89,20 @@ export const musicTheoryQuestions = [
     options: ["Happy and bright", "Sad or melancholic", "Loud and powerful", "Slow and flowing"],
     answer: "Sad or melancholic",
     explanation: "Minor keys are often perceived as having a more somber or introspective quality than major keys."
+  },
+  {
+    id: 'gcm-music-prop-06', level: 2,
+    question: "What is a 'clef' used for in music notation?",
+    options: ["To set the tempo", "To indicate the volume", "To assign specific pitches to the lines and spaces on a staff", "To mark the end of a piece"],
+    answer: "To assign specific pitches to the lines and spaces on a staff",
+    explanation: "The Treble Clef (G-clef) and Bass Clef (F-clef) are the most common."
+  },
+  {
+    id: 'gcm-music-prop-07', level: 2,
+    question: "An arpeggio is when the notes of a chord are played...",
+    options: ["All at the same time", "Very loudly", "In sequence, one after the other", "Backwards"],
+    answer: "In sequence, one after the other",
+    explanation: "Playing a chord's notes successively rather than simultaneously is called an arpeggio or a 'broken chord'."
   },
 
 
@@ -113,5 +141,19 @@ export const musicTheoryQuestions = [
     options: ["A very slow and steady rhythm", "A rhythm that is always the same", "A rhythm that emphasizes off-beats or weak beats", "A rhythm played only by drums"],
     answer: "A rhythm that emphasizes off-beats or weak beats",
     explanation: "Syncopation is a defining characteristic of genres like jazz, funk, and ragtime."
+  },
+  {
+    id: 'gcm-music-ana-06', level: 3,
+    question: "In a major scale, which scale degree is the 'subdominant'?",
+    options: ["The third", "The fourth", "The fifth", "The seventh"],
+    answer: "The fourth",
+    explanation: "The subdominant (IV) is a pre-dominant chord that often leads to the dominant (V)."
+  },
+  {
+    id: 'gcm-music-ana-07', level: 3,
+    question: "What does 'a cappella' mean?",
+    options: ["With a small orchestra", "Gradually getting slower", "To be played by a solo instrument", "Vocal music without instrumental accompaniment"],
+    answer: "Vocal music without instrumental accompaniment",
+    explanation: "The term is Italian for 'in the manner of the chapel'."
   },
 ];

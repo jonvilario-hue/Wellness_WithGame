@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -60,21 +59,23 @@ const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
     }, [startNewTrial]);
     
     const handleAnswer = (userChoice: 'higher' | 'lower') => {
-        if (gameState !== 'playing') return;
+        const state = getAdaptiveState(GAME_ID, focus);
+        if (gameState !== 'playing' || !state) return;
         
         setGameState('feedback');
         currentTrialIndex.current++;
         const isCorrect = userChoice === answerRef.current;
         const reactionTimeMs = Date.now() - trialStartTime.current;
-        const state = getAdaptiveState(GAME_ID, focus);
-        const levelDef = policy.levelMap[state.currentLevel] || policy.levelMap[1];
+        const levelPlayed = state.currentLevel;
+        const levelDef = policy.levelMap[levelPlayed] || policy.levelMap[1];
         const params = levelDef.content_config[focus]?.params;
 
         const trialResult: TrialResult = {
             correct: isCorrect,
             reactionTimeMs,
             telemetry: {
-                pitchDeltaCents: params?.pitchDelta,
+                trialType: 'pitch',
+                discriminationGap: params?.pitchDelta,
                 baseFreq: 440,
             }
         };
@@ -82,7 +83,7 @@ const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
         logTrial({
             module_id: GAME_ID,
             mode: focus,
-            levelPlayed: state.currentLevel,
+            levelPlayed,
             isCorrect,
             responseTime_ms: reactionTimeMs,
             meta: trialResult.telemetry
@@ -115,6 +116,7 @@ const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
     }
 
     const state = getAdaptiveState(GAME_ID, focus);
+    if (!state) return <Loader2 className="w-8 h-8 animate-spin" />;
 
     return (
         <div className="flex flex-col items-center gap-6 w-full text-violet-200">
@@ -238,3 +240,4 @@ export function AuditoryProcessingRouter() {
 }
 
     
+
