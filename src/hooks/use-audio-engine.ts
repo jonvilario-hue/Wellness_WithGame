@@ -2,6 +2,7 @@
 'use client';
 
 import { useRef, useCallback, useState, useEffect } from 'react';
+import { getAsset } from '@/lib/asset-preloader'; // Import the new asset getter
 
 // --- Type Definitions ---
 interface ActiveVoice {
@@ -19,7 +20,6 @@ export interface ToneHandle {
 // --- Singleton AudioContext ---
 let audioContextInstance: AudioContext | null = null;
 const getAudioContext = () => {
-    // 7. Guard the singleton against a closed AudioContext.
     if (typeof window !== 'undefined' && (!audioContextInstance || audioContextInstance.state === 'closed')) {
         if (audioContextInstance && audioContextInstance.state === 'closed') {
             audioContextInstance = null;
@@ -165,7 +165,6 @@ export const useAudioEngine = () => {
         const baseMidi = 60; // Base note C4
 
         timbres.forEach((timbre, index) => {
-            // Slightly detune each voice to create a richer texture instead of phase cancellation
             const freq = midiToFreq(baseMidi) + (Math.random() - 0.5) * 2;
             const handle = scheduleTone(freq, now, durationSec, timbre);
             if(handle) handles.push(handle);
@@ -247,6 +246,22 @@ export const useAudioEngine = () => {
          return handles;
     }, [context, scheduleTone]);
 
+    // New function to play from a cached URL
+    const playCachedAudio = useCallback(async (url: string) => {
+        if (!context) return;
+        const audioBlob = await getAsset(url);
+        if (!audioBlob) {
+            console.error(`Audio asset not found for URL: ${url}`);
+            return;
+        }
+        const arrayBuffer = await audioBlob.arrayBuffer();
+        const audioBuffer = await context.decodeAudioData(arrayBuffer);
+        const source = context.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(masterGainRef.current!);
+        source.start();
+    }, [context]);
+
     return {
         audioContext: context,
         isAudioReady,
@@ -260,5 +275,6 @@ export const useAudioEngine = () => {
         playSequence,
         playSimultaneous,
         playFlanker,
+        playCachedAudio,
     };
 };

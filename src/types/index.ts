@@ -1,4 +1,7 @@
+
 'use client';
+
+import type { LevelDefinition } from "./index";
 
 // This file is the single source of truth for all shared types in the application.
 
@@ -94,4 +97,13 @@ export interface DifficultyPolicy {
   targetAccuracyHigh: number;
   targetAccuracyLow: number;
   levelMap: Record<number, LevelDefinition>;
+}
+
+// --- Renderer Props Interface (Phase 1 Refactor) ---
+export interface BaseRendererProps<TGameState, TGameEvent> {
+  gameState: TGameState;
+  onEvent: (event: TGameEvent) => void;
+  adaptiveState: AdaptiveState | null;
+  currentTrialIndex: number;
+  sessionLength: number;
 }

@@ -1,9 +1,10 @@
+
 import type { AdaptiveState } from '@/types';
 import type { ProfileRecord, SessionRecord } from '@/types/local-store';
 import type { TelemetryEvent } from './telemetry-events';
 
 const DB_NAME = 'cognitune-local';
-const DB_VERSION = 4; // Bump version for new schema
+const DB_VERSION = 5; // Bump version for new asset cache store
 let db: IDBDatabase | null = null;
 
 // Eviction Policy Configuration
@@ -20,7 +21,7 @@ const openDB = (): Promise<IDBDatabase> => {
       return reject('IndexedDB not available in this environment.');
     }
 
-    if (db && db.version === DB_VERSION && db.objectStoreNames.contains('events')) {
+    if (db && db.version === DB_VERSION && db.objectStoreNames.contains('asset-cache')) {
       resolve(db);
       return;
     }
@@ -45,6 +46,10 @@ const openDB = (): Promise<IDBDatabase> => {
       }
       if (!dbInstance.objectStoreNames.contains('profiles')) {
           dbInstance.createObjectStore('profiles', { keyPath: 'id' });
+      }
+      if (!dbInstance.objectStoreNames.contains('asset-cache')) {
+          const assetStore = dbInstance.createObjectStore('asset-cache', { keyPath: 'url' });
+          assetStore.createIndex('cachedAt', 'cachedAt', { unique: false });
       }
     };
 
@@ -71,41 +76,39 @@ const promisifyRequest = <T>(request: IDBRequest<T>): Promise<T> => {
 
 
 const runEviction = async (db: IDBDatabase) => {
-    const tx = db.transaction(['events', 'sessions'], 'readwrite');
-    const eventStore = tx.objectStore('events');
-    const sessionStore = tx.objectStore('sessions');
+    // Evict old events
+    const eventTx = db.transaction(['events', 'sessions'], 'readwrite');
+    const eventStore = eventTx.objectStore('events');
+    const sessionStore = eventTx.objectStore('sessions');
     
     const eventCount = await promisifyRequest(eventStore.count());
 
-    if (eventCount <= EVICTION_CONFIG.maxEvents) {
-        return;
-    }
-    
-    const activeSessionIds = new Set<string>();
-    let sessionCursor = await promisifyRequest(sessionStore.openCursor());
-    while(sessionCursor) {
-        if (!sessionCursor.value.sessionComplete) {
-            activeSessionIds.add(sessionCursor.value.sessionId);
+    if (eventCount > EVICTION_CONFIG.maxEvents) {
+        const activeSessionIds = new Set<string>();
+        let sessionCursor = await promisifyRequest(sessionStore.openCursor());
+        while(sessionCursor) {
+            if (!sessionCursor.value.sessionComplete) {
+                activeSessionIds.add(sessionCursor.value.sessionId);
+            }
+            sessionCursor = await promisifyRequest(sessionCursor.continue());
         }
-        sessionCursor = await promisifyRequest(sessionCursor.continue());
+
+        const toDeleteCount = eventCount - EVICTION_CONFIG.maxEvents;
+        let deletedCount = 0;
+        let eventCursor = await promisifyRequest(eventStore.openCursor());
+
+        while (eventCursor && deletedCount < toDeleteCount) {
+            const event = eventCursor.value as TelemetryEvent;
+            if (!activeSessionIds.has(event.sessionId)) {
+                eventCursor.delete();
+                deletedCount++;
+            }
+            eventCursor = await promisifyRequest(eventCursor.continue());
+        }
+        console.log(`[Storage Eviction] Deleted ${deletedCount} event records.`);
     }
 
-    const toDeleteCount = eventCount - EVICTION_CONFIG.maxEvents;
-    console.log(`[Storage Eviction] Store count (${eventCount}) exceeds max (${EVICTION_CONFIG.maxEvents}). Deleting up to ${toDeleteCount} oldest events.`);
-    
-    let deletedCount = 0;
-    let eventCursor = await promisifyRequest(eventStore.openCursor());
-
-    while (eventCursor && deletedCount < toDeleteCount) {
-        const event = eventCursor.value as TelemetryEvent;
-        if (!activeSessionIds.has(event.sessionId)) {
-            eventCursor.delete();
-            deletedCount++;
-        }
-        eventCursor = await promisifyRequest(eventCursor.continue());
-    }
-    
-    console.log(`[Storage Eviction] Deleted ${deletedCount} event records.`);
+    // TODO: Implement LRU eviction for asset-cache
 };
 
 export const logEvent = async (event: TelemetryEvent): Promise<void> => {
@@ -160,13 +163,7 @@ export const completeSession = async (sessionId: string, endTime: number): Promi
     }
 };
 
-export const extractReplayInputs = async (sessionId: string): Promise<ReplayInputs | null> => {
-    const db = await openDB();
-    const tx = db.transaction('sessions', 'readonly');
-    const session = await promisifyRequest(tx.objectStore('sessions').get(sessionId));
-    return session?.replayInputs || null;
-}
-
+// ... existing profile and export/import functions ...
 export const getProfile = async (id: string): Promise<AdaptiveState | null> => {
   const db = await openDB();
   const tx = db.transaction('profiles', 'readonly');
@@ -202,11 +199,12 @@ export const importData = async (json: string): Promise<void> => {
   const db = await openDB();
   const data = JSON.parse(json);
 
-  const clearTx = db.transaction(['profiles', 'events', 'sessions'], 'readwrite');
+  const clearTx = db.transaction(['profiles', 'events', 'sessions', 'asset-cache'], 'readwrite');
   await Promise.all([
     promisifyRequest(clearTx.objectStore('profiles').clear()),
     promisifyRequest(clearTx.objectStore('events').clear()),
     promisifyRequest(clearTx.objectStore('sessions').clear()),
+    promisifyRequest(clearTx.objectStore('asset-cache').clear()),
   ]);
   
   if (data.profiles) {
@@ -228,10 +226,41 @@ export const importData = async (json: string): Promise<void> => {
 
 export const clearAllData = async (): Promise<void> => {
   const db = await openDB();
-  const tx = db.transaction(['profiles', 'events', 'sessions'], 'readwrite');
+  const tx = db.transaction(['profiles', 'events', 'sessions', 'asset-cache'], 'readwrite');
   await Promise.all([
     promisifyRequest(tx.objectStore('profiles').clear()),
     promisifyRequest(tx.objectStore('events').clear()),
     promisifyRequest(tx.objectStore('sessions').clear()),
+    promisifyRequest(tx.objectStore('asset-cache').clear()),
   ]);
+};
+
+// --- Asset Cache Functions ---
+
+export interface CachedAsset {
+    url: string;
+    blob: Blob;
+    contentType: string;
+    cachedAt: number;
+    sizeBytes: number;
+}
+
+export const getCachedAsset = async (url: string): Promise<Blob | null> => {
+    const db = await openDB();
+    const tx = db.transaction('asset-cache', 'readonly');
+    const asset = await promisifyRequest(tx.objectStore('asset-cache').get(url));
+    return asset ? asset.blob : null;
+};
+
+export const putCachedAsset = async (url: string, blob: Blob): Promise<void> => {
+    const db = await openDB();
+    const tx = db.transaction('asset-cache', 'readwrite');
+    const asset: CachedAsset = {
+        url,
+        blob,
+        contentType: blob.type,
+        cachedAt: Date.now(),
+        sizeBytes: blob.size,
+    };
+    await promisifyRequest(tx.objectStore('asset-cache').put(asset));
 };

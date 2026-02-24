@@ -1,7 +1,6 @@
 
 'use client';
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { useTrainingFocus } from "@/hooks/use-training-focus";
@@ -12,7 +11,6 @@ import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { TrialResult, GameId } from "@/types";
 import { GameStub } from "../game-stub";
 import { RuleInductionEngine } from '../logic/rule-induction-engine';
-import { domainIcons } from "@/components/icons";
 import { useAudioEngine } from "@/hooks/use-audio-engine";
 import { generateAnalogyProblem } from "@/lib/verbal-stimulus-factory";
 import { PatternMatrixRenderer } from "./pattern-matrix-renderer";
@@ -22,7 +20,7 @@ const policy = difficultyPolicies[GAME_ID];
 
 type GameVariant = 'neutral' | 'math' | 'probability' | 'verbal' | 'music';
 
-// --- STIMULUS GENERATION LOGIC (REMAINS IN LOGIC COMPONENT) ---
+// --- STIMULUS GENERATION LOGIC ---
 const neutralShapes = ['circle', 'square', 'triangle', 'diamond'];
 const neutralColors = ['bg-primary', 'bg-accent', 'bg-chart-3', 'bg-chart-4'];
 const neutralRotations = [0, 90, 180, 270];
@@ -141,7 +139,7 @@ const generatePuzzleForLevel = (level: number, focus: GameVariant) => {
 };
 
 export function PatternMatrix() {
-    const { getAdaptiveState, updateAdaptiveState, logEvent } = usePerformanceStore();
+    const { getAdaptiveState, updateAdaptiveState, logEvent, activeSession } = usePerformanceStore();
     const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
     const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
     const { playSequence, resumeContext, isAudioReady, getAudioContextTime } = useAudioEngine();
@@ -154,8 +152,6 @@ export function PatternMatrix() {
 
     const trialStartTime = useRef(0);
     const currentTrialIndex = useRef(0);
-    const { activeSession } = usePerformanceStore();
-
 
     const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
     const currentMode = isComponentLoaded ? (override || globalFocus) : 'neutral';
@@ -178,8 +174,8 @@ export function PatternMatrix() {
         setSelectedOption(null);
         setFeedback('');
         setGameState('playing');
-        trialStartTime.current = getAudioContextTime();
-    }, [currentMode, getAdaptiveState, getAudioContextTime]);
+        trialStartTime.current = Date.now(); // Consistent RT measurement
+    }, [currentMode, getAdaptiveState]);
     
      useEffect(() => {
         if (gameState === 'playing' && puzzle && puzzle.type === 'music') {
@@ -202,7 +198,7 @@ export function PatternMatrix() {
         setGameState('feedback');
         const currentState = getAdaptiveState(GAME_ID, currentMode);
         const levelPlayed = currentState.currentLevel;
-        const reactionTimeMs = (getAudioContextTime() - trialStartTime.current) * 1000;
+        const reactionTimeMs = Date.now() - trialStartTime.current;
         const isCorrect = JSON.stringify(option) === JSON.stringify(puzzle.answer);
         
         setSelectedOption(option);
@@ -217,32 +213,30 @@ export function PatternMatrix() {
                 selectedAnswer: option,
                 correctAnswer: puzzle.answer,
                 dimsUsed: puzzle.type,
-                stimulusNotes: puzzle.type === 'music' ? puzzle.grid.map((c: any) => c?.notes?.[0]) : [],
             }
         };
 
         if (activeSession) {
-            logEvent({
+             logEvent({
                 type: 'trial_complete',
                 sessionId: activeSession.sessionId,
-                seq: activeSession.trialCount ? activeSession.trialCount + 1 : 1,
+                seq: (activeSession.trialCount || 0) + 1,
                 payload: {
                     id: `${activeSession.sessionId}-${currentTrialIndex.current}`,
                     sessionId: activeSession.sessionId,
                     gameId: GAME_ID,
                     trialIndex: currentTrialIndex.current,
-                    seq: activeSession.trialCount ? activeSession.trialCount + 1 : 1,
                     difficultyLevel: levelPlayed,
                     stimulusParams: trialResult.telemetry,
                     stimulusOnsetTs: trialStartTime.current,
-                    responseTs: getAudioContextTime(),
+                    responseTs: Date.now(),
                     rtMs: reactionTimeMs,
                     correct: isCorrect,
                     responseType: isCorrect ? 'correct' : 'incorrect',
                     pausedDurationMs: 0,
                     wasFallback: false,
-                },
-            });
+                }
+            } as any);
         }
         
         const newState = adjustDifficulty(trialResult, currentState, policy);
@@ -286,34 +280,18 @@ export function PatternMatrix() {
         />;
     }
 
-    const rendererProps = {
-        gameState,
-        puzzle,
-        selectedOption,
-        feedback,
-        isAudioReady,
-        isComponentLoaded,
-        currentMode,
-        adaptiveState: getAdaptiveState(GAME_ID, currentMode),
-        currentTrialIndex: currentTrialIndex.current,
-        sessionLength: policy.sessionLength,
-        onStartSession: startNewSession,
-        onSelectOption: handleSelectOption,
-    };
-
-    return (
-        <Card className="w-full max-w-md bg-slate-800 border-blue-500/30 text-slate-100">
-            <CardHeader>
-                <CardTitle className="flex items-center justify-center gap-2 text-blue-300">
-                    <span className="p-2 bg-blue-500/10 rounded-md"><domainIcons.Gf className="w-6 h-6 text-blue-400" /></span>
-                    Pattern Matrix
-                </CardTitle>
-                <CardDescription className="text-center text-blue-300/70">Identify the logical rule and find the missing piece. Wired headphones recommended for best results.</CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center gap-6 min-h-[500px] justify-center">
-                <PatternMatrixRenderer {...rendererProps} />
-            </CardContent>
-        </Card>
-    );
+    return <PatternMatrixRenderer 
+        gameState={gameState}
+        puzzle={puzzle}
+        selectedOption={selectedOption}
+        feedback={feedback}
+        isAudioReady={isAudioReady}
+        isComponentLoaded={isComponentLoaded}
+        currentMode={currentMode}
+        adaptiveState={getAdaptiveState(GAME_ID, currentMode)}
+        currentTrialIndex={currentTrialIndex.current}
+        sessionLength={policy.sessionLength}
+        onStartSession={startNewSession}
+        onSelectOption={handleSelectOption}
+    />;
 }
-
