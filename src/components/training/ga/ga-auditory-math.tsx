@@ -23,22 +23,6 @@ const useAudioEngine = () => {
     }
     return audioContextRef.current;
   }, []);
-
-  const playBeeps = useCallback((count: number, onEnd?: () => void) => {
-    const context = getAudioContext();
-    if (!context) { onEnd?.(); return; }
-    let time = context.currentTime;
-    for (let i = 0; i < count; i++) {
-      const osc = context.createOscillator();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(880, time);
-      osc.connect(context.destination);
-      osc.start(time);
-      osc.stop(time + 0.1);
-      time += 0.2;
-    }
-    if (onEnd) setTimeout(onEnd, count * 200);
-  }, [getAudioContext]);
   
   const playTone = useCallback((freq: number, duration: number, onEnd?: () => void) => {
     const context = getAudioContext();
@@ -53,15 +37,15 @@ const useAudioEngine = () => {
     if (onEnd) setTimeout(onEnd, duration * 1000);
   }, [getAudioContext]);
 
-  return { playBeeps, playTone, getAudioContext };
+  return { playTone, getAudioContext };
 };
 
 const pitchMap: Record<number, number> = { 1: 300, 2: 450, 3: 600, 4: 750, 5: 900 };
 
 export function GaAuditoryMath({ onGameComplete = () => {} }: { focus: TrainingFocus; onGameComplete?: (result: any) => void }) {
-  const { playBeeps, playTone, getAudioContext } = useAudioEngine();
+  const { playTone, getAudioContext } = useAudioEngine();
   const [isSpeechSupported, setIsSpeechSupported] = useState(false);
-  const [useVisualFallback, setUseVisualFallback] = useState(false);
+  const [usePitchFallback, setUsePitchFallback] = useState(false);
   const [gameState, setGameState] = useState<'loading' | 'start' | 'playing' | 'feedback' | 'finished'>('loading');
   const [puzzle, setPuzzle] = useState<{ num1: number, num2: number } | null>(null);
   const [feedback, setFeedback] = useState('');
@@ -73,13 +57,13 @@ export function GaAuditoryMath({ onGameComplete = () => {} }: { focus: TrainingF
   useEffect(() => {
     const supported = typeof window !== 'undefined' && 'speechSynthesis' in window;
     setIsSpeechSupported(supported);
-    if (!supported) setUseVisualFallback(true);
+    if (!supported) setUsePitchFallback(true);
     setGameState('start');
   }, []);
 
   const startNewTrial = useCallback(() => {
     let num1, num2;
-    const isPitchMode = currentTrialIndex >= 5;
+    const isPitchMode = currentTrialIndex >= 5 || usePitchFallback;
 
     if (isPitchMode) {
       setInstruction("Which TONE is higher in pitch?");
@@ -89,10 +73,10 @@ export function GaAuditoryMath({ onGameComplete = () => {} }: { focus: TrainingF
         num2 = numbers[Math.floor(Math.random() * numbers.length)];
       } while (num1 === num2);
     } else {
-      setInstruction("Count the beeps. Which number is larger?");
-      num1 = Math.floor(Math.random() * 5) + 2; // 2-6
+      setInstruction("Listen to the two numbers. Which is larger?");
+      num1 = Math.floor(Math.random() * 90) + 10; // 10-99
       do {
-        num2 = Math.floor(Math.random() * 5) + 2;
+        num2 = Math.floor(Math.random() * 90) + 10;
       } while (num1 === num2);
     }
     
@@ -100,19 +84,22 @@ export function GaAuditoryMath({ onGameComplete = () => {} }: { focus: TrainingF
     setFeedback('');
     setGameState('playing');
     trialStartTime.current = Date.now();
-  }, [currentTrialIndex]);
+  }, [currentTrialIndex, usePitchFallback]);
 
   useEffect(() => {
     if (gameState === 'playing' && puzzle) {
-      if (useVisualFallback) {
-        // Visual Fallback Logic
-      } else if (currentTrialIndex < 5) {
-        playBeeps(puzzle.num1, () => setTimeout(() => playBeeps(puzzle.num2), 500));
-      } else {
-        playTone(pitchMap[puzzle.num1], 0.5, () => setTimeout(() => playTone(pitchMap[puzzle.num2], 0.5), 500));
-      }
+        if (usePitchFallback || currentTrialIndex >= 5) {
+            playTone(pitchMap[puzzle.num1 as keyof typeof pitchMap], 0.5, () => setTimeout(() => playTone(pitchMap[puzzle.num2 as keyof typeof pitchMap], 0.5), 500));
+        } else {
+            const utterance1 = new SpeechSynthesisUtterance(String(puzzle.num1));
+            utterance1.onend = () => setTimeout(() => {
+                const utterance2 = new SpeechSynthesisUtterance(String(puzzle.num2));
+                speechSynthesis.speak(utterance2);
+            }, 500);
+            speechSynthesis.speak(utterance1);
+        }
     }
-  }, [gameState, puzzle, useVisualFallback, playBeeps, playTone, currentTrialIndex]);
+  }, [gameState, puzzle, usePitchFallback, playTone, currentTrialIndex]);
 
   const startNewSession = () => {
     getAudioContext()?.resume();
@@ -217,3 +204,5 @@ export function GaAuditoryMath({ onGameComplete = () => {} }: { focus: TrainingF
         </Card>
     );
 }
+
+    
