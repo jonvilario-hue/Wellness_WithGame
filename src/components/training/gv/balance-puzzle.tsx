@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,11 +16,11 @@ const GAME_ID: GameId = 'gv_visual_lab';
 const policy = difficultyPolicies[GAME_ID];
 
 const shapes = [
-    { id: 'circle', symbol: '●', color: 'text-chart-1' },
-    { id: 'square', symbol: '■', color: 'text-chart-2' },
-    { id: 'triangle', symbol: '▲', color: 'text-chart-3' },
-    { id: 'diamond', symbol: '◆', color: 'text-chart-4' },
-    { id: 'plus', symbol: '✚', color: 'text-chart-5' },
+    { id: 'circle', symbol: '●', color: 'text-lime-400' },
+    { id: 'square', symbol: '■', color: 'text-green-400' },
+    { id: 'triangle', symbol: '▲', color: 'text-emerald-400' },
+    { id: 'diamond', symbol: '◆', color: 'text-teal-400' },
+    { id: 'plus', symbol: '✚', color: 'text-cyan-400' },
 ];
 
 type Shape = (typeof shapes)[0];
@@ -163,12 +164,12 @@ export function BalancePuzzle({ focus }: { focus: TrainingFocus }) {
     };
 
     const renderContent = () => {
-        if (gameState === 'loading' || !adaptiveState) return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
+        if (gameState === 'loading' || !adaptiveState) return <Loader2 className="h-12 w-12 animate-spin text-lime-400" />;
         if (gameState === 'start') {
             return (
                 <div className="flex flex-col items-center gap-4">
                   <div className="font-mono text-lg">Level: {adaptiveState.currentLevel}</div>
-                  <Button onClick={startNewSession} size="lg">Start Session</Button>
+                  <Button onClick={startNewSession} size="lg" variant="outline" className="border-lime-400 text-lime-400 hover:bg-lime-400/10 hover:text-lime-300">Start Session</Button>
                 </div>
             );
         }
@@ -178,23 +179,23 @@ export function BalancePuzzle({ focus }: { focus: TrainingFocus }) {
                 <div className="text-center space-y-4">
                     <CardTitle>Session Complete!</CardTitle>
                     <p>Accuracy: {isNaN(finalAccuracy) ? 'N/A' : (finalAccuracy * 100).toFixed(0)}%</p>
-                    <Button onClick={() => setGameState('start')} size="lg">Play Again</Button>
+                    <Button onClick={() => setGameState('start')} size="lg" variant="outline" className="border-lime-400 text-lime-400 hover:bg-lime-400/10 hover:text-lime-300">Play Again</Button>
                 </div>
             );
         }
-        if (!puzzle) return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
+        if (!puzzle) return <Loader2 className="h-12 w-12 animate-spin text-lime-400" />;
         
         return (
             <div className="w-full flex flex-col items-center gap-6">
-                <div className="w-full flex justify-between font-mono text-sm">
+                <div className="w-full flex justify-between font-mono text-sm text-gray-300">
                     <span>Trial: {currentTrialIndex.current + 1} / {policy.sessionLength}</span>
                     <span>Level: {adaptiveState.currentLevel}</span>
                 </div>
-                <div className="w-full p-4 bg-muted rounded-lg">
-                    <h3 className="text-center text-sm font-semibold mb-2">Rule</h3>
+                <div className="w-full p-4 bg-gray-900/70 rounded-lg border border-lime-500/30">
+                    <h3 className="text-center text-sm font-semibold mb-2 text-gray-400">Rule</h3>
                     <div className="flex items-center justify-center">
                         <div className="flex-1 flex justify-end items-center gap-2 p-2 pr-4">{puzzle.leftSide.map((s, i) => <ShapeDisplay key={i} shape={s} />)}</div>
-                        <div className="text-4xl font-bold text-primary">=</div>
+                        <div className="text-4xl font-bold text-lime-400">=</div>
                         <div className="flex-1 flex justify-start items-center gap-2 p-2 pl-4">{puzzle.rightSide.map((s, i) => <ShapeDisplay key={i} shape={s} />)}</div>
                     </div>
                 </div>
@@ -202,7 +203,7 @@ export function BalancePuzzle({ focus }: { focus: TrainingFocus }) {
                 <div className="flex items-center gap-4 text-3xl font-bold">
                     <ShapeDisplay shape={puzzle.questionShape} size="text-6xl" />
                     <span>=</span>
-                    <span>?</span>
+                    <span className="text-lime-400">?</span>
                 </div>
 
                 <div className="grid grid-cols-4 gap-4 w-full">
@@ -212,10 +213,11 @@ export function BalancePuzzle({ focus }: { focus: TrainingFocus }) {
                             onClick={() => handleAnswer(option)}
                             disabled={gameState === 'feedback'}
                             size="lg"
+                            variant="outline"
                             className={cn(
-                                "h-16 text-2xl transition-all duration-300",
-                                gameState === 'feedback' && option === puzzle.answer && "bg-green-600 hover:bg-green-700",
-                                gameState === 'feedback' && selectedAnswer === option && option !== puzzle.answer && "bg-destructive hover:bg-destructive/90"
+                                "h-16 text-2xl transition-all duration-300 bg-transparent border-lime-400/50 text-gray-100 hover:bg-lime-900/50 hover:text-white",
+                                gameState === 'feedback' && option === puzzle.answer && "bg-green-500/30 border-green-400",
+                                gameState === 'feedback' && selectedAnswer === option && option !== puzzle.answer && "bg-rose-500/30 border-rose-500"
                             )}
                         >
                             {option}
@@ -225,7 +227,7 @@ export function BalancePuzzle({ focus }: { focus: TrainingFocus }) {
 
                 <div className="h-10 mt-2 text-center">
                     {inlineFeedback.message && (
-                        <div className={cn("animate-in fade-in", inlineFeedback.type === 'success' ? 'text-green-600' : 'text-amber-600')}>
+                        <div className={cn("animate-in fade-in", inlineFeedback.type === 'success' ? 'text-green-400' : 'text-rose-500')}>
                             <p className="text-lg font-bold">{inlineFeedback.message}</p>
                         </div>
                     )}
@@ -235,13 +237,13 @@ export function BalancePuzzle({ focus }: { focus: TrainingFocus }) {
     };
 
     return (
-        <Card className="w-full max-w-xl bg-gray-900 border-green-500/20 text-green-100">
+        <Card className="w-full max-w-xl bg-gray-950 border-lime-500/20 text-gray-100">
             <CardHeader className="text-center">
-                <CardTitle className="flex items-center justify-center gap-2 text-green-300">
+                <CardTitle className="flex items-center justify-center gap-2 text-lime-300">
                     <Scale />
                     (Gv) Balance Puzzle
                 </CardTitle>
-                <CardDescription className="text-green-300/70">Deduce the value of the shape using the balanced scales. This puzzle helps you reason about quantity using spatial logic.</CardDescription>
+                <CardDescription className="text-lime-300/70">Deduce the value of the shape using the balanced scales. This puzzle helps you reason about quantity using spatial logic.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center gap-6 min-h-[450px] justify-center">
                 {renderContent()}

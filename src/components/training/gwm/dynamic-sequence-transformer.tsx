@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -79,7 +80,7 @@ export function DynamicSequenceTransformer() {
 
   useEffect(() => {
     if (isComponentLoaded) {
-      const initialState = getAdaptiveState(GAME_ID);
+      const initialState = getAdaptiveState(GAME_ID, currentMode);
       setAdaptiveState(initialState);
       setGameState('start');
     }
@@ -180,13 +181,13 @@ export function DynamicSequenceTransformer() {
         if(currentTrialIndex.current >= policy.sessionLength) {
             setGameState('finished');
             const finalState = endSession(newState, [...sessionTrials, trialResult]);
-            updateAdaptiveState(finalState);
+            updateAdaptiveState(GAME_ID, currentMode, finalState);
         } else {
             startNewTrial(newState);
         }
     }, 2500);
 
-  }, [gameState, userAnswer, correctAnswer, adaptiveState, sessionTrials, updateAdaptiveState, startNewTrial, task.id]);
+  }, [gameState, userAnswer, correctAnswer, adaptiveState, sessionTrials, updateAdaptiveState, startNewTrial, task.id, currentMode]);
   
   if (currentMode === 'spatial') {
     return <GameStub 
@@ -220,19 +221,19 @@ export function DynamicSequenceTransformer() {
         return (
           <div className="text-center space-y-4 animate-in fade-in">
             <p className="font-semibold text-muted-foreground">Memorize this sequence:</p>
-            <div className="p-4 bg-muted rounded-lg">
-              <p className="text-4xl font-mono tracking-widest">{sequence}</p>
+            <div className="p-4 bg-teal-900/40 rounded-lg">
+              <p className="text-4xl font-mono tracking-widest text-teal-100">{sequence}</p>
             </div>
-            <p className="text-sm text-primary animate-pulse">Prepare to answer...</p>
+            <p className="text-sm text-cyan-400 animate-pulse">Prepare to answer...</p>
           </div>
         );
       case 'answering':
       case 'feedback':
         return (
           <div className="w-full space-y-4 text-center animate-in fade-in">
-            <div className="font-mono text-lg">Trial: {currentTrialIndex.current + 1} / {policy.sessionLength}</div>
-            <div className="p-4 bg-muted rounded-lg">
-              <p className="text-xl font-semibold">{task.label}</p>
+            <div className="font-mono text-lg text-teal-200">Trial: {currentTrialIndex.current + 1} / {policy.sessionLength}</div>
+            <div className="p-4 bg-teal-900/40 rounded-lg">
+              <p className="text-xl font-semibold text-teal-100">{task.label}</p>
             </div>
             <form onSubmit={handleSubmit} className="flex flex-col gap-4 items-center">
               <Input
@@ -240,15 +241,15 @@ export function DynamicSequenceTransformer() {
                 value={userAnswer}
                 onChange={(e) => setUserAnswer(e.target.value)}
                 placeholder="Type your transformed answer"
-                className="text-center text-lg"
+                className="text-center text-lg bg-gray-800 text-white border-teal-500/50"
                 disabled={gameState === 'feedback'}
                 autoFocus
               />
-              <Button type="submit" disabled={gameState === 'feedback'}>Submit Answer</Button>
+              <Button type="submit" disabled={gameState === 'feedback'} className="bg-cyan-500 hover:bg-cyan-400 text-black">Submit Answer</Button>
             </form>
             {gameState === 'feedback' && (
               <div className="mt-4 text-center text-xl font-bold animate-in fade-in">
-                <p className={cn(feedback.includes('Incorrect') ? 'text-amber-600' : 'text-green-600')}>{feedback}</p>
+                <p className={cn(feedback.includes('Incorrect') ? 'text-red-400' : 'text-green-400')}>{feedback}</p>
               </div>
             )}
           </div>
@@ -266,7 +267,7 @@ export function DynamicSequenceTransformer() {
   };
 
   return (
-    <Card className="w-full max-w-2xl text-center bg-cyan-900/10 border-cyan-500/20">
+    <Card className="w-full max-w-2xl text-center bg-gray-900 border-teal-500/20 text-teal-100">
       <CardHeader>
         <CardTitle className="flex items-center justify-center gap-2 text-cyan-400">
             <MemoryStick />

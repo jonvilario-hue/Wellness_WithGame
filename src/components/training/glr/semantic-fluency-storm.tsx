@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -65,7 +66,7 @@ export function SemanticFluencyStorm() {
             chcFactor="Long-Term Retrieval (Glr) / Spatial Orientation"
             techStack={['CSS 3D Transforms', 'SVG']}
             complexity="High"
-            fallbackPlan="Use a complex 2D SVG subway-style map. The core mechanic of retrieving valid paths from memory is preserved."
+            fallbackPlan="Use a 2D SVG subway-style map. The core mechanic of retrieving valid paths from memory is preserved."
         />;
     }
 
@@ -112,13 +113,13 @@ export function SemanticFluencyStorm() {
     };
 
     return (
-        <Card className="w-full max-w-2xl bg-green-900/10 border-green-500/20 min-h-[500px]">
+        <Card className="w-full max-w-2xl bg-emerald-950 border-emerald-500/20 text-emerald-100 min-h-[500px]">
             <CardHeader className="text-center">
-                <CardTitle className="flex items-center justify-center gap-2 text-green-400">
+                <CardTitle className="flex items-center justify-center gap-2 text-emerald-300">
                     <Archive />
                     (Glr) Retrieval Trainer
                 </CardTitle>
-                <CardDescription className="text-green-400/70">Strengthen your brain's ability to find and use stored information.</CardDescription>
+                <CardDescription className="text-emerald-300/70">Strengthen your brain's ability to find and use stored information.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center justify-center gap-6">
                 {renderContent()}
@@ -218,13 +219,13 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (score: numbe
 
     return (
         <div className="w-full flex flex-col items-center gap-4">
-            <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
-                <div className="h-full bg-primary" style={{ width: `${(timeLeft / 6) * 100}%`, transition: 'width 1s linear' }}></div>
+            <div className="w-full h-2 rounded-full bg-emerald-900/50 overflow-hidden">
+                <div className="h-full bg-amber-400" style={{ width: `${(timeLeft / 6) * 100}%`, transition: 'width 1s linear' }}></div>
             </div>
             <p className="font-mono text-right w-full">Chain Length: {chain.length}</p>
             <div className="text-center p-4">
                 <p className="text-lg text-muted-foreground font-semibold">{currentRule}</p>
-                <p className="text-5xl font-bold text-primary my-2">{currentWord.toUpperCase()}</p>
+                <p className="text-5xl font-bold text-amber-400 my-2">{currentWord.toUpperCase()}</p>
             </div>
             <form onSubmit={handleSubmit} className="w-full flex gap-2">
                 <Input value={userInput} onChange={(e) => setUserInput(e.target.value)} placeholder="Type related word..." autoFocus className="text-center text-lg h-12"/>
@@ -309,10 +310,10 @@ function CategorySwitchingMode({ onComplete, focus }: { onComplete: (score: numb
                 <span>Total Score: {score}</span>
                 <span>Time Left: {totalTimeLeft}s</span>
             </div>
-            <div key={currentCategory} className="w-full p-4 bg-muted rounded-lg text-center animate-in fade-in">
+            <div key={currentCategory} className="w-full p-4 bg-emerald-900/50 rounded-lg text-center animate-in fade-in">
                 <p className="text-3xl font-bold">{currentCategory}</p>
                  <div className="w-full h-1 mt-2 rounded-full bg-background overflow-hidden">
-                    <div className="h-full bg-primary" style={{ width: `${(timeLeft / 10) * 100}%`, transition: 'width 1s linear' }}></div>
+                    <div className="h-full bg-amber-400" style={{ width: `${(timeLeft / 10) * 100}%`, transition: 'width 1s linear' }}></div>
                 </div>
             </div>
             <form onSubmit={handleSubmit} className="w-full flex gap-2">

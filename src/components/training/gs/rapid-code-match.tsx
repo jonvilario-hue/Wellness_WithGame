@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -169,6 +170,7 @@ export function RapidCodeMatch() {
 
     setTimeout(() => {
         currentTrialIndex.current++;
+        setInlineFeedback({ message: '', type: '' });
         if (currentTrialIndex.current >= policy.sessionLength) {
             setGameState('finished');
             const finalState = endSession(newState, [...sessionTrials, trialResult]);
@@ -235,12 +237,12 @@ export function RapidCodeMatch() {
     if (problem.type === 'lexical') {
         return (
             <div className="w-full">
-                <div className="flex justify-between w-full text-lg font-mono mb-4">
+                <div className="flex justify-between w-full text-lg font-mono mb-4 text-orange-200">
                     <span>Score: {sessionTrials.filter(t => t.correct).length}</span>
                     <span>Trial: {currentTrialIndex.current + 1} / {policy.sessionLength}</span>
                 </div>
                 <div className="relative mb-6 h-24 flex flex-col items-center justify-center">
-                    <p className="text-5xl font-bold text-primary mb-4">{problem.word}</p>
+                    <p className="text-5xl font-bold text-orange-400 mb-4">{problem.word}</p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                     <Button onClick={() => handleAnswer(false)} variant="secondary" size="lg" className="text-2xl h-32" disabled={gameState === 'feedback'}>
@@ -257,30 +259,30 @@ export function RapidCodeMatch() {
     // Symbol Problem
     return (
       <div className="w-full">
-        <div className="flex justify-between w-full text-lg font-mono mb-4">
+        <div className="flex justify-between w-full text-lg font-mono mb-4 text-orange-200">
             <span>Score: {sessionTrials.filter(t => t.correct).length}</span>
             <span>Trial: {currentTrialIndex.current + 1} / {policy.sessionLength}</span>
         </div>
         
-        <div className="flex justify-center gap-4 p-3 bg-muted rounded-lg mb-6 flex-wrap">
+        <div className="flex justify-center gap-4 p-3 bg-zinc-800 rounded-lg mb-6 flex-wrap">
           {Object.entries(problem.keyMap).map(([symbol, digit]) => (
             <div key={symbol} className="flex flex-col items-center p-2">
-              <span className="text-3xl font-bold text-primary">{symbol}</span>
-              <span className="text-xl font-mono">{digit}</span>
+              <span className="text-3xl font-bold text-orange-400">{symbol}</span>
+              <span className="text-xl font-mono text-orange-200">{digit}</span>
             </div>
           ))}
         </div>
 
         <div className="h-6 text-sm font-semibold mb-2">
           {inlineFeedback.message && (
-            <p className={cn("animate-in fade-in", inlineFeedback.type === 'success' ? 'text-green-600' : 'text-amber-600')}>
+            <p className={cn("animate-in fade-in", inlineFeedback.type === 'success' ? 'text-green-500' : 'text-red-500')}>
               {inlineFeedback.message}
             </p>
           )}
         </div>
 
         <div className="relative inline-block mb-6 h-24 flex items-center justify-center">
-            <div className="text-8xl font-extrabold text-primary">
+            <div className="text-8xl font-extrabold text-orange-400">
                 {problem.stimulus}
             </div>
             <NoiseOverlay />
@@ -288,7 +290,7 @@ export function RapidCodeMatch() {
         
         <div className={cn("grid gap-2 justify-center max-w-md mx-auto grid-cols-5")}>
           {Object.entries(problem.keyMap).map(([_, digit]) => (
-            <Button key={digit} onClick={() => handleAnswer(digit)} variant="secondary" size="lg" className="text-2xl h-16" disabled={gameState === 'feedback'}>
+            <Button key={digit} onClick={() => handleAnswer(digit)} variant="secondary" size="lg" className="text-2xl h-16 bg-zinc-700 hover:bg-zinc-600 text-white" disabled={gameState === 'feedback'}>
               {digit}
             </Button>
           ))}
@@ -298,10 +300,10 @@ export function RapidCodeMatch() {
   };
   
   return (
-    <Card className="w-full max-w-2xl text-center bg-red-900/10 border-red-500/20 text-red-100">
+    <Card className="w-full max-w-2xl text-center bg-zinc-900 border-red-500/20 text-orange-100">
       <CardHeader>
-        <CardTitle className="text-red-300">(Gs) Rapid Code Match</CardTitle>
-        <CardDescription className="text-red-300/70">Match the symbol to the correct digit using the key as fast as you can. The key changes periodically!</CardDescription>
+        <CardTitle className="text-red-400">(Gs) Rapid Code Match</CardTitle>
+        <CardDescription className="text-red-400/70">Match the symbol to the correct digit using the key as fast as you can. The key changes periodically!</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-6 min-h-[500px] justify-center">
         {renderContent()}
