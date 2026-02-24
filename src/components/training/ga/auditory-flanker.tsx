@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { useAudioEngine } from "@/hooks/use-audio-engine";
-import { Loader2, Ear } from "lucide-react";
+import { Loader2, Ear, Headphones } from "lucide-react";
 import { adjustDifficulty, startSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId } from "@/types";
@@ -20,77 +19,106 @@ type Trial = {
     target_freq_hz: number;
     flanker_freq_hz: number;
     options: number[];
+    condition: 'congruent' | 'incongruent';
 };
 
 export function AuditoryFlanker() {
     const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
-    const { playFlanker, resumeContext, isAudioReady, audioContext } = useAudioEngine();
+    const { playFlanker, resumeContext, isAudioReady, getAudioContextTime, getLatencyInfo } = useAudioEngine();
 
     const [gameState, setGameState] = useState<'loading' | 'start' | 'running' | 'feedback' | 'finished'>('loading');
     const [trial, setTrial] = useState<Trial | null>(null);
     const [feedback, setFeedback] = useState('');
-
+    
     const trialCount = useRef(0);
     const sessionTrials = useRef<TrialResult[]>([]);
-    const trialStartTime = useRef(0);
+    const stimulusOnsetTs = useRef(0);
+    const sessionId = useRef(crypto.randomUUID());
+    const deviceInfo = useRef<any>(null);
     
     const startNewTrial = useCallback(() => {
-        if (!audioContext) return;
-        if (trialCount.current >= 20) {
+        if (!isAudioReady) return;
+        if (trialCount.current >= policy.sessionLength) {
             setGameState('finished');
             return;
         }
 
         const state = getAdaptiveState(GAME_ID, 'music');
-        const levelParams = policy.levelMap[state.currentLevel]?.content_config['music']?.params || policy.levelMap[1].content_config['music']!.params;
+        const levelParams = policy.levelMap[state.currentLevel]?.content_config['music']?.params || policy.levelMap[1].content_config['music']!;
 
-        const target_freq_hz = 440;
-        const flanker_freq_hz = target_freq_hz * Math.pow(2, levelParams.flanker_detune_cents / 1200);
+        const isCongruent = Math.random() > levelParams.incongruent_ratio;
+        const condition = isCongruent ? 'congruent' : 'incongruent';
         
-        trialStartTime.current = audioContext.currentTime;
-        playFlanker(target_freq_hz, flanker_freq_hz, 1000);
+        const target_freq_hz = Math.random() > 0.5 ? 440 : 880; // A4 or A5
+        const flanker_freq_hz = isCongruent ? target_freq_hz : (target_freq_hz === 440 ? 440 * Math.pow(2, levelParams.flanker_detune_cents / 1200) : 880 / Math.pow(2, levelParams.flanker_detune_cents / 1200));
+        
+        const handles = playFlanker(target_freq_hz, flanker_freq_hz, 1000, levelParams.flanker_gain_relative);
+        if (handles.length > 0) {
+            stimulusOnsetTs.current = handles[0].scheduledOnset;
+        }
         
         const options = [target_freq_hz, flanker_freq_hz].sort(() => Math.random() - 0.5);
 
-        setTrial({ target_freq_hz, flanker_freq_hz, options });
+        setTrial({ target_freq_hz, flanker_freq_hz, options, condition });
         trialCount.current++;
+        setFeedback('');
         setGameState('running');
-    }, [getAdaptiveState, playFlanker, audioContext]);
+    }, [getAdaptiveState, playFlanker, isAudioReady]);
 
     const startNewSession = useCallback(() => {
         resumeContext();
+        const info = getLatencyInfo();
+        deviceInfo.current = {
+            browser: navigator.userAgent,
+            sampleRate: info.sampleRate,
+            baseLatency: info.baseLatency,
+            outputLatency: info.outputLatency,
+        };
         const sessionState = startSession(getAdaptiveState(GAME_ID, 'music'));
         updateAdaptiveState(GAME_ID, 'music', sessionState);
         trialCount.current = 0;
         sessionTrials.current = [];
+        sessionId.current = crypto.randomUUID();
         startNewTrial();
-    }, [resumeContext, getAdaptiveState, updateAdaptiveState, startNewTrial]);
+    }, [resumeContext, getLatencyInfo, getAdaptiveState, updateAdaptiveState, startNewTrial]);
 
-    const handleResponse = (response: number) => {
-        if (!trial || !audioContext) return;
-        const reactionTimeMs = (audioContext.currentTime - trialStartTime.current) * 1000;
-        const isCorrect = response === trial.target_freq_hz;
+    const handleResponse = (responseFreq: number) => {
+        if (!trial || !isAudioReady) return;
+        
+        const responseTs = getAudioContextTime();
+        const reactionTimeMs = (responseTs - stimulusOnsetTs.current) * 1000;
+        const isCorrect = responseFreq === trial.target_freq_hz;
         
         const state = getAdaptiveState(GAME_ID, 'music');
+        const levelParams = policy.levelMap[state.currentLevel]?.content_config['music']?.params;
+        const spectral_distance_hz = Math.abs(trial.target_freq_hz - trial.flanker_freq_hz);
+
         const trialResult: TrialResult = { 
             correct: isCorrect, 
-            reactionTimeMs, 
+            reactionTimeMs,
+            stimulusOnsetTs: stimulusOnsetTs.current,
+            responseTs: responseTs,
             telemetry: {
-                trialType: 'flanker',
-                targetFreq: trial.target_freq_hz,
-                flankerFreq: trial.flanker_freq_hz,
-                detuneCents: policy.levelMap[state.currentLevel]?.content_config['music']?.params.flanker_detune_cents,
+                condition: trial.condition,
+                target_freq_hz: trial.target_freq_hz,
+                flanker_freq_hz: trial.flanker_freq_hz,
+                spectral_distance_hz,
+                flanker_snr_db: -20 * Math.log10(levelParams.flanker_gain_relative), // Approximate SNR
+                panning_config: { target: 0, flankers: [-1, 1] },
             } 
         };
+
         sessionTrials.current.push(trialResult);
+
         logTrial({
-            module_id: GAME_ID,
-            mode: 'music',
-            levelPlayed: state.currentLevel,
-            isCorrect,
-            responseTime_ms: reactionTimeMs,
-            meta: trialResult.telemetry
-        });
+            sessionId: sessionId.current,
+            gameId: GAME_ID,
+            difficultyLevel: state.currentLevel,
+            trialIndex: trialCount.current,
+            responseType: isCorrect ? 'hit' : 'error',
+            ...trialResult,
+        } as any);
+
         const newState = adjustDifficulty(trialResult, state, policy);
         updateAdaptiveState(GAME_ID, 'music', newState);
 
@@ -105,24 +133,36 @@ export function AuditoryFlanker() {
 
     const renderContent = () => {
         if (gameState === 'loading' || (gameState === 'start' && !isAudioReady)) {
-            return <Button onClick={resumeContext} size="lg">Tap to Enable Audio</Button>
+            return (
+                <div className="text-center space-y-4">
+                     <p className="text-muted-foreground font-semibold flex items-center gap-2"><Headphones/>Wired headphones are required for this task.</p>
+                     <Button onClick={startNewSession} size="lg">Tap to Start</Button>
+                </div>
+            )
         }
         if (gameState === 'start') {
-            return <Button onClick={startNewSession} size="lg">Start Auditory Flanker</Button>
+            return (
+                 <div className="text-center space-y-4">
+                     <p className="text-muted-foreground font-semibold flex items-center gap-2"><Headphones/>Wired headphones are required for this task.</p>
+                     <Button onClick={startNewSession} size="lg">Start Auditory Flanker</Button>
+                </div>
+            )
         }
         if (gameState === 'finished') {
+            const accuracy = sessionTrials.current.filter(t => t.correct).length / sessionTrials.current.length;
             return (
                 <div className="text-center">
                     <CardTitle>Session Complete</CardTitle>
+                     <p className="mt-2 text-lg">Accuracy: {(accuracy * 100).toFixed(1)}%</p>
                     <Button onClick={startNewSession} className="mt-4">Play Again</Button>
                 </div>
             )
         }
         if (gameState === 'running' || gameState === 'feedback') {
             return (
-                <div className="flex flex-col items-center gap-8">
+                <div className="flex flex-col items-center gap-8 w-full">
                      <div className="text-center">
-                        <p className="font-bold text-2xl">Identify the PITCH of the CENTER tone.</p>
+                        <p className="font-bold text-2xl">Which tone did you hear in the CENTER?</p>
                      </div>
                      <div className="h-10 text-xl font-bold">
                          {gameState === 'feedback' && <p className={cn(feedback === 'Correct!' ? 'text-green-400' : 'text-red-400')}>{feedback}</p>}
@@ -146,11 +186,11 @@ export function AuditoryFlanker() {
                     <span className="p-2 bg-violet-500/10 rounded-md"><Ear className="w-6 h-6 text-violet-400" /></span>
                     Auditory Flanker
                 </CardTitle>
-                <CardDescription className="text-violet-300/70">Focus on the center tone and ignore the distracting flanker sounds. Wired headphones recommended.</CardDescription>
+                <CardDescription className="text-violet-300/70">Focus on the center tone and identify its pitch, ignoring the distracting flanker sounds.</CardDescription>
             </CardHeader>
-            <CardContent className="flex flex-col items-center gap-6 min-h-[250px] justify-center">
+            <CardContent className="flex flex-col items-center gap-6 min-h-[300px] justify-center">
                 {renderContent()}
             </CardContent>
         </Card>
-    )
+    );
 }

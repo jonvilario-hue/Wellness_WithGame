@@ -37,10 +37,7 @@ export const midiToFreq = (midi: number) => 440 * Math.pow(2, (midi - 69) / 12);
 export const useAudioEngine = () => {
     const context = getAudioContext();
     const [isAudioReady, setIsAudioReady] = useState(context ? context.state === 'running' : false);
-    // 1. Restructure activeSources to use a typed voice interface.
     const activeVoices = useRef<ActiveVoice[]>([]);
-
-    // 2. Add a master output chain with a limiter.
     const masterGainRef = useRef<GainNode | null>(null);
     const compressorRef = useRef<DynamicsCompressorNode | null>(null);
 
@@ -77,7 +74,6 @@ export const useAudioEngine = () => {
         return context?.currentTime ?? 0;
     }, [context]);
 
-    // 4. Add getLatencyInfo()
     const getLatencyInfo = useCallback(() => {
       if (!context) return { baseLatency: 0, outputLatency: 0, sampleRate: 0 };
       return {
@@ -87,28 +83,20 @@ export const useAudioEngine = () => {
       };
     }, [context]);
 
-    // 3. Make scheduleTone return onset timing info.
     const scheduleTone = useCallback((frequency: number, startTime: number, duration: number, timbre: OscillatorType = 'sine'): ToneHandle | null => {
         if (!context || !masterGainRef.current) return null;
 
-        // 8. Add a minimum duration guard in scheduleTone.
         const safeDuration = Math.max(duration, 0.1);
-
         const osc = context.createOscillator();
         const gainNode = context.createGain();
-
         osc.type = timbre;
         osc.frequency.setValueAtTime(frequency, startTime);
-        
         gainNode.gain.setValueAtTime(0, startTime);
-        gainNode.gain.linearRampToValueAtTime(0.7, startTime + 0.01); // Attack
-        gainNode.gain.exponentialRampToValueAtTime(0.1, startTime + safeDuration - 0.05); // Decay/Sustain
-        gainNode.gain.linearRampToValueAtTime(0, startTime + safeDuration); // Release
-
-        // Connect to master chain
+        gainNode.gain.linearRampToValueAtTime(0.7, startTime + 0.01);
+        gainNode.gain.exponentialRampToValueAtTime(0.1, startTime + safeDuration - 0.05);
+        gainNode.gain.linearRampToValueAtTime(0, startTime + safeDuration);
         osc.connect(gainNode);
         gainNode.connect(masterGainRef.current);
-
         osc.start(startTime);
         osc.stop(startTime + safeDuration);
 
@@ -125,7 +113,48 @@ export const useAudioEngine = () => {
 
     }, [context]);
 
-    // 5. Fix stopAll() to ramp down gain before stopping.
+    const playFlanker = useCallback((targetFreq: number, flankerFreq: number, durationMs: number, flankerGain: number) => {
+        if (!context || !masterGainRef.current) return [];
+        const now = context.currentTime;
+        const durationSec = durationMs / 1000;
+
+        const createPannedVoice = (freq: number, pan: number, gain: number) => {
+            const osc = context.createOscillator();
+            const gainNode = context.createGain();
+            const panner = context.createStereoPanner();
+
+            panner.pan.setValueAtTime(pan, now);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, now);
+            gainNode.gain.setValueAtTime(0, now);
+            gainNode.gain.linearRampToValueAtTime(gain, now + 0.01);
+            gainNode.gain.exponentialRampToValueAtTime(gain * 0.1, now + durationSec - 0.05);
+            gainNode.gain.linearRampToValueAtTime(0, now + durationSec);
+            osc.connect(gainNode);
+            gainNode.connect(panner);
+            panner.connect(masterGainRef.current!);
+            osc.start(now);
+            osc.stop(now + durationSec);
+
+            const voice: ActiveVoice = { osc, gain: gainNode, scheduledEnd: now + durationSec };
+            activeVoices.current.push(voice);
+            
+            osc.onended = () => {
+                activeVoices.current = activeVoices.current.filter(v => v !== voice);
+                osc.disconnect();
+                gainNode.disconnect();
+                panner.disconnect();
+            };
+            return { scheduledOnset: now, scheduledEnd: now + durationSec, voice };
+        }
+
+        const targetHandle = createPannedVoice(targetFreq, 0, 0.5);
+        const leftFlankerHandle = createPannedVoice(flankerFreq, -1, 0.5 * flankerGain);
+        const rightFlankerHandle = createPannedVoice(flankerFreq, 1, 0.5 * flankerGain);
+
+        return [targetHandle, leftFlankerHandle, rightFlankerHandle];
+    }, [context]);
+
     const stopAll = useCallback(() => {
         if (!context) return;
         const now = context.currentTime;
@@ -159,7 +188,6 @@ export const useAudioEngine = () => {
         }
     }, [resumeContext, context]);
 
-    // 9. Update convenience wrappers to return timing info.
     const playNote = useCallback((pitch: number, timbre: string, durationMs: number): ToneHandle | null => {
         if (!context) return null;
         const now = context.currentTime;
@@ -172,7 +200,6 @@ export const useAudioEngine = () => {
          return notes.map(note => scheduleTone(midiToFreq(note), now, durationMs / 1000, 'sine')).filter(Boolean) as ToneHandle[];
     }, [context, scheduleTone]);
 
-    // 6. Fix playSequence — replace setTimeout for onEnd with osc.onended.
     const playSequence = useCallback((notes: (string | number)[], intervalSeconds: number, onEnd?: () => void): ToneHandle[] => {
          if (!context) { onEnd?.(); return []; }
          let time = context.currentTime + 0.1;
@@ -195,7 +222,6 @@ export const useAudioEngine = () => {
                     onEnd();
                 };
             } else {
-                // If no notes were played (empty sequence), call immediately
                 onEnd();
             }
          }
@@ -213,5 +239,6 @@ export const useAudioEngine = () => {
         playNote,
         playChord,
         playSequence,
+        playFlanker,
     };
 };
