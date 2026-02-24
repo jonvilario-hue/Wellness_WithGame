@@ -27,7 +27,7 @@ export class PRNG {
    * Generates the next number in the sequence.
    * @returns A raw integer from the sequence.
    */
-  private nextInt(): number {
+  public nextInt(): number {
     this.seed = (this.a * this.seed + this.c) % this.m;
     return this.seed;
   }
@@ -37,7 +37,7 @@ export class PRNG {
    * This is a deterministic replacement for Math.random().
    * @returns A float between 0 and 1.
    */
-  nextFloat(): number {
+  public nextFloat(): number {
     return this.nextInt() / this.m;
   }
 
@@ -47,7 +47,7 @@ export class PRNG {
    * @param max - The maximum value (exclusive).
    * @returns An integer in the range [min, max).
    */
-  nextIntRange(min: number, max: number): number {
+  public nextIntRange(min: number, max: number): number {
     return Math.floor(this.nextFloat() * (max - min)) + min;
   }
 
@@ -55,8 +55,9 @@ export class PRNG {
    * Shuffles an array in place using the Fisher-Yates algorithm and the seeded PRNG.
    * This provides a deterministic shuffle, unlike Array.sort(() => Math.random() - 0.5).
    * @param array - The array to be shuffled.
+   * @returns A new array with the shuffled elements.
    */
-  shuffle<T>(array: T[]): T[] {
+  public shuffle<T>(array: T[]): T[] {
     let currentIndex = array.length;
     let randomIndex;
 
@@ -77,50 +78,34 @@ export class PRNG {
   }
 }
 
-// Development-only validation function
-export function validateDeterminism(mode: 'verbal' | 'math', seed: string, trialCount: number): boolean {
-    if (process.env.NODE_ENV !== 'development') {
-      console.warn("Determinism validation is only available in development mode.");
-      return true;
+/**
+ * A session-scoped utility to sample items from a list of categories
+ * in a shuffled round-robin fashion, ensuring all categories are visited
+ * before any are repeated.
+ */
+export class CategorySampler {
+    private categories: string[];
+    private prng: PRNG;
+    private shuffledCategories: string[] = [];
+    private currentIndex = 0;
+
+    constructor(categories: string[], prng: PRNG) {
+        this.categories = categories;
+        this.prng = prng;
+        this.reshuffle();
     }
 
-    console.log(`Running determinism check for mode ${mode}, with seed "${seed}"...`);
-    
-    // This function requires dynamic access to the stimulus factories.
-    // In a real scenario, we would dynamically import them.
-    // For this simulation, we'll assume they are available.
-    
-    // Placeholder for actual factory functions
-    const getVerbalTrial = (prng: PRNG, i: number) => `verbal_trial_${prng.nextIntRange(0, 1000)}_${i}`;
-    const getMathTrial = (prng: PRNG, i: number) => `math_trial_${prng.nextIntRange(0, 1000)}_${i}`;
-    
-    const generator = mode === 'verbal' ? getVerbalTrial : getMathTrial;
-
-    const prng1 = new PRNG(seed);
-    const prng2 = new PRNG(seed);
-    const results1 = [];
-    const results2 = [];
-
-    for (let i = 0; i < trialCount; i++) {
-        results1.push(generator(prng1, i));
-        results2.push(generator(prng2, i));
+    private reshuffle() {
+        this.shuffledCategories = this.prng.shuffle(this.categories);
+        this.currentIndex = 0;
     }
-    
-    for (let i = 0; i < trialCount; i++) {
-        if (JSON.stringify(results1[i]) !== JSON.stringify(results2[i])) {
-            console.error(`Determinism FAIL at trial ${i}:`);
-            console.error("Expected:", results1[i]);
-            console.error("Received:", results2[i]);
-            return false;
+
+    public next(): string {
+        if (this.currentIndex >= this.shuffledCategories.length) {
+            this.reshuffle();
         }
+        const category = this.shuffledCategories[this.currentIndex];
+        this.currentIndex++;
+        return category;
     }
-
-    console.log(`Determinism PASS: All ${trialCount} generated stimuli were identical for mode '${mode}'.`);
-    return true;
-}
-
-// Attach to window for console access in dev mode
-if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-    (window as any).validateDeterminism = validateDeterminism;
-    (window as any).PRNG = PRNG;
 }

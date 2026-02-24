@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { useToast } from "@/hooks/use-toast";
 import { useGlrStore, type SpacedPair } from "@/hooks/use-glr-store";
-import { Archive, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import type { TrainingFocus, AdaptiveState, TrialResult, GameId } from "@/types";
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
@@ -20,6 +20,7 @@ import { SpacedRetrievalMode } from "./spaced-retrieval-mode";
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import { domainIcons } from "@/components/icons";
+import { usePageVisibility } from "@/hooks/use-page-visibility";
 
 const GLR_GAME_ID: GameId = 'glr_fluency_storm';
 const glrPolicy = difficultyPolicies[GLR_GAME_ID];
@@ -130,7 +131,7 @@ type RelationshipRule = typeof relationshipRules[number];
 function AssociativeChainMode({ onComplete, focus }: { onComplete: (result: { score: number, trials: TrialResult[] }) => void, focus: TrainingFocus }) {
     const wordList = useMemo(() => {
         return realWords;
-    }, [focus]);
+    }, []);
 
     const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
 
@@ -145,16 +146,31 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (result: { sc
     
     const timerRef = useRef<NodeJS.Timeout>();
     const trialStartTime = useRef<number>(0);
+    const isVisible = usePageVisibility();
+    const pauseTimeRef = useRef<number | null>(null);
+
+    useEffect(() => {
+        if (!isVisible) {
+            if (timerRef.current) clearInterval(timerRef.current);
+            pauseTimeRef.current = Date.now();
+        } else if (pauseTimeRef.current) {
+            // Resume logic is handled in resetTimer
+            resetTimer(true);
+            pauseTimeRef.current = null;
+        }
+    }, [isVisible]);
 
     const handleTimeout = useCallback(() => {
         toast({ title: "Chain Broken!", description: `You built a chain of ${chain.length}.`, variant: "destructive" });
         onComplete({ score: chain.length, trials });
     }, [chain.length, onComplete, trials, toast]);
 
-    const resetTimer = useCallback(() => {
+    const resetTimer = useCallback((wasPaused = false) => {
         if (timerRef.current) clearInterval(timerRef.current);
-        setTimeLeft(6);
-        trialStartTime.current = Date.now();
+        if (!wasPaused) {
+            setTimeLeft(6);
+            trialStartTime.current = Date.now();
+        }
         timerRef.current = setInterval(() => {
             setTimeLeft(prev => {
                 if (prev <= 1) {
@@ -251,7 +267,9 @@ function CategorySwitchingMode({ onComplete, focus }: { onComplete: (result: { s
     const [trials, setTrials] = useState<TrialResult[]>([]);
     const { toast } = useToast();
     const categoryTimerRef = useRef<NodeJS.Timeout>();
+    const totalTimerRef = useRef<NodeJS.Timeout>();
     const trialStartTime = useRef<number>(0);
+    const isVisible = usePageVisibility();
 
     const categories = useMemo(() => {
         if (focus === 'math') return mathCategories;
@@ -268,27 +286,32 @@ function CategorySwitchingMode({ onComplete, focus }: { onComplete: (result: { s
         setTimeLeft(10);
     }, [categories.length]);
     
-    useEffect(() => {
-        trialStartTime.current = Date.now();
-        categoryTimerRef.current = setInterval(switchCategory, 10000);
-        const totalTimer = setInterval(() => {
-            setTotalTimeLeft(prev => {
-                if (prev <= 1) {
-                    clearInterval(categoryTimerRef.current as NodeJS.Timeout);
-                    clearInterval(totalTimer);
-                    onComplete({ score, trials });
-                    return 0;
-                }
-                setTimeLeft(p => p > 0 ? p-1 : 9);
-                return prev - 1;
-            });
-        }, 1000);
+    const stopTimers = useCallback(() => {
+        if(categoryTimerRef.current) clearInterval(categoryTimerRef.current);
+        if(totalTimerRef.current) clearInterval(totalTimerRef.current);
+    }, []);
 
-        return () => {
-            if (categoryTimerRef.current) clearInterval(categoryTimerRef.current);
-            clearInterval(totalTimer);
+    useEffect(() => {
+        if (!isVisible) {
+            stopTimers();
+        } else {
+            trialStartTime.current = Date.now();
+            categoryTimerRef.current = setInterval(switchCategory, 10000);
+            totalTimerRef.current = setInterval(() => {
+                setTotalTimeLeft(prev => {
+                    if (prev <= 1) {
+                        stopTimers();
+                        onComplete({ score, trials });
+                        return 0;
+                    }
+                    setTimeLeft(p => p > 0 ? p-1 : 9);
+                    return prev - 1;
+                });
+            }, 1000);
         }
-    }, [switchCategory, onComplete, score, trials]);
+        return stopTimers;
+    }, [isVisible, onComplete, score, trials, switchCategory, stopTimers]);
+
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();

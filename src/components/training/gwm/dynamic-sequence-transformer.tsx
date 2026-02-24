@@ -4,7 +4,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MemoryStick, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
@@ -20,13 +20,12 @@ import { domainIcons } from "@/components/icons";
 import { useAudioEngine } from "@/hooks/use-audio-engine";
 import { ComplexSpanTask } from "./ComplexSpanTask";
 import { generateVerbalSequence, applyVerbalTransformation } from "@/lib/verbal-stimulus-factory";
-import { PRNG } from "@/lib/rng"; // Audit 3.1
-import { usePageVisibility } from "@/hooks/use-page-visibility"; // Audit 3.6
+import { PRNG } from "@/lib/rng";
+import { usePageVisibility } from "@/hooks/use-page-visibility";
 
 const GAME_ID: GameId = 'gwm_dynamic_sequence';
 const policy = difficultyPolicies[GAME_ID];
 
-// This function now uses a PRNG for deterministic generation
 const generateNeutralSequence = (length: number, charSet: string, prng: PRNG) => {
   let chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   if (charSet === 'alphanumeric') chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -53,7 +52,7 @@ export function DynamicSequenceTransformer() {
   const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
   const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
-  const { playSequence, resumeContext } = useAudioEngine();
+  const { resumeContext } = useAudioEngine();
 
   const [gameState, setGameState] = useState<'loading' | 'start' | 'memorizing' | 'answering' | 'feedback' | 'finished'>('loading');
   
@@ -71,7 +70,6 @@ export function DynamicSequenceTransformer() {
   const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
   const currentMode = isComponentLoaded ? (override || globalFocus) : 'neutral';
 
-  // Audit 3.6: Page visibility hook
   const isVisible = usePageVisibility();
   const pauseTimeRef = useRef<number | null>(null);
   const pausedDurationRef = useRef(0);
@@ -99,24 +97,23 @@ export function DynamicSequenceTransformer() {
       ? Math.max(state.levelFloor, state.currentLevel - 2)
       : state.currentLevel;
 
-    const levelDef = policy.levelMap[loadedLevel] || policy.levelMap[Object.keys(policy.levelMap).pop() as any];
-    const { mechanic_config } = levelDef;
-    const content_config = levelDef.content_config[currentMode];
+    const prng = prngRef.current;
+    let levelDef = difficultyPolicies[GAME_ID]?.levelMap[loadedLevel];
     
     // Stimulus Validation Gate
-    if (!content_config || !content_config.params) {
-        console.warn(`No valid content config for ${currentMode} at level ${loadedLevel}. Falling back to Tier 1 Neutral.`);
-        const fallbackLevelDef = policy.levelMap[1];
-        const fallbackContentConfig = fallbackLevelDef.content_config['neutral']!;
-        const prng = prngRef.current;
-        const newSequence = generateNeutralSequence(fallbackLevelDef.mechanic_config.sequenceLength, fallbackContentConfig.params.charSet, prng);
+    if (!levelDef || !levelDef.content_config[currentMode]?.params) {
+        console.warn(`[Stimulus Gate] No valid content config for ${currentMode} at level ${loadedLevel}. Falling back to Tier 1 Neutral.`);
+        levelDef = difficultyPolicies[GAME_ID].levelMap[1];
+        const fallbackContentConfig = levelDef.content_config['neutral']!;
+        const newSequence = generateNeutralSequence(levelDef.mechanic_config.sequenceLength, fallbackContentConfig.params.charSet, prng);
         const newTask = prng.shuffle([...tasks].filter(t => t.id !== 'sentence_unscramble'))[0];
         setSequence(newSequence);
         setTask(newTask);
     } else {
-        let newTask = tasks.find(t => t.id === content_config.sub_variant) || tasks[0];
+        const { mechanic_config, content_config } = levelDef;
+        const currentContentConfig = content_config[currentMode]!;
+        let newTask = tasks.find(t => t.id === currentContentConfig.sub_variant) || tasks[0];
         let newSequence: string | (string|number)[] = '';
-        const prng = prngRef.current;
 
         if (currentMode === 'verbal') {
             const verbalStim = generateVerbalSequence(loadedLevel, prng);
@@ -127,7 +124,7 @@ export function DynamicSequenceTransformer() {
                 correctSentenceRef.current = verbalStim.correctAnswer;
             }
         } else {
-            newSequence = generateNeutralSequence(mechanic_config.sequenceLength, content_config.params.charSet, prng);
+            newSequence = generateNeutralSequence(mechanic_config.sequenceLength, currentContentConfig.params.charSet, prng);
             const availableTasks = tasks.filter(t => t.id !== 'sentence_unscramble');
             newTask = prng.shuffle(availableTasks)[0];
         }
@@ -138,10 +135,10 @@ export function DynamicSequenceTransformer() {
     
     setUserAnswer('');
     setFeedback('');
-    pausedDurationRef.current = 0; // Reset paused duration for new trial
+    pausedDurationRef.current = 0;
     setGameState('memorizing');
     
-    const displayTime = currentMode === 'verbal' ? mechanic_config.visualDisplayTimeMs || 800 : mechanic_config.displayTimeMs || 1500;
+    const displayTime = currentMode === 'verbal' ? levelDef.mechanic_config.visualDisplayTimeMs || 800 : levelDef.mechanic_config.displayTimeMs || 1500;
 
     setTimeout(() => {
       setGameState('answering');
@@ -157,7 +154,7 @@ export function DynamicSequenceTransformer() {
     updateAdaptiveState(GAME_ID, currentMode, sessionState);
     currentTrialIndex.current = 0;
     sessionId.current = crypto.randomUUID();
-    prngRef.current = new PRNG(sessionId.current); // Re-seed for the new session
+    prngRef.current = new PRNG(sessionId.current);
     startNewTrial(sessionState);
   }, [startNewTrial, resumeContext, updateAdaptiveState, currentMode, getAdaptiveState]);
   
@@ -181,7 +178,6 @@ export function DynamicSequenceTransformer() {
         default: return seqStr;
     }
   }, [sequence, task, currentMode]);
-
 
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
@@ -226,7 +222,6 @@ export function DynamicSequenceTransformer() {
       stimulusParams: { sequence: seqStr, task: task.id },
       timestamp: Date.now(),
       pausedDurationMs: pausedDurationRef.current,
-      ...trialResult
     } as any);
     
     const newState = adjustDifficulty(trialResult, state, policy);

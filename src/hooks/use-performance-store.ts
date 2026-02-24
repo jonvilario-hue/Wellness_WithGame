@@ -8,7 +8,6 @@ import type { GameId, TrialRecord, TrainingFocus, AdaptiveState, TierSelection }
 import { getDefaultState } from '@/lib/adaptive-engine';
 import * as idbStore from '@/lib/idb-store';
 import * as aggregator from '@/lib/local-aggregator';
-import type { LatencyInfo } from '@/types/local-store';
 
 type PerformanceState = {
     gameStates: Record<string, AdaptiveState>;
@@ -47,7 +46,7 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
                     set({ gameStates: newGameStates, isHydrated: true });
                 } catch (e) {
                     console.error("Hydration from IndexedDB failed. The app may be in an environment where IndexedDB is not available.", e);
-                    set({ isHydrated: true }); // Mark as hydrated to unblock UI, even on failure.
+                    set({ isHydrated: true });
                 }
             },
 
@@ -66,7 +65,6 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
                 // Defer state update to after the current render cycle to avoid "setState in render" errors.
                 setTimeout(() => {
                     set(state => {
-                        // Re-check in case it was created by another concurrent process
                         if (!state.gameStates[key]) {
                             state.gameStates[key] = finalState;
                              idbStore.setProfile(key, finalState).catch(e => console.error("Failed to save new profile to IDB", e));
@@ -101,22 +99,20 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
 
             logTrial: async (record) => {
                 try {
-                    // Attempt to flush any buffered writes first
                     const buffered = get().failedWrites;
                     if (buffered.length > 0) {
                         for (const bufferedRecord of buffered) {
                             await idbStore.logTrial(bufferedRecord);
                         }
-                        set({ failedWrites: [] }); // Clear buffer on success
+                        set({ failedWrites: [] });
                     }
                     await idbStore.logTrial(record);
                 } catch (error) {
-                    console.warn("IDB write failed. Buffering trial record.", error);
+                    console.warn("[Fault Tolerance] IDB write failed. Buffering trial record.", error);
                     set(state => {
                         state.failedWrites.push(record);
-                        // Optional: Cap the buffer size
                         if (state.failedWrites.length > 500) {
-                            state.failedWrites.shift(); // Drop the oldest to prevent memory leaks
+                            state.failedWrites.shift(); 
                         }
                     });
                 }

@@ -12,20 +12,13 @@ import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engin
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
 import { mathConceptQuestions } from '@/data/math-content';
+import { usePageVisibility } from "@/hooks/use-page-visibility";
+import { PRNG } from "@/lib/rng";
 
 const GAME_ID: GameId = 'gc_verbal_inference';
 const policy = difficultyPolicies[GAME_ID];
 
-// --- Fisher-Yates Shuffle ---
-const shuffle = (array: any[]) => {
-  for (let i = array.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [array[i], array[j]] = [array[j], array[i]];
-  }
-  return array;
-};
-
-const getQuestionsForLevel = (level: number) => {
+const getQuestionsForLevel = (level: number, prng: PRNG) => {
     const policyForLevel = policy.levelMap[level] || policy.levelMap[1];
     const params = policyForLevel.content_config['math']?.params;
     if (!params) return [];
@@ -38,7 +31,7 @@ const getQuestionsForLevel = (level: number) => {
     } else {
         questionPool = mathConceptQuestions.filter(q => q.level === 3);
     }
-    return shuffle(questionPool);
+    return prng.shuffle(questionPool);
 }
 
 export default function GcMathConcepts({ focus = 'math' }: { focus: TrainingFocus }) {
@@ -53,6 +46,11 @@ export default function GcMathConcepts({ focus = 'math' }: { focus: TrainingFocu
   const trialStartTime = useRef(0);
   const currentTrialIndex = useRef(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const prngRef = useRef<PRNG>(new PRNG(Date.now()));
+  const isVisible = usePageVisibility();
+  const pausedDurationRef = useRef(0);
+  const pauseTimeRef = useRef<number | null>(null);
+
 
   const currentQuestion = useMemo(() => shuffledQuestions[currentTrialIndex.current], [shuffledQuestions, currentTrialIndex.current]);
   const timeLimit = useMemo(() => {
@@ -74,7 +72,7 @@ export default function GcMathConcepts({ focus = 'math' }: { focus: TrainingFocu
     const levelPlayed = adaptiveState.currentLevel;
     setGameState('feedback');
 
-    const reactionTimeMs = Date.now() - trialStartTime.current;
+    const reactionTimeMs = Date.now() - trialStartTime.current - pausedDurationRef.current;
     const isCorrect = option === currentQuestion.answer;
     
     if(option) setSelectedAnswer(option);
@@ -87,6 +85,7 @@ export default function GcMathConcepts({ focus = 'math' }: { focus: TrainingFocu
             question_level: currentQuestion.level,
             timedOut: option === null,
             timeLimit: timeLimit,
+            pausedDurationMs: pausedDurationRef.current,
         }
     };
 
@@ -115,7 +114,11 @@ export default function GcMathConcepts({ focus = 'math' }: { focus: TrainingFocu
 
   // Timer logic
   useEffect(() => {
-    if (gameState === 'playing') {
+    if (gameState === 'playing' && isVisible) {
+        if(pauseTimeRef.current) {
+            pausedDurationRef.current += Date.now() - pauseTimeRef.current;
+            pauseTimeRef.current = null;
+        }
         setTimeLeft(timeLimit / 1000);
       timerRef.current = setInterval(() => {
         setTimeLeft(prev => {
@@ -128,23 +131,27 @@ export default function GcMathConcepts({ focus = 'math' }: { focus: TrainingFocu
       }, 1000);
     } else {
       if (timerRef.current) clearInterval(timerRef.current);
+      if(gameState === 'playing' && !isVisible) {
+          pauseTimeRef.current = Date.now();
+      }
     }
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [gameState, handleAnswer, timeLimit]);
+  }, [gameState, handleAnswer, timeLimit, isVisible]);
 
 
   const startNewSession = useCallback(() => {
     if (!adaptiveState) return;
     const sessionState = startSession(adaptiveState);
+    const newPrng = new PRNG(Date.now());
+    prngRef.current = newPrng;
+
     setAdaptiveState(sessionState);
     updateAdaptiveState(GAME_ID, focus, sessionState);
 
-    const level1Qs = shuffle(mathConceptQuestions.filter(q => q.level === 1)).slice(0, 5);
-    const level2Qs = shuffle(mathConceptQuestions.filter(q => q.level === 2)).slice(0, 5);
-    const level3Qs = shuffle(mathConceptQuestions.filter(q => q.level === 3)).slice(0, 5);
-    setShuffledQuestions([...level1Qs, ...level2Qs, ...level3Qs]);
+    const questions = getQuestionsForLevel(sessionState.currentLevel, newPrng);
+    setShuffledQuestions(questions);
     
     currentTrialIndex.current = 0;
     startNewTrial(sessionState);
@@ -154,6 +161,8 @@ export default function GcMathConcepts({ focus = 'math' }: { focus: TrainingFocu
     setSelectedAnswer(null);
     setGameState('playing');
     trialStartTime.current = Date.now();
+    pausedDurationRef.current = 0;
+    pauseTimeRef.current = null;
   }, []);
 
   const renderContent = () => {
