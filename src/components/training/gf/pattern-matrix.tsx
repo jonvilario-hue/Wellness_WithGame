@@ -235,7 +235,15 @@ export function PatternMatrix() {
         const reactionTimeMs = Date.now() - trialStartTime.current;
         const isCorrect = JSON.stringify(option) === JSON.stringify(puzzle.answer);
         
-        const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs };
+        const trialResult: TrialResult = { 
+            correct: isCorrect, 
+            reactionTimeMs,
+            telemetry: {
+                gridSize: puzzle.size,
+                level: adaptiveState.currentLevel,
+                ruleType: puzzle.type,
+            }
+        };
         setSessionTrials(prev => [...prev, trialResult]);
         
         const newState = adjustDifficulty(trialResult, adaptiveState, policy);

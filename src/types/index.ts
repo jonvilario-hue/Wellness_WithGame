@@ -26,6 +26,7 @@ export interface TrialResult {
   value?: any; // The user's response value
   omissions?: number; // For WM, number of missed items
   intrusions?: number; // For WM, number of incorrect items added
+  telemetry?: Record<string, any>; // Generic bucket for rich, game-specific event data
 }
 
 export interface AdaptiveState {
@@ -38,7 +39,7 @@ export interface AdaptiveState {
   uncertainty: number;
   consecutiveCorrect: number;
   consecutiveWrong: number;
-  recentTrials: { timestamp: number; level: number; correct: boolean; reactionTimeMs: number }[];
+  recentTrials: { timestamp: number; level: number; correct: boolean; reactionTimeMs: number; telemetry?: Record<string, any> }[];
   smoothedAccuracy: number;
   smoothedRT: number | null;
   sessionCount: number;

@@ -136,7 +136,7 @@ export function FocusSwitchReactor() {
     startNewTrial(sessionState);
   }, [adaptiveState, startNewTrial]);
 
-  const processNextTurn = useCallback((correct: boolean) => {
+  const processNextTurn = useCallback((correct: boolean, source: 'click' | 'keyboard' | 'timeout') => {
     if (gameState !== 'running' || !adaptiveState) return;
 
     setGameState('feedback');
@@ -145,7 +145,14 @@ export function FocusSwitchReactor() {
         setScore(prev => prev + 1);
     }
     
-    const trialResult: TrialResult = { correct, reactionTimeMs };
+    const trialResult: TrialResult = { 
+        correct, 
+        reactionTimeMs,
+        telemetry: {
+            inputMethod: source,
+            rule: ruleRef.current,
+        }
+    };
     setSessionTrials(prev => [...prev, trialResult]);
     
     const newState = adjustDifficulty(trialResult, adaptiveState, policy);
@@ -166,35 +173,35 @@ export function FocusSwitchReactor() {
     }, 600); // Increased feedback duration
   }, [gameState, adaptiveState, sessionTrials, updateAdaptiveState, startNewTrial, currentMode]);
   
-  const handleAnswer = useCallback((answer: any) => {
+  const handleAnswer = useCallback((answer: any, source: 'click' | 'keyboard') => {
     if (gameState !== 'running' || !stimulus) return;
     
-    if (rule === 'no_go') {
-      processNextTurn(false);
+    if (ruleRef.current === 'no_go') {
+      processNextTurn(false, source);
       return;
     }
     
     let isCorrect = false;
     if (currentMode === 'neutral') {
         const correctDir: Record<Position, ArrowDir> = { top: 'up', bottom: 'down', left: 'left', right: 'right' };
-        if (rule === 'position') isCorrect = (answer === correctDir[stimulus.position!]);
+        if (ruleRef.current === 'position') isCorrect = (answer === correctDir[stimulus.position!]);
         else isCorrect = (answer === stimulus.arrow);
     } else if (currentMode === 'math') {
-        if (rule === 'parity') isCorrect = (answer === (stimulus.value! % 2 === 0 ? 'left' : 'right'));
+        if (ruleRef.current === 'parity') isCorrect = (answer === (stimulus.value! % 2 === 0 ? 'left' : 'right'));
         else isCorrect = (answer === (stimulus.value! > 50 ? 'left' : 'right'));
     }
     
-    processNextTurn(isCorrect);
-  }, [gameState, rule, processNextTurn, currentMode, stimulus]);
+    processNextTurn(isCorrect, source);
+  }, [gameState, processNextTurn, currentMode, stimulus]);
 
   // Keyboard input handler
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
         if(gameState !== 'running') return;
         if (e.key === 'ArrowLeft' || e.key === 'a') {
-            handleAnswer('left');
+            handleAnswer('left', 'keyboard');
         } else if (e.key === 'ArrowRight' || e.key === 'l') {
-            handleAnswer('right');
+            handleAnswer('right', 'keyboard');
         }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -207,7 +214,7 @@ export function FocusSwitchReactor() {
     if (gameState === 'running' && rule === 'no_go') {
         const waitTime = adaptiveState ? (policy.levelMap[adaptiveState.currentLevel]?.mechanic_config.noGoWaitMs || 1500) : 1500;
         noGoTimer = setTimeout(() => {
-            if(ruleRef.current === 'no_go') processNextTurn(true);
+            if(ruleRef.current === 'no_go') processNextTurn(true, 'timeout');
         }, waitTime);
     }
     return () => clearTimeout(noGoTimer);
@@ -299,7 +306,7 @@ export function FocusSwitchReactor() {
                 {options.map((option) => {
                   const Icon = arrowMap[option as ArrowDir] || (() => <span className="text-2xl">{option}</span>);
                   return (
-                      <Button key={option} onClick={() => handleAnswer(option)} disabled={gameState === 'feedback'} variant="secondary" size="lg" className="h-20">
+                      <Button key={option} onClick={() => handleAnswer(option, 'click')} disabled={gameState === 'feedback'} variant="secondary" size="lg" className="h-20">
                           <Icon className={options.length === 4 ? "w-10 h-10" : ""} />
                       </Button>
                   )

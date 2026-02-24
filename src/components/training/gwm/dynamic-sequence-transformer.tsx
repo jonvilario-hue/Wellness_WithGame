@@ -168,7 +168,14 @@ export function DynamicSequenceTransformer() {
         isCorrect = normalize(userAnswer.trim()) === normalize(correctAnswer);
     }
 
-    const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs };
+    const trialResult: TrialResult = { 
+        correct: isCorrect, 
+        reactionTimeMs,
+        telemetry: {
+            sequenceLength: sequence.length,
+            transformRule: task.id,
+        }
+    };
     setSessionTrials(prev => [...prev, trialResult]);
     
     const newState = adjustDifficulty(trialResult, adaptiveState, policy);
@@ -187,7 +194,7 @@ export function DynamicSequenceTransformer() {
         }
     }, 2500);
 
-  }, [gameState, userAnswer, correctAnswer, adaptiveState, sessionTrials, updateAdaptiveState, startNewTrial, task.id, currentMode]);
+  }, [gameState, userAnswer, correctAnswer, adaptiveState, sessionTrials, updateAdaptiveState, startNewTrial, task.id, currentMode, sequence.length]);
   
   if (currentMode === 'spatial') {
     return <GameStub 

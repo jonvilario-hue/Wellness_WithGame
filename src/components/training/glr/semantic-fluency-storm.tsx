@@ -95,7 +95,7 @@ export function SemanticFluencyStorm() {
                 case 'associative':
                     return <AssociativeChainMode onComplete={handleGameComplete as any} focus={currentTrainingFocus} />;
                 case 'spaced':
-                    return <SpacedRetrievalMode onComplete={handleGameComplete} focus={currentTrainingFocus} />;
+                    return <SpacedRetrievalMode onComplete={handleGameComplete as any} focus={currentTrainingFocus} />;
                 case 'category':
                     return <CategorySwitchingMode onComplete={handleGameComplete as any} focus={currentTrainingFocus} />;
                 default:
@@ -124,7 +124,7 @@ export function SemanticFluencyStorm() {
 const relationshipRules = ["ASSOCIATE", "RHYME", "ANTONYM", "FIRST LETTER MATCH"] as const;
 type RelationshipRule = typeof relationshipRules[number];
 
-function AssociativeChainMode({ onComplete, focus }: { onComplete: (score: number) => void, focus: TrainingFocus }) {
+function AssociativeChainMode({ onComplete, focus }: { onComplete: (result: { score: number, trials: TrialResult[] }) => void, focus: TrainingFocus }) {
     const wordList = useMemo(() => {
         if (focus === 'math') return mathWordList;
         if (focus === 'music') return musicWordList;
@@ -132,46 +132,30 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (score: numbe
         return generalWordList;
     }, [focus]);
 
+    const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
+    const adaptiveState = getAdaptiveState(GLR_GAME_ID, focus);
+
     const [chain, setChain] = useState<string[]>([]);
+    const [trials, setTrials] = useState<TrialResult[]>([]);
     const [currentWord, setCurrentWord] = useState(() => wordList[Math.floor(Math.random() * wordList.length)]);
     const [currentRule, setCurrentRule] = useState<RelationshipRule>(() => relationshipRules[Math.floor(Math.random() * relationshipRules.length)]);
     const [userInput, setUserInput] = useState('');
     const [timeLeft, setTimeLeft] = useState(6);
     const [streak, setStreak] = useState(0);
     const { toast } = useToast();
-    const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
+    
     const timerRef = useRef<NodeJS.Timeout>();
+    const trialStartTime = useRef<number>(0);
 
     const handleTimeout = useCallback(() => {
         toast({ title: "Chain Broken!", description: `You built a chain of ${chain.length}.`, variant: "destructive" });
-        
-        const currentState = getAdaptiveState('glr_fluency_storm', focus);
-        const newLevel = Math.max(currentState.levelFloor, Math.min(currentState.levelCeiling, 4 + Math.min(6, Math.floor(chain.length / 2))));
-
-        updateAdaptiveState(
-            'glr_fluency_storm',
-            focus,
-            {
-                ...currentState,
-                currentLevel: newLevel,
-                lastFocus: focus,
-                smoothedRT: (6 - timeLeft) * 1000,
-                lastSessionAt: Date.now(),
-                sessionCount: currentState.sessionCount + 1,
-            }
-        );
-        
-        if (chain.length > 0) onComplete(chain.length);
-        else { 
-            setCurrentWord(wordList[Math.floor(Math.random() * wordList.length)]);
-            setCurrentRule(relationshipRules[Math.floor(Math.random() * relationshipRules.length)]);
-            setChain([]);
-        }
-    }, [chain.length, timeLeft, toast, updateAdaptiveState, onComplete, getAdaptiveState, focus, wordList]);
+        onComplete({ score: chain.length, trials });
+    }, [chain.length, onComplete, trials, toast]);
 
     const resetTimer = useCallback(() => {
         if (timerRef.current) clearInterval(timerRef.current);
         setTimeLeft(6);
+        trialStartTime.current = Date.now();
         timerRef.current = setInterval(() => {
             setTimeLeft(prev => {
                 if (prev <= 1) {
@@ -191,12 +175,18 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (score: numbe
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        const reactionTimeMs = Date.now() - trialStartTime.current;
         const generalAntonyms: Record<string, string> = { "hot": "cold", "fast": "slow", "happy": "sad", "big": "small", "up": "down", "light": "dark", "day": "night", "rich": "poor", "old": "new", "true": "false" };
 
         const submittedWord = userInput.trim().toLowerCase();
         if (!submittedWord) return;
 
         let isValid = (currentRule === "ASSOCIATE") || (currentRule === "RHYME" && submittedWord.slice(-2) === currentWord.slice(-2) && submittedWord !== currentWord) || (currentRule === "ANTONYM" && (generalAntonyms[currentWord] === submittedWord || generalAntonyms[submittedWord] === currentWord)) || (currentRule === "FIRST LETTER MATCH" && submittedWord[0] === currentWord[0]);
+
+        const trial: TrialResult = { correct: isValid, reactionTimeMs, telemetry: { rule: currentRule, word: currentWord } };
+        setTrials(prev => [...prev, trial]);
+        const newState = adjustDifficulty(trial, adaptiveState, glrPolicy);
+        updateAdaptiveState(GLR_GAME_ID, focus, newState);
 
         if (isValid) {
             setCurrentWord(submittedWord);
@@ -231,16 +221,19 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (score: numbe
 }
 
 // --- MODE 3: CATEGORY SWITCHING SPRINT ---
-function CategorySwitchingMode({ onComplete, focus }: { onComplete: (score: number) => void, focus: TrainingFocus }) {
+function CategorySwitchingMode({ onComplete, focus }: { onComplete: (result: { score: number, trials: TrialResult[] }) => void, focus: TrainingFocus }) {
     const { logSubmittedWord, isWordSubmitted } = useGlrStore();
     const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
+    
     const [categoryIndex, setCategoryIndex] = useState(0);
     const [timeLeft, setTimeLeft] = useState(10);
     const [totalTimeLeft, setTotalTimeLeft] = useState(60);
     const [score, setScore] = useState(0);
     const [userInput, setUserInput] = useState('');
+    const [trials, setTrials] = useState<TrialResult[]>([]);
     const { toast } = useToast();
     const categoryTimerRef = useRef<NodeJS.Timeout>();
+    const trialStartTime = useRef<number>(0);
 
     const categories = useMemo(() => {
         if (focus === 'math') return mathCategories;
@@ -258,16 +251,14 @@ function CategorySwitchingMode({ onComplete, focus }: { onComplete: (score: numb
     }, [categories.length]);
     
     useEffect(() => {
+        trialStartTime.current = Date.now();
         categoryTimerRef.current = setInterval(switchCategory, 10000);
         const totalTimer = setInterval(() => {
             setTotalTimeLeft(prev => {
                 if (prev <= 1) {
                     clearInterval(categoryTimerRef.current as NodeJS.Timeout);
                     clearInterval(totalTimer);
-                    const currentState = getAdaptiveState('glr_fluency_storm', focus);
-                    const newLevel = Math.max(currentState.levelFloor, Math.min(currentState.levelCeiling, 4 + Math.min(6, Math.floor(score / 5))));
-                    updateAdaptiveState(GLR_GAME_ID, focus, { ...currentState, currentLevel: newLevel, lastFocus: focus, sessionCount: currentState.sessionCount + 1, lastSessionAt: Date.now() });
-                    onComplete(score);
+                    onComplete({ score, trials });
                     return 0;
                 }
                 setTimeLeft(p => p > 0 ? p-1 : 9);
@@ -279,14 +270,24 @@ function CategorySwitchingMode({ onComplete, focus }: { onComplete: (score: numb
             if (categoryTimerRef.current) clearInterval(categoryTimerRef.current);
             clearInterval(totalTimer);
         }
-    }, [switchCategory, onComplete, updateAdaptiveState, score, getAdaptiveState, focus]);
+    }, [switchCategory, onComplete, score, trials]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         const word = userInput.trim().toLowerCase();
         if (!word) return;
 
-        if (isWordSubmitted(currentCategory, word)) {
+        const reactionTimeMs = Date.now() - trialStartTime.current;
+        trialStartTime.current = Date.now();
+
+        const alreadySubmitted = isWordSubmitted(currentCategory, word);
+        const trial: TrialResult = { correct: !alreadySubmitted, reactionTimeMs, telemetry: { category: currentCategory, word }};
+        setTrials(prev => [...prev, trial]);
+        const adaptiveState = getAdaptiveState(GLR_GAME_ID, focus);
+        const newState = adjustDifficulty(trial, adaptiveState, glrPolicy);
+        updateAdaptiveState(GLR_GAME_ID, focus, newState);
+
+        if (alreadySubmitted) {
             toast({ title: "Already submitted!", variant: "destructive" });
         } else {
             setScore(s => s + 1);
