@@ -8,7 +8,7 @@ import { useAudioEngine } from "@/hooks/use-audio-engine";
 import { Loader2, Ear } from "lucide-react";
 import { adjustDifficulty, startSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
-import type { AdaptiveState, TrialResult, GameId } from "@/types";
+import type { AdaptiveState, TrialResult, GameId, TrialRecord } from "@/types";
 import { domainIcons } from "@/components/icons";
 import { cn } from "@/lib/utils";
 
@@ -95,6 +95,8 @@ export function AuditoryStroop() {
         const trialResult: TrialResult = { 
             correct: isCorrect, 
             reactionTimeMs, 
+            stimulusOnsetTs: stimulusOnsetTs.current,
+            responseTs,
         };
         setSessionTrials(prev => [...prev, trialResult]);
 
@@ -110,9 +112,11 @@ export function AuditoryStroop() {
             correct: isCorrect,
             responseType: isCorrect ? 'hit' : 'error',
             deviceInfo: deviceInfo.current,
-            meta: {
+            stimulusParams: {
                 displayed_word: trial.word,
                 tone_pitch_hz: trial.pitch === 'High' ? policy.levelMap[state.currentLevel].content_config.music!.params!.high_pitch_hz : policy.levelMap[state.currentLevel].content_config.music!.params!.low_pitch_hz,
+            },
+            meta: {
                 correct_response: trial.pitch,
                 player_response: response,
             }

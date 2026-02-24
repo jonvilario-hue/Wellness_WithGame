@@ -1,4 +1,3 @@
-
 'use client';
 
 // This file is the single source of truth for all shared types in the application.
@@ -45,6 +44,9 @@ export interface TrialResult {
   correct: boolean;
   reactionTimeMs: number;
   telemetry: Record<string, any>; // Flexible object for module-specific data
+  // ADDED: For high-precision RT calculation
+  stimulusOnsetTs?: number; 
+  responseTs?: number;
 }
 
 export interface AdaptiveState {

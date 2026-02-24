@@ -13,7 +13,9 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useTrainingOverride } from '@/hooks/use-training-override';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { AuditoryStroop } from '@/components/training/ef/auditory-stroop';
 import { AuditoryGoNoGo } from '@/components/training/ef/auditory-go-no-go';
+
 
 export default function TrainingPage() {
   const params = useParams();
@@ -29,9 +31,18 @@ export default function TrainingPage() {
 
   const effectiveFocus = override || globalDefaultFocus;
 
-  // For music mode, we now use the Go/No-Go task.
-  const GameComponent = effectiveFocus === 'music' ? AuditoryGoNoGo : (gameComponents[domainInfo.key] || (() => <p>Game not found</p>));
-  const gameTitle = effectiveFocus === 'music' ? "Auditory Go/No-Go" : (domainInfo.gameTitle || domainInfo.name);
+  // This router now selects between two different EF music games based on a simple logic
+  // A more robust implementation might use the difficulty policy to choose.
+  const isGoNoGoDay = new Date().getDate() % 2 === 0;
+
+  const GameComponent = effectiveFocus === 'music' 
+    ? (isGoNoGoDay ? AuditoryGoNoGo : AuditoryStroop) 
+    : (gameComponents[domainInfo.key] || (() => <p>Game not found</p>));
+  
+  const gameTitle = effectiveFocus === 'music' 
+    ? (isGoNoGoDay ? "Auditory Go/No-Go" : "Auditory Stroop")
+    : (domainInfo.gameTitle || domainInfo.name);
+
   const PageIcon = domainIcons[domainInfo.key];
 
   const supportedModes: { key: TrainingFocus; Icon: any; label: string; }[] = [
