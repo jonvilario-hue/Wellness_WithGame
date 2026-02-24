@@ -58,9 +58,9 @@ export function GvSpatialAssembly({ focus }: { focus: TrainingFocus }) {
   const puzzle = useMemo(() => {
       if (!adaptiveState) return null;
       const level = adaptiveState.currentLevel;
-      const policyTier = Math.ceil(level / 5); // Simple mapping from level 1-15 to tier 1-3
+      const policyTier = Math.ceil(level / (policy.levelMap[10].mechanic_config.distractor_similarity / 3)); 
       const puzzlesInTier = PUZZLE_BANK.filter(p => p.tier === policyTier);
-      return puzzlesInTier[Math.floor(Math.random() * puzzlesInTier.length)];
+      return puzzlesInTier[currentTrialIndex % puzzlesInTier.length];
   }, [adaptiveState, currentTrialIndex]);
 
   const answerOptions = useMemo(() => puzzle ? shuffle([puzzle.solution, ...puzzle.distractors]) : [], [puzzle]);
@@ -93,6 +93,7 @@ export function GvSpatialAssembly({ focus }: { focus: TrainingFocus }) {
         telemetry: {
             puzzleTier: puzzle.tier,
             fragments: puzzle.fragments.length,
+            rotation: puzzle.fragments.some(f => f.t.includes('rotate')),
         }
     };
     setSessionTrials(prev => [...prev, trialResult]);

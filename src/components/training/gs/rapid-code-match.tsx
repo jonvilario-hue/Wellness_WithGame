@@ -62,6 +62,7 @@ export function RapidCodeMatch() {
   const trialStartTime = useRef(0);
   const currentTrialIndex = useRef(0);
   const keyChangeCounter = useRef(0);
+  const mistakes = useRef(0);
 
   const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
   const currentMode = isComponentLoaded ? (override || globalFocus) : 'neutral';
@@ -129,6 +130,7 @@ export function RapidCodeMatch() {
     setSessionTrials([]);
     currentTrialIndex.current = 0;
     keyChangeCounter.current = 0;
+    mistakes.current = 0;
     startNewTrial(sessionState);
   }, [adaptiveState, startNewTrial]);
 
@@ -161,7 +163,20 @@ export function RapidCodeMatch() {
     }
     isCorrect = isCorrect && reactionTimeMs < mechanic_config.responseWindowMs;
 
-    const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs, telemetry };
+    if (!isCorrect) {
+        mistakes.current++;
+    }
+
+    const trialResult: TrialResult = { 
+        correct: isCorrect, 
+        reactionTimeMs, 
+        telemetry: {
+            ...telemetry,
+            symbolsCompleted: currentTrialIndex.current + 1,
+            errorsCommitted: mistakes.current,
+            trialDuration_ms: reactionTimeMs,
+        }
+    };
     setSessionTrials(prev => [...prev, trialResult]);
     
     const newState = adjustDifficulty(trialResult, adaptiveState, policy);

@@ -26,7 +26,6 @@ export function VisualProcessingRouter() {
   
   switch (effectiveFocus) {
     case 'math':
-      // This is the corrected routing path per the audit.
       return <GvSpatialAssembly focus={effectiveFocus} />;
     case 'music':
       return <VisualMusicMatch focus={effectiveFocus} />;

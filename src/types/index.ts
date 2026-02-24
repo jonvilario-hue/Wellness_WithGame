@@ -23,11 +23,7 @@ export type TierSelection = Tier | 4; // 4 represents "Automatic"
 export interface TrialResult {
   correct: boolean;
   reactionTimeMs: number;
-  // Optional metrics for specific games
-  value?: any; // The user's response value
-  omissions?: number; // For WM, number of missed items
-  intrusions?: number; // For WM, number of incorrect items added
-  telemetry?: Record<string, any>; // Generic bucket for rich, game-specific event data
+  telemetry?: Record<string, any>;
 }
 
 export interface AdaptiveState {

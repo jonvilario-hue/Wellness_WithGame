@@ -138,7 +138,7 @@ export function FocusSwitchReactor() {
     startNewTrial(sessionState);
   }, [adaptiveState, startNewTrial]);
 
-  const processNextTurn = useCallback((correct: boolean, source: 'click' | 'keyboard' | 'timeout') => {
+  const processNextTurn = useCallback((correct: boolean, source: 'click' | 'keyboard' | 'timeout', responseSide?: 'left' | 'right') => {
     if (gameState !== 'running' || !adaptiveState) return;
 
     setGameState('feedback');
@@ -147,6 +147,22 @@ export function FocusSwitchReactor() {
         setScore(prev => prev + 1);
     }
     
+    let targetSide: string | undefined;
+    if (currentMode === 'neutral') {
+        const correctDir: Record<Position, ArrowDir> = { top: 'up', bottom: 'down', left: 'left', right: 'right' };
+        if (ruleRef.current === 'position') {
+            targetSide = correctDir[stimulus.position!] === 'up' || correctDir[stimulus.position!] === 'left' ? 'left' : 'right';
+        } else {
+             targetSide = stimulus.arrow === 'up' || stimulus.arrow === 'left' ? 'left' : 'right';
+        }
+    } else if (currentMode === 'math') {
+        if (ruleRef.current === 'parity') {
+            targetSide = stimulus.value! % 2 === 0 ? 'left' : 'right';
+        } else {
+             targetSide = stimulus.value! > 50 ? 'left' : 'right';
+        }
+    }
+
     const trialResult: TrialResult = { 
         correct, 
         reactionTimeMs,
@@ -154,6 +170,8 @@ export function FocusSwitchReactor() {
             inputMethod: source,
             rule: ruleRef.current,
             switchOccurred: ruleRef.current !== previousRuleRef.current,
+            targetSide,
+            responseSide,
         }
     };
     setSessionTrials(prev => [...prev, trialResult]);
@@ -174,13 +192,13 @@ export function FocusSwitchReactor() {
             startNewTrial(newState);
         }
     }, 600); // Increased feedback duration
-  }, [gameState, adaptiveState, sessionTrials, updateAdaptiveState, startNewTrial, currentMode]);
+  }, [gameState, adaptiveState, sessionTrials, updateAdaptiveState, startNewTrial, currentMode, stimulus]);
   
-  const handleAnswer = useCallback((answer: any, source: 'click' | 'keyboard') => {
+  const handleAnswer = useCallback((answer: 'left' | 'right', source: 'click' | 'keyboard') => {
     if (gameState !== 'running' || !stimulus) return;
     
     if (ruleRef.current === 'no_go') {
-      processNextTurn(false, source);
+      processNextTurn(false, source, answer);
       return;
     }
     
@@ -208,7 +226,7 @@ export function FocusSwitchReactor() {
         }
     }
     
-    processNextTurn(isCorrect, source);
+    processNextTurn(isCorrect, source, answer);
   }, [gameState, processNextTurn, currentMode, stimulus]);
 
   // Keyboard input handler
@@ -287,7 +305,7 @@ export function FocusSwitchReactor() {
           );
         case 'running':
         case 'feedback':
-           const options = ['left', 'right'];
+           const options: ('left' | 'right')[] = ['left', 'right'];
            return (
             <div className="flex flex-col items-center gap-4 w-full">
               <div className="flex justify-between w-full font-mono">

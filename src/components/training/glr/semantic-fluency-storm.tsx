@@ -47,8 +47,10 @@ export function SemanticFluencyStorm() {
         setLastScore(score);
         
         const adaptiveState = getAdaptiveState(GLR_GAME_ID, currentTrainingFocus);
-        const finalState = endSession(adaptiveState, trials);
-        updateAdaptiveState(GLR_GAME_ID, currentTrainingFocus, finalState);
+        if (trials.length > 0) {
+            const finalState = endSession(adaptiveState, trials);
+            updateAdaptiveState(GLR_GAME_ID, currentTrainingFocus, finalState);
+        }
         
         setGameState('finished');
     };
