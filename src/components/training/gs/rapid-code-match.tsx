@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,11 +12,11 @@ import { Loader2 } from "lucide-react";
 import { adjustDifficulty, startSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { TrialResult, GameId } from "@/types";
-import { realWords, pseudowords } from "@/data/verbal-content";
 import { GameStub } from "../game-stub";
 import { GateSpeed } from '../logic/gate-speed';
 import { domainIcons } from "@/components/icons";
 import { useAudioEngine } from "@/hooks/use-audio-engine";
+import { generateLexicalDecisionProblem } from '@/lib/verbal-stimulus-factory';
 
 const GAME_ID: GameId = 'gs_rapid_code';
 const policy = difficultyPolicies[GAME_ID];
@@ -68,9 +67,7 @@ export function RapidCodeMatch() {
     const { mechanic_config } = levelDef;
     
     if (currentMode === 'verbal') {
-        const isReal = Math.random() > 0.5;
-        const word = isReal ? realWords[Math.floor(Math.random() * realWords.length)] : pseudowords[Math.floor(Math.random() * pseudowords.length)];
-        return { type: 'lexical', stimulus: word, isReal };
+        return generateLexicalDecisionProblem(level);
     }
     
     if (currentMode === 'music') {
@@ -228,7 +225,7 @@ export function RapidCodeMatch() {
         chcFactor="Processing Speed (Gs) / Micro-Expression Recognition"
         techStack={['Framer Motion', 'Face Asset Library']}
         complexity="Medium"
-        fallbackPlan="If face assets fail, use abstract emotional icons (e.g., stylized happy/sad faces). This preserves the speeded classification mechanic but loses the micro-expression subtlety."
+        fallbackPlan="If face assets fail, use abstract 'emoticon' style SVGs. This preserves the speeded classification mechanic but loses the micro-expression subtlety."
         difficultyExamples={{
         level1: "Evaluate '[T] OR [F]' with a 2000ms time limit.",
         level8: "Evaluate 'NOT ([T] XOR [F])' with a 700ms time limit, requiring knowledge of operator precedence."

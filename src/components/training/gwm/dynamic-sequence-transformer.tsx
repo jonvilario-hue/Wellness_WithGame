@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,12 +13,12 @@ import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
-import { phoneticallySimilarSets, grammarScrambleSentences } from "@/data/verbal-content";
 import { GameStub } from "../game-stub";
 import { StateMachineTracer } from "../logic/state-machine-tracer";
 import { domainIcons } from "@/components/icons";
 import { useAudioEngine } from "@/hooks/use-audio-engine";
 import { ComplexSpanTask } from "./ComplexSpanTask";
+import { generateVerbalSequence, applyVerbalTransformation } from "@/lib/verbal-stimulus-factory";
 
 
 const GAME_ID: GameId = 'gwm_dynamic_sequence';
@@ -30,16 +29,6 @@ const generateSequence = (length: number, charSet: string) => {
   if (charSet === 'alphanumeric') chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   if (charSet === 'numeric') chars = '0123456789';
   
-  if (charSet === 'phonological_similar') {
-    const set = phoneticallySimilarSets[Math.floor(Math.random() * phoneticallySimilarSets.length)];
-    return set.slice(0, length).join(' ');
-  }
-  if (charSet === 'phonological_distinct') {
-     const distinctWords = ['CAT', 'DOG', 'SUN', 'SKY', 'RED', 'BLUE', 'ONE', 'TWO'];
-     return distinctWords.sort(() => 0.5 - Math.random()).slice(0, length).join(' ');
-  }
-
-
   let result = '';
   for (let i = 0; i < length; i++) {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
@@ -101,11 +90,13 @@ export function DynamicSequenceTransformer() {
     let newTask = tasks.find(t => t.id === content_config.sub_variant) || tasks[0];
     let newSequence: string | (string|number)[] = '';
 
-    if(content_config.sub_variant === 'sentence_unscramble') {
-        const sentenceData = grammarScrambleSentences[Math.floor(Math.random() * grammarScrambleSentences.length)];
-        correctSentenceRef.current = sentenceData.sentence;
-        newSequence = sentenceData.sentence.split(' ').sort(() => Math.random() - 0.5).join(' ');
-        newTask = tasks.find(t => t.id === 'sentence_unscramble')!;
+    if (currentMode === 'verbal') {
+        const verbalStim = generateVerbalSequence(loadedLevel);
+        newSequence = verbalStim.sequence;
+        newTask = tasks.find(t => t.id === verbalStim.transformationRule) || tasks[0];
+        if (verbalStim.correctAnswer) {
+            correctSentenceRef.current = verbalStim.correctAnswer;
+        }
     } else {
         newSequence = generateSequence(mechanic_config.sequenceLength, content_config.params.charSet);
         const availableTasks = tasks.filter(t => t.id !== 'sentence_unscramble');
@@ -143,13 +134,15 @@ export function DynamicSequenceTransformer() {
   
   const correctAnswer = useMemo(() => {
     if (!sequence || !task) return '';
+    if (currentMode === 'verbal') {
+        return applyVerbalTransformation(sequence as string, task.id, correctSentenceRef.current);
+    }
     const seqStr = Array.isArray(sequence) ? sequence.join('') : sequence;
     switch(task.id) {
         case 'reverse': return seqStr.split('').reverse().join('');
         case 'alpha_only': return seqStr.replace(/[^A-Z]/gi, '');
         case 'numeric_only': return seqStr.replace(/[^0-9+\-*/=]/g, '');
         case 'remove_first': return seqStr.substring(1);
-        case 'sentence_unscramble': return correctSentenceRef.current;
         case 'alpha_shift':
             return seqStr.replace(/[^A-Z]/gi, '').split('').map(char => 
                 char.toUpperCase() === 'Z' ? 'A' : String.fromCharCode(char.charCodeAt(0) + 1)
@@ -158,7 +151,7 @@ export function DynamicSequenceTransformer() {
             return seqStr.split('').filter((_, i) => i % 2 === 0).join('');
         default: return seqStr;
     }
-  }, [sequence, task]);
+  }, [sequence, task, currentMode]);
 
 
   const handleSubmit = useCallback((e: React.FormEvent) => {
@@ -171,11 +164,8 @@ export function DynamicSequenceTransformer() {
     const responseTs = getAudioContextTime() || Date.now();
     const reactionTimeMs = responseTs - trialStartTime.current;
     
-    let isCorrect = userAnswer.trim().toUpperCase() === correctAnswer.toUpperCase();
-    if (task.id === 'sentence_unscramble') {
-        const normalize = (str: string) => str.toUpperCase().replace(/[.,!?]/g, '');
-        isCorrect = normalize(userAnswer.trim()) === normalize(correctAnswer);
-    }
+    const normalize = (str: string) => str.toUpperCase().replace(/[.,!?]/g, '').trim();
+    const isCorrect = normalize(userAnswer) === normalize(correctAnswer);
     
     const levelDef = policy.levelMap[levelPlayed] || policy.levelMap[1];
     const content_config = levelDef.content_config[currentMode];

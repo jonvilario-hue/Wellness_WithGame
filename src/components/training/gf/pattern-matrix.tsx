@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,11 +12,11 @@ import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
 import { adjustDifficulty, startSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { TrialResult, GameId } from "@/types";
-import { morphologyWordPairs } from "@/data/verbal-content";
 import { GameStub } from "../game-stub";
 import { RuleInductionEngine } from '../logic/rule-induction-engine';
 import { domainIcons } from "@/components/icons";
 import { useAudioEngine } from "@/hooks/use-audio-engine";
+import { generateAnalogyProblem } from "@/lib/verbal-stimulus-factory";
 
 
 const GAME_ID: GameId = 'gf_pattern_matrix';
@@ -84,6 +83,10 @@ const generatePuzzleForLevel = (level: number, focus: GameVariant) => {
     const { mechanic_config, content_config } = levelDef;
     const size = mechanic_config.gridSize === "3x3" ? 3 : 2;
     
+    if (focus === 'verbal') {
+        return generateAnalogyProblem(level);
+    }
+
     const focusConfig = content_config[focus];
     if (!focusConfig || !focusConfig.params) return generatePuzzleForLevel(level, 'neutral');
 
@@ -138,22 +141,7 @@ const generatePuzzleForLevel = (level: number, focus: GameVariant) => {
     const grid: any[] = Array(size * size).fill(null);
     const missingIndex = Math.floor(Math.random() * (size * size));
     
-    if (sub_variant === 'morphological_analogy') {
-        const pseudowords = { base: ['flib', 'glorp', 'wux'], derived: ['flibbing', 'glorping', 'wuxing'] };
-        const rule = Math.random() > 0.5 ? 'ing' : 'ed';
-        
-        const base1 = pseudowords.base[0];
-        const derived1 = rule === 'ing' ? pseudowords.derived[0] : 'flibbed';
-        const base2 = pseudowords.base[1];
-        const derived2 = rule === 'ing' ? pseudowords.derived[1] : 'glorped';
-        
-        grid[0] = { type: 'verbal', value: base1 };
-        grid[1] = { type: 'verbal', value: derived1 };
-        grid[2] = { type: 'verbal', value: base2 };
-        grid[3] = { type: 'verbal', value: derived2 };
-
-    }
-    else if (focus === 'math') {
+    if (focus === 'math') {
         const start = Math.floor(Math.random()*5) + 1;
         const step = Math.floor(Math.random()*3) + 1;
         for(let i = 0; i < size * size; i++) grid[i] = { type: 'math', value: start + i * step };
@@ -181,13 +169,6 @@ const generatePuzzleForLevel = (level: number, focus: GameVariant) => {
         let tempDecoy: any = { ...answer };
         if(focus === 'math') {
             tempDecoy.value += (Math.random() > 0.5 ? 1 : -1) * (Math.floor(Math.random()*3)+1);
-        } else if (focus === 'verbal') {
-            const otherWords = Object.values(morphologyWordPairs).flat().map(p => [p.base, p.derived]).flat();
-            let randomWord = otherWords[Math.floor(Math.random() * otherWords.length)];
-            while(randomWord === answer.value) {
-                randomWord = otherWords[Math.floor(Math.random() * otherWords.length)];
-            }
-            tempDecoy.value = randomWord;
         } else {
              const changeProp = Object.keys(tempDecoy)[Math.floor(Math.random() * Object.keys(tempDecoy).length)];
              if(typeof tempDecoy[changeProp] !== 'string' || changeProp === 'type') continue;

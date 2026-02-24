@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Settings, Brain, Music, MessageSquare, View, Smile, Share2 } from 'lucide-react';
