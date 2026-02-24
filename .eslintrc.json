@@ -1,0 +1,14 @@
+
+{
+  "extends": "next/core-web-vitals",
+  "rules": {
+    "no-restricted-properties": [
+      "error",
+      {
+        "object": "Math",
+        "property": "random",
+        "message": "Use the seeded PRNG from src/lib/rng.ts instead of Math.random. See determinism-regression.test.ts for enforcement."
+      }
+    ]
+  }
+}
