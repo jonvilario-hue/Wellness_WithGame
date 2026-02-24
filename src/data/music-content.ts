@@ -1,3 +1,4 @@
+
 // This file acts as a mock database for music-related content,
 // simulating what would be stored in a production Firestore collection.
 
@@ -52,6 +53,62 @@ export const musicTheoryQuestions = [
     options: ["Viola", "Oboe", "Timpani", "Harp"],
     answer: "Timpani",
     explanation: "Timpani, or kettledrums, are large drums that are part of the percussion section of an orchestra."
+  },
+  {
+    id: 'gcm-music-def-08', level: 1,
+    question: "What is a 'melody'?",
+    options: ["Multiple notes played at once", "The speed of the music", "A sequence of single notes that is musically satisfying", "The volume of the music"],
+    answer: "A sequence of single notes that is musically satisfying",
+    explanation: "The melody is often the most memorable part of a song, the part you might hum or sing."
+  },
+  {
+    id: 'gcm-music-def-09', level: 1,
+    question: "Which of these is a string instrument?",
+    options: ["Saxophone", "Cello", "Bassoon", "French Horn"],
+    answer: "Cello",
+    explanation: "The cello is a large string instrument played while seated, known for its rich, warm tone."
+  },
+  {
+    id: 'gcm-music-def-10', level: 1,
+    question: "A 'rest' in music notation indicates...",
+    options: ["A very long note", "A moment of silence", "A very loud note", "The end of the song"],
+    answer: "A moment of silence",
+    explanation: "Rests are just as important as notes for creating rhythm and musical texture."
+  },
+  {
+    id: 'gcm-music-def-11', level: 1,
+    question: "What is a 'beat' in music?",
+    options: ["The main tune", "The lyrics of a song", "A type of drum", "The basic unit of time or pulse"],
+    answer: "The basic unit of time or pulse",
+    explanation: "The beat is what you might tap your foot to while listening to music."
+  },
+  {
+    id: 'gcm-music-def-12', level: 1,
+    question: "The person who writes music is called a...",
+    options: ["Conductor", "Composer", "Lyricist", "Producer"],
+    answer: "Composer",
+    explanation: "A composer creates the musical score, while a lyricist writes the words."
+  },
+  {
+    id: 'gcm-music-def-13', level: 1,
+    question: "What is 'pitch'?",
+    options: ["How loud or soft a sound is", "How long or short a note is", "How high or low a sound is", "How fast or slow the music is"],
+    answer: "How high or low a sound is",
+    explanation: "Pitch is determined by the frequency of sound wave vibrations."
+  },
+  {
+    id: 'gcm-music-def-14', level: 1,
+    question: "Which of these is a woodwind instrument?",
+    options: ["Trombone", "Tuba", "Clarinet", "Cymbal"],
+    answer: "Clarinet",
+    explanation: "Woodwind instruments produce sound when a player blows air across a reed or an opening."
+  },
+  {
+    id: 'gcm-music-def-15', level: 1,
+    question: "What does a 'bar line' do in musical notation?",
+    options: ["Separates the staff into measures", "Tells you the key", "Indicates a very loud note", "Shows where to repeat from"],
+    answer: "Separates the staff into measures",
+    explanation: "Bar lines help organize the music into regular rhythmic groupings based on the time signature."
   },
 
   // Level 2: Intermediate Concepts

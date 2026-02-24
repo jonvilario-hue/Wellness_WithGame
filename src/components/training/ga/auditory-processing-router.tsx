@@ -1,12 +1,11 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
-import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription } from "@/components/ui/alert-dialog";
-import { Headphones, Volume2, Loader2, Ear, Check, X } from "lucide-react";
-import { Slider } from "@/components/ui/slider";
+import { Headphones, Loader2, Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
@@ -25,10 +24,10 @@ const policy = difficultyPolicies[GAME_ID];
 
 
 const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
-    const { playTone } = useAudioEngine();
+    const { playTone, resumeContext, isAudioReady } = useAudioEngine();
     const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
 
-    const [gameState, setGameState] = useState<'playing' | 'feedback' | 'finished'>('playing');
+    const [gameState, setGameState] = useState<'idle' | 'playing' | 'feedback' | 'finished'>('idle');
     const [feedback, setFeedback] = useState<string>('');
     const trialStartTime = useRef(0);
     const answerRef = useRef<'higher' | 'lower'>('higher');
@@ -53,17 +52,27 @@ const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
 
         trialStartTime.current = Date.now();
     }, [playTone, getAdaptiveState, focus]);
-
-    useEffect(() => {
-        startNewTrial();
-    }, [startNewTrial]);
     
+    const startNewSession = useCallback(() => {
+        resumeContext();
+        const sessionState = startSession(getAdaptiveState(GAME_ID, focus));
+        updateAdaptiveState(GAME_ID, focus, sessionState);
+        currentTrialIndex.current = 0;
+        startNewTrial();
+    }, [resumeContext, getAdaptiveState, updateAdaptiveState, focus, startNewTrial]);
+    
+    useEffect(() => {
+        if(gameState === 'idle' && isAudioReady) {
+            startNewSession();
+        }
+    }, [gameState, isAudioReady, startNewSession])
+
     const handleAnswer = (userChoice: 'higher' | 'lower') => {
         const state = getAdaptiveState(GAME_ID, focus);
         if (gameState !== 'playing' || !state) return;
         
         setGameState('feedback');
-        currentTrialIndex.current++;
+        
         const isCorrect = userChoice === answerRef.current;
         const reactionTimeMs = Date.now() - trialStartTime.current;
         const levelPlayed = state.currentLevel;
@@ -95,6 +104,7 @@ const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
         setFeedback(isCorrect ? getSuccessFeedback('Ga') : getFailureFeedback('Ga'));
 
         setTimeout(() => {
+            currentTrialIndex.current++;
             if (currentTrialIndex.current >= policy.sessionLength) {
                 setGameState('finished');
             } else {
@@ -110,13 +120,20 @@ const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
         return (
              <div className="text-center space-y-4">
                 <CardTitle>Session Complete!</CardTitle>
-                <Button onClick={startNewTrial} className="bg-violet-600 hover:bg-violet-500 text-white">Play Again</Button>
+                <Button onClick={startNewSession} className="bg-violet-600 hover:bg-violet-500 text-white">Play Again</Button>
             </div>
         )
     }
 
     const state = getAdaptiveState(GAME_ID, focus);
-    if (!state) return <Loader2 className="w-8 h-8 animate-spin" />;
+    if (gameState === 'idle' || !state) {
+        return (
+            <div className="flex flex-col items-center gap-4 text-center">
+                <p className="text-muted-foreground">Audio required for this mode.</p>
+                <Button onClick={resumeContext} size="lg" className="bg-violet-600 hover:bg-violet-500 text-white">Tap to Enable Audio & Start</Button>
+            </div>
+        )
+    }
 
     return (
         <div className="flex flex-col items-center gap-6 w-full text-violet-200">
@@ -151,24 +168,13 @@ const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
 
 // --- Main Lab Component ---
 export function AuditoryProcessingRouter() {
-    const { resumeContext, isAudioReady } = useAudioEngine();
-    
-    const [gameState, setGameState] = useState<'idle' | 'headphoneCheck' | 'running'>('idle');
+    const { isAudioReady, resumeContext } = useAudioEngine();
     
     const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
     const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
     const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
     const currentMode = isComponentLoaded ? (override || globalFocus) : 'neutral';
 
-    const startSessionFlow = () => {
-        resumeContext();
-        setGameState('headphoneCheck');
-    };
-
-    const startTraining = () => {
-        setGameState('running');
-    };
-    
     if (currentMode === 'logic') {
         return <AuditoryDebugger />;
     }
@@ -184,45 +190,6 @@ export function AuditoryProcessingRouter() {
         />;
     }
 
-
-    const renderContent = () => {
-        if (!isComponentLoaded) return <Loader2 className="w-12 h-12 animate-spin text-primary" />;
-
-        switch (gameState) {
-            case 'idle':
-                if (!isAudioReady) {
-                     return (
-                        <div className="flex flex-col items-center gap-4 text-center">
-                            <p className="text-muted-foreground">Audio required for this mode.</p>
-                            <Button onClick={startSessionFlow} size="lg" className="bg-violet-600 hover:bg-violet-500 text-white">Tap to Enable Audio & Start</Button>
-                        </div>
-                    )
-                }
-                return <Button onClick={startSessionFlow} size="lg" className="bg-violet-600 hover:bg-violet-500 text-white">Auditory Processing Lab</Button>;
-            
-            case 'headphoneCheck':
-                return (
-                    <AlertDialog open={true}>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle className="flex items-center gap-2"><Headphones /> Use Headphones</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    For accurate training, please use headphones. Results without headphones may be unreliable.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogAction onClick={() => setGameState('running')}>I am using headphones</AlertDialogAction>
-                        </AlertDialogContent>
-                    </AlertDialog>
-                );
-
-            case 'running':
-                return <PitchDiscriminationModule focus={currentMode}/>;
-
-            default:
-                return <Loader2 className="w-12 h-12 animate-spin text-primary" />;
-        }
-    };
-
     return (
         <Card className="w-full max-w-2xl bg-violet-900/80 border-violet-500/30 backdrop-blur-sm text-violet-100">
             <CardHeader className="text-center">
@@ -233,11 +200,8 @@ export function AuditoryProcessingRouter() {
                 <CardDescription className="text-violet-300/70">A rotating lab of exercises to sharpen your brain's ability to analyze and distinguish sounds.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center justify-center gap-6 min-h-[350px]">
-                {renderContent()}
+                {!isComponentLoaded ? <Loader2 className="w-12 h-12 animate-spin text-primary" /> : <PitchDiscriminationModule focus={currentMode}/>}
             </CardContent>
         </Card>
     );
 }
-
-    
-

@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useRef, useCallback, useState } from 'react';
+import { useRef, useCallback, useState, useEffect } from 'react';
 
 // Singleton instance of the AudioContext
 let audioContextInstance: AudioContext | null = null;
@@ -33,9 +34,26 @@ export const useAudioEngine = () => {
             setIsAudioReady(true);
         }
     }, [context]);
+    
+    // Resume context on any user interaction
+    useEffect(() => {
+        const handleFirstInteraction = async () => {
+            await resumeContext();
+            window.removeEventListener('click', handleFirstInteraction);
+            window.removeEventListener('keydown', handleFirstInteraction);
+        };
+        window.addEventListener('click', handleFirstInteraction);
+        window.addEventListener('keydown', handleFirstInteraction);
+        
+        return () => {
+            window.removeEventListener('click', handleFirstInteraction);
+            window.removeEventListener('keydown', handleFirstInteraction);
+        }
+    }, [resumeContext]);
+
 
     const playTone = useCallback((freq: number, duration: number, onEnd?: () => void) => {
-        if (!context) { onEnd?.(); return; }
+        if (!context || context.state !== 'running') { onEnd?.(); return; }
         
         const time = context.currentTime;
         const osc = context.createOscillator();
@@ -72,7 +90,7 @@ export const useAudioEngine = () => {
     }, [context]);
     
     const playSequence = useCallback((notes: (string | number)[], intervalSeconds: number, onEnd?: () => void) => {
-        if (!context) { onEnd?.(); return; }
+        if (!context || context.state !== 'running') { onEnd?.(); return; }
         
         let time = context.currentTime + 0.1; // Small delay to ensure scheduling
         
