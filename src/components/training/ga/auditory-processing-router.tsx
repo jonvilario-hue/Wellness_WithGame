@@ -17,13 +17,15 @@ import { AuditoryDebugger } from "../logic/auditory-debugger";
 import { domainIcons } from "@/components/icons";
 import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
 import { useAudioEngine, midiToFreq } from "@/hooks/use-audio-engine";
-
+import { capabilities } from "@/lib/capabilities";
+import { generatePhonemeDiscriminationProblem } from "@/lib/verbal-stimulus-factory";
+import { PRNG } from "@/lib/rng";
 
 const GAME_ID: GameId = 'ga_auditory_lab';
 const policy = difficultyPolicies[GAME_ID];
 
 
-const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
+const PitchDiscriminationModule = ({ focus, prng }: { focus: TrainingFocus, prng: PRNG }) => {
     const { playTone, resumeContext, isAudioReady, audioContext } = useAudioEngine();
     const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
 
@@ -32,6 +34,7 @@ const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
     const trialStartTime = useRef(0);
     const answerRef = useRef<'higher' | 'lower'>('higher');
     const currentTrialIndex = useRef(0);
+    const sessionId = useRef<string>(prng.nextInt().toString());
 
     const startNewTrial = useCallback(() => {
         const state = getAdaptiveState(GAME_ID, focus);
@@ -43,7 +46,7 @@ const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
         setFeedback('');
         
         const baseFreq = 440; // A4
-        const isHigher = Math.random() > 0.5;
+        const isHigher = prng.nextFloat() > 0.5;
         answerRef.current = isHigher ? 'higher' : 'lower';
         const secondFreq = isHigher ? baseFreq * Math.pow(2, params.pitchDelta / 1200) : baseFreq / Math.pow(2, params.pitchDelta / 1200);
 
@@ -51,15 +54,16 @@ const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
         trialStartTime.current = scheduledTime; // Set start time based on audio scheduling
         setTimeout(() => playTone(secondFreq, 0.3), 500);
 
-    }, [playTone, getAdaptiveState, focus]);
+    }, [playTone, getAdaptiveState, focus, prng]);
     
     const startNewSession = useCallback(() => {
         resumeContext();
         const sessionState = startSession(getAdaptiveState(GAME_ID, focus));
         updateAdaptiveState(GAME_ID, focus, sessionState);
         currentTrialIndex.current = 0;
+        sessionId.current = prng.nextInt().toString();
         startNewTrial();
-    }, [resumeContext, getAdaptiveState, updateAdaptiveState, focus, startNewTrial]);
+    }, [resumeContext, getAdaptiveState, updateAdaptiveState, focus, startNewTrial, prng]);
     
     useEffect(() => {
         if(isAudioReady) {
@@ -73,7 +77,6 @@ const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
         
         setGameState('feedback');
         
-        // Use audioContext.currentTime for precise reaction time
         const reactionTimeMs = (audioContext.currentTime - trialStartTime.current) * 1000;
         const isCorrect = userChoice === answerRef.current;
         const levelPlayed = state.currentLevel;
@@ -93,13 +96,20 @@ const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
         };
 
         logTrial({
-            module_id: GAME_ID,
-            mode: focus,
-            levelPlayed,
-            isCorrect,
-            responseTime_ms: reactionTimeMs,
-            meta: trialResult.telemetry
-        });
+            id: `${sessionId.current}-${currentTrialIndex.current}`,
+            sessionId: sessionId.current,
+            gameId: GAME_ID,
+            trialIndex: currentTrialIndex.current,
+            difficultyLevel: levelPlayed,
+            correct: isCorrect,
+            rtMs: reactionTimeMs,
+            stimulusOnsetTs: trialStartTime.current,
+            responseTs: audioContext.currentTime,
+            stimulusParams: { baseFreq: 440, delta: params?.pitchDelta },
+            responseType: 'n/a',
+            timestamp: Date.now(),
+            ...trialResult,
+        } as any);
 
         const newState = adjustDifficulty(trialResult, state, policy);
         updateAdaptiveState(GAME_ID, focus, newState);
@@ -110,7 +120,7 @@ const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
             currentTrialIndex.current++;
             if (currentTrialIndex.current >= policy.sessionLength) {
                 setGameState('finished');
-                endSession(newState, []); // Placeholder for session trials
+                endSession(newState, []);
             } else {
                 startNewTrial();
             }
@@ -170,35 +180,167 @@ const PitchDiscriminationModule = ({ focus }: { focus: TrainingFocus }) => {
     )
 };
 
+const PhonemeDiscriminationModule = ({ focus, prng }: { focus: TrainingFocus, prng: PRNG }) => {
+    const { speak, isSupported } = useAudioEngine();
+    const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
+    const [gameState, setGameState] = useState<'loading' | 'playing' | 'feedback' | 'finished'>('loading');
+    const [puzzle, setPuzzle] = useState<{ prompt: string, options: string[], answer: string } | null>(null);
+    const [feedback, setFeedback] = useState('');
+    const trialStartTime = useRef(0);
+    const currentTrialIndex = useRef(0);
+    const sessionId = useRef<string>(prng.nextInt().toString());
+
+    useEffect(() => {
+        if (isSupported) {
+            startNewSession();
+        } else {
+            setGameState('loading');
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isSupported]);
+    
+    const startNewTrial = useCallback(() => {
+        const state = getAdaptiveState(GAME_ID, focus);
+        const newPuzzle = generatePhonemeDiscriminationProblem(state.currentLevel, prng);
+        setPuzzle(newPuzzle);
+        setFeedback('');
+        setGameState('playing');
+        speak(newPuzzle.prompt, () => {
+            trialStartTime.current = Date.now();
+        });
+    }, [focus, getAdaptiveState, speak, prng]);
+
+    const startNewSession = useCallback(() => {
+        const state = getAdaptiveState(GAME_ID, focus);
+        const sessionState = startSession(state);
+        updateAdaptiveState(GAME_ID, focus, sessionState);
+        currentTrialIndex.current = 0;
+        sessionId.current = prng.nextInt().toString();
+        startNewTrial();
+    }, [getAdaptiveState, updateAdaptiveState, focus, startNewTrial, prng]);
+    
+    const handleAnswer = (option: string) => {
+        const state = getAdaptiveState(GAME_ID, focus);
+        if (gameState !== 'playing' || !puzzle || !state) return;
+
+        setGameState('feedback');
+        const rtMs = Date.now() - trialStartTime.current;
+        const isCorrect = option === puzzle.answer;
+
+        const trialResult: TrialResult = {
+            correct: isCorrect,
+            reactionTimeMs: rtMs,
+            telemetry: {
+                trialType: 'phoneme_discrimination',
+                prompt: puzzle.prompt,
+            }
+        };
+
+        logTrial({
+             id: `${sessionId.current}-${currentTrialIndex.current}`,
+            sessionId: sessionId.current,
+            gameId: GAME_ID,
+            trialIndex: currentTrialIndex.current,
+            difficultyLevel: state.currentLevel,
+            correct: isCorrect,
+            rtMs,
+            stimulusOnsetTs: trialStartTime.current,
+            responseTs: Date.now(),
+            stimulusParams: { prompt: puzzle.prompt },
+            responseType: 'n/a',
+            timestamp: Date.now(),
+            ...trialResult,
+        } as any);
+
+        const newState = adjustDifficulty(trialResult, state, policy);
+        updateAdaptiveState(GAME_ID, focus, newState);
+        setFeedback(isCorrect ? 'Correct!' : 'Incorrect.');
+
+        setTimeout(() => {
+            currentTrialIndex.current++;
+            if (currentTrialIndex.current >= policy.sessionLength) {
+                setGameState('finished');
+            } else {
+                startNewTrial();
+            }
+        }, 1500);
+    };
+    
+    if (!isSupported) {
+        return <GameStub name="Phoneme Discrimination" description="This game requires speech synthesis, which is not supported by your browser." chcFactor="Auditory Processing (Ga)" techStack={['Web Speech API']} complexity="Medium" fallbackPlan="N/A" />;
+    }
+    
+     if (gameState === 'finished') {
+        return (
+             <div className="text-center space-y-4">
+                <CardTitle>Session Complete!</CardTitle>
+                <Button onClick={startNewSession} className="bg-violet-600 hover:bg-violet-500 text-white">Play Again</Button>
+            </div>
+        )
+    }
+
+    if (gameState === 'loading' || !puzzle) return <Loader2 className="w-12 h-12 animate-spin text-primary" />;
+
+     return (
+        <div className="flex flex-col items-center gap-6 w-full text-violet-200">
+            <p className="font-semibold text-lg">{puzzle.prompt}</p>
+             <div className="h-8">
+                {feedback && (
+                    <div className={cn("text-2xl font-bold flex items-center gap-2", feedback.includes('Incorrect') ? 'text-red-400' : 'text-green-400')}>
+                        {feedback.includes('Incorrect') ? <X /> : <Check />}
+                        {feedback}
+                    </div>
+                )}
+            </div>
+            <div className="grid grid-cols-2 gap-4 w-full max-w-sm">
+                {puzzle.options.map(opt => (
+                    <Button key={opt} onClick={() => handleAnswer(opt)} disabled={gameState === 'feedback'} size="lg" className="h-24 text-4xl font-mono bg-violet-600 hover:bg-violet-500">{opt}</Button>
+                ))}
+            </div>
+        </div>
+    )
+};
+
 
 // --- Main Lab Component ---
 export function AuditoryProcessingRouter() {
     const { isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
     const { isLoaded: isOverrideLoaded } = useTrainingOverride();
-    const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
-    
-    // We can get the focus here, but the actual logic will be inside the routed component
     const { focus: globalFocus } = useTrainingFocus();
     const { override } = useTrainingOverride();
+    
+    const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
     const currentMode = isComponentLoaded ? (override || globalFocus) : 'neutral';
+    
+    // Create a stable PRNG instance for the session
+    const prngRef = useRef(new PRNG(Date.now()));
 
     if (!isComponentLoaded) {
         return <Card className="w-full max-w-2xl min-h-[400px] flex items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-primary" /></Card>;
     }
     
-    if (currentMode === 'logic') {
-        return <AuditoryDebugger />;
-    }
-
-    if (currentMode === 'math' || currentMode === 'spatial' || currentMode === 'eq' || currentMode === 'verbal' || currentMode === 'neutral') {
-         return <GameStub 
-            name="Auditory Lab"
-            description="This module contains various auditory discrimination tasks."
-            chcFactor="Auditory Processing (Ga)"
-            techStack={['Web Audio API']}
-            complexity="High"
-            fallbackPlan="Visual representation of sound waves."
-        />;
+    let GameComponent: React.ReactNode;
+    
+    switch(currentMode) {
+        case 'logic':
+            GameComponent = <AuditoryDebugger />;
+            break;
+        case 'verbal':
+            GameComponent = <PhonemeDiscriminationModule focus={currentMode} prng={prngRef.current} />;
+            break;
+        case 'music':
+            GameComponent = <PitchDiscriminationModule focus={currentMode} prng={prngRef.current} />;
+            break;
+        default:
+             GameComponent = <GameStub 
+                name="Auditory Lab"
+                description="This module contains various auditory discrimination tasks."
+                chcFactor="Auditory Processing (Ga)"
+                techStack={['Web Audio API']}
+                complexity="High"
+                fallbackPlan="Visual representation of sound waves."
+            />;
+            break;
     }
 
     return (
@@ -211,7 +353,7 @@ export function AuditoryProcessingRouter() {
                 <CardDescription className="text-violet-300/70">A rotating lab of exercises to sharpen your brain's ability to analyze and distinguish sounds. Wired headphones recommended for best results.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center justify-center gap-6 min-h-[350px]">
-                {<PitchDiscriminationModule focus={currentMode}/>}
+                {GameComponent}
             </CardContent>
         </Card>
     );

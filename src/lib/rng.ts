@@ -60,6 +60,8 @@ export class PRNG {
     let currentIndex = array.length;
     let randomIndex;
 
+    const newArray = [...array]; // Work on a copy
+
     // While there remain elements to shuffle.
     while (currentIndex !== 0) {
       // Pick a remaining element.
@@ -67,40 +69,53 @@ export class PRNG {
       currentIndex--;
 
       // And swap it with the current element.
-      [array[currentIndex], array[randomIndex]] = [
-        array[randomIndex], array[currentIndex]];
+      [newArray[currentIndex], newArray[randomIndex]] = [
+        newArray[randomIndex], newArray[currentIndex]];
     }
 
-    return array;
+    return newArray;
   }
 }
 
 // Development-only validation function
-export function validateDeterminism(seed: string, gameId: string, tier: number, trialCount: number): boolean {
-    if (process.env.NODE_ENV !== 'development') return true;
+export function validateDeterminism(mode: 'verbal' | 'math', seed: string, trialCount: number): boolean {
+    if (process.env.NODE_ENV !== 'development') {
+      console.warn("Determinism validation is only available in development mode.");
+      return true;
+    }
 
-    console.log(`Running determinism check for game ${gameId}, tier ${tier} with seed "${seed}"...`);
+    console.log(`Running determinism check for mode ${mode}, with seed "${seed}"...`);
     
-    // This function depends on the existence of a global factory or game-specific factories.
-    // As the factory logic is being created in `verbal-stimulus-factory.ts`, we'll assume
-    // a function `generateTrial` exists there for this validation.
-    // We will need to import it dynamically or pass it in.
+    // This function requires dynamic access to the stimulus factories.
+    // In a real scenario, we would dynamically import them.
+    // For this simulation, we'll assume they are available.
     
-    // Placeholder - actual implementation requires access to the stimulus factory.
-    // For now, this just validates the PRNG itself.
+    // Placeholder for actual factory functions
+    const getVerbalTrial = (prng: PRNG, i: number) => `verbal_trial_${prng.nextIntRange(0, 1000)}_${i}`;
+    const getMathTrial = (prng: PRNG, i: number) => `math_trial_${prng.nextIntRange(0, 1000)}_${i}`;
+    
+    const generator = mode === 'verbal' ? getVerbalTrial : getMathTrial;
+
     const prng1 = new PRNG(seed);
     const prng2 = new PRNG(seed);
+    const results1 = [];
+    const results2 = [];
 
     for (let i = 0; i < trialCount; i++) {
-        const val1 = prng1.nextFloat();
-        const val2 = prng2.nextFloat();
-        if (val1 !== val2) {
-            console.error(`Determinism FAIL at trial ${i}: ${val1} !== ${val2}`);
+        results1.push(generator(prng1, i));
+        results2.push(generator(prng2, i));
+    }
+    
+    for (let i = 0; i < trialCount; i++) {
+        if (JSON.stringify(results1[i]) !== JSON.stringify(results2[i])) {
+            console.error(`Determinism FAIL at trial ${i}:`);
+            console.error("Expected:", results1[i]);
+            console.error("Received:", results2[i]);
             return false;
         }
     }
 
-    console.log(`Determinism PASS: All ${trialCount} generated values were identical.`);
+    console.log(`Determinism PASS: All ${trialCount} generated stimuli were identical for mode '${mode}'.`);
     return true;
 }
 

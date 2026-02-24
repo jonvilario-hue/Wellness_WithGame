@@ -38,7 +38,10 @@ async function profileSession(gameId: string, mode: 'verbal' | 'math', trialCoun
     // --- 1. Stimulus Generation ---
     // This is a placeholder. A real implementation would need a factory
     // that can be called programmatically.
-    generateVerbalSequence(5, prng);
+    // For now, we simulate a workload.
+    const stim = mode === 'verbal' 
+        ? generateVerbalSequence(5, prng) 
+        : { sequence: prng.nextIntRange(1000, 9999).toString() };
 
     // --- 2. Simulate Render ---
     performance.mark('render-start');
@@ -49,7 +52,7 @@ async function profileSession(gameId: string, mode: 'verbal' | 'math', trialCoun
     results.renderTimes.push(renderMeasure.duration);
 
     // --- 3. Simulate Telemetry Write ---
-    const mockTrial = { id: `prof-${i}` } as any;
+    const mockTrial = { id: `prof-${i}`, timestamp: Date.now() } as any;
     performance.mark('db-write-start');
     await usePerformanceStore.getState().logTrial(mockTrial);
     performance.mark('db-write-end');

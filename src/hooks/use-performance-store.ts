@@ -38,12 +38,17 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
             failedWrites: [],
 
             hydrate: async () => {
-                const profiles = await idbStore.getAllProfiles();
-                const newGameStates: Record<string, AdaptiveState> = {};
-                for (const profile of profiles) {
-                    newGameStates[profile.id] = profile.state;
+                try {
+                    const profiles = await idbStore.getAllProfiles();
+                    const newGameStates: Record<string, AdaptiveState> = {};
+                    for (const profile of profiles) {
+                        newGameStates[profile.id] = profile.state;
+                    }
+                    set({ gameStates: newGameStates, isHydrated: true });
+                } catch (e) {
+                    console.error("Hydration from IndexedDB failed. The app may be in an environment where IndexedDB is not available.", e);
+                    set({ isHydrated: true }); // Mark as hydrated to unblock UI, even on failure.
                 }
-                set({ gameStates: newGameStates, isHydrated: true });
             },
 
             getAdaptiveState: (gameId, focus) => {
@@ -64,12 +69,11 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
                         // Re-check in case it was created by another concurrent process
                         if (!state.gameStates[key]) {
                             state.gameStates[key] = finalState;
-                            idbStore.setProfile(key, finalState);
+                             idbStore.setProfile(key, finalState).catch(e => console.error("Failed to save new profile to IDB", e));
                         }
                     });
                 }, 0);
 
-                // Return the newly created state for the current render.
                 return finalState;
             },
 
@@ -78,7 +82,7 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
                 set(state => {
                     if (state.gameStates[key]) {
                         state.gameStates[key] = { ...state.gameStates[key], ...newState };
-                        idbStore.setProfile(key, state.gameStates[key]);
+                        idbStore.setProfile(key, state.gameStates[key]).catch(e => console.error("Failed to update profile in IDB", e));
                     }
                 });
             },
@@ -91,7 +95,7 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
                 
                 set(state => {
                     state.gameStates[key] = { ...currentState, tier };
-                    idbStore.setProfile(key, state.gameStates[key]);
+                    idbStore.setProfile(key, state.gameStates[key]).catch(e => console.error("Failed to set game tier in IDB", e));
                 });
             },
 
@@ -103,18 +107,16 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
                         for (const bufferedRecord of buffered) {
                             await idbStore.logTrial(bufferedRecord);
                         }
-                        await idbStore.logTrial(record);
                         set({ failedWrites: [] }); // Clear buffer on success
-                    } else {
-                        await idbStore.logTrial(record);
                     }
+                    await idbStore.logTrial(record);
                 } catch (error) {
                     console.warn("IDB write failed. Buffering trial record.", error);
                     set(state => {
                         state.failedWrites.push(record);
                         // Optional: Cap the buffer size
-                        if (state.failedWrites.length > 50) {
-                            state.failedWrites.shift(); // Drop the oldest
+                        if (state.failedWrites.length > 500) {
+                            state.failedWrites.shift(); // Drop the oldest to prevent memory leaks
                         }
                     });
                 }
@@ -129,7 +131,7 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
 
             clearAllData: async () => {
                 await idbStore.clearAllData();
-                set({ gameStates: {}, isHydrated: true });
+                set({ gameStates: {}, isHydrated: true, failedWrites: [] });
             },
         })),
         {
