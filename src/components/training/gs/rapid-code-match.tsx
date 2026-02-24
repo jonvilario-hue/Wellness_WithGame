@@ -16,6 +16,7 @@ import type { TrialResult, GameId } from "@/types";
 import { realWords, pseudowords } from "@/data/verbal-content";
 import { GameStub } from "../game-stub";
 import { GateSpeed } from '../logic/gate-speed';
+import { domainIcons } from "@/components/icons";
 
 const GAME_ID: GameId = 'gs_rapid_code';
 const policy = difficultyPolicies[GAME_ID];
@@ -48,7 +49,7 @@ const NoiseOverlay = () => (
 );
 
 export function RapidCodeMatch() {
-  const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
+  const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore.getState();
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
   const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
 
@@ -176,7 +177,8 @@ export function RapidCodeMatch() {
     };
     logTrial({
       module_id: GAME_ID,
-      currentLevel: levelPlayed,
+      mode: currentMode,
+      levelPlayed,
       isCorrect: trialResult.correct,
       responseTime_ms: trialResult.reactionTimeMs,
       meta: trialResult.telemetry
@@ -250,7 +252,7 @@ export function RapidCodeMatch() {
         const state = getAdaptiveState(GAME_ID, currentMode);
         return (
             <div className="flex flex-col items-center gap-4">
-              <div className="font-mono text-lg">Level: {state?.currentLevel}</div>
+              <div className="font-mono text-lg text-orange-300">Level: {state?.currentLevel}</div>
               <Button onClick={startNewSession} size="lg" className="bg-orange-600 hover:bg-orange-500 text-white">Rapid Code Match</Button>
             </div>
           );
@@ -283,10 +285,10 @@ export function RapidCodeMatch() {
                     <p className="text-5xl font-bold text-orange-400 mb-4">{problem.word}</p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                    <Button onClick={() => handleAnswer(false)} variant="secondary" size="lg" className="text-2xl h-32" disabled={gameState === 'feedback'}>
+                    <Button onClick={() => handleAnswer(false)} variant="secondary" size="lg" className="text-2xl h-32 bg-orange-900/50 border-orange-500/20 text-white hover:bg-orange-900">
                         PSEUDOWORD
                     </Button>
-                    <Button onClick={() => handleAnswer(true)} variant="secondary" size="lg" className="text-2xl h-32" disabled={gameState === 'feedback'}>
+                    <Button onClick={() => handleAnswer(true)} variant="secondary" size="lg" className="text-2xl h-32 bg-orange-900/50 border-orange-500/20 text-white hover:bg-orange-900">
                         REAL WORD
                     </Button>
                 </div>
@@ -341,7 +343,10 @@ export function RapidCodeMatch() {
   return (
     <Card className="w-full max-w-2xl text-center bg-zinc-900 border-red-500/20 text-orange-100">
       <CardHeader>
-        <CardTitle className="text-red-400">(Gs) Rapid Code Match</CardTitle>
+        <CardTitle className="text-red-400 flex items-center justify-center gap-2">
+            <span className="p-2 bg-orange-500/10 rounded-md"><domainIcons.Gs className="w-6 h-6 text-orange-400" /></span>
+            (Gs) Rapid Code Match
+        </CardTitle>
         <CardDescription className="text-red-400/70">Match the symbol to the correct digit using the key as fast as you can. The key changes periodically!</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-6 min-h-[500px] justify-center">
@@ -350,3 +355,5 @@ export function RapidCodeMatch() {
     </Card>
   );
 }
+
+    

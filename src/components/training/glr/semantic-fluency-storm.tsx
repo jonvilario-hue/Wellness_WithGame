@@ -19,6 +19,7 @@ import { AlgorithmFluency } from "../logic/algorithm-fluency";
 import { SpacedRetrievalMode } from "./spaced-retrieval-mode";
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
+import { domainIcons } from "@/components/icons";
 
 const GLR_GAME_ID: GameId = 'glr_fluency_storm';
 const glrPolicy = difficultyPolicies[GLR_GAME_ID];
@@ -121,7 +122,7 @@ export function SemanticFluencyStorm() {
         <Card className="w-full max-w-2xl bg-emerald-950 border-emerald-500/20 text-emerald-100 min-h-[500px]">
             <CardHeader className="text-center">
                 <CardTitle className="flex items-center justify-center gap-2 text-emerald-300">
-                    <Archive />
+                    <span className="p-2 bg-emerald-500/10 rounded-md"><domainIcons.Glr className="w-6 h-6 text-emerald-400" /></span>
                     (Glr) Retrieval Trainer
                 </CardTitle>
                 <CardDescription className="text-emerald-300/70">Strengthen your brain's ability to find and use stored information.</CardDescription>
@@ -208,7 +209,8 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (result: { sc
         
         logTrial({
             module_id: GLR_GAME_ID,
-            currentLevel: currentState.currentLevel,
+            mode: focus,
+            levelPlayed: currentState.currentLevel,
             isCorrect: trial.correct,
             responseTime_ms: trial.reactionTimeMs,
             meta: trial.telemetry,
@@ -324,7 +326,8 @@ function CategorySwitchingMode({ onComplete, focus }: { onComplete: (result: { s
         const currentState = getAdaptiveState(GLR_GAME_ID, focus);
         logTrial({
             module_id: GLR_GAME_ID,
-            currentLevel: currentState.currentLevel,
+            mode: focus,
+            levelPlayed: currentState.currentLevel,
             isCorrect: trial.correct,
             responseTime_ms: trial.reactionTimeMs,
             meta: trial.telemetry,
@@ -364,3 +367,5 @@ function CategorySwitchingMode({ onComplete, focus }: { onComplete: (result: { s
         </div>
     );
 }
+
+    

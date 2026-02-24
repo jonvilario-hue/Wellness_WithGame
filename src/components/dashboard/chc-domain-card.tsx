@@ -42,6 +42,7 @@ export function ChcDomainCard({ domain, onPlay }: { domain: (typeof import('@/li
   
   const incompatibilityReason = MODE_INCOMPATIBILITY_MAP[currentMode as TrainingFocus]?.[domain.key];
   const isLocked = !!incompatibilityReason;
+  const iconColor = domain.color.split(' ')[1] ?? 'text-primary';
 
   const cardContent = (
     <Card
@@ -54,7 +55,7 @@ export function ChcDomainCard({ domain, onPlay }: { domain: (typeof import('@/li
     >
       <CardHeader className="flex-row items-start gap-4 space-y-0 pb-2">
         <div className={cn('p-3 rounded-lg', domain.color.split(' ')[0])}>
-          <domain.icon className={cn("w-6 h-6", domain.color.split(' ')[1])} />
+          <domain.icon className={cn("w-6 h-6", iconColor)} />
         </div>
         <div className="flex-1">
           <CardTitle className="font-headline text-base">{domain.name}</CardTitle>
@@ -67,7 +68,7 @@ export function ChcDomainCard({ domain, onPlay }: { domain: (typeof import('@/li
             <span className="text-sm font-medium text-muted-foreground flex items-center gap-1">
               Skill Score
             </span>
-            <span className="text-sm font-bold text-primary">{score.toFixed(0)}</span>
+            <span className={cn("text-sm font-bold", iconColor)}>{score.toFixed(0)}</span>
           </div>
           <Progress value={score} aria-label={`${domain.name} skill score`} />
         </div>
@@ -112,3 +113,5 @@ export function ChcDomainCard({ domain, onPlay }: { domain: (typeof import('@/li
 
   return cardContent;
 }
+
+    

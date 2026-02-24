@@ -17,6 +17,7 @@ import { useTrainingOverride } from "@/hooks/use-training-override";
 import { phoneticallySimilarSets, grammarScrambleSentences } from "@/data/verbal-content";
 import { GameStub } from "../game-stub";
 import { StateMachineTracer } from "../logic/state-machine-tracer";
+import { domainIcons } from "@/components/icons";
 
 const GAME_ID: GameId = 'gwm_dynamic_sequence';
 const policy = difficultyPolicies[GAME_ID];
@@ -58,7 +59,7 @@ const tasks = [
 ];
 
 export function DynamicSequenceTransformer() {
-  const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
+  const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore.getState();
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
   const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
 
@@ -181,9 +182,9 @@ export function DynamicSequenceTransformer() {
         }
     };
     logTrial({
-      userId: 'local_user',
       module_id: GAME_ID,
-      currentLevel: levelPlayed,
+      mode: currentMode,
+      levelPlayed,
       isCorrect,
       responseTime_ms: reactionTimeMs,
       meta: trialResult.telemetry
@@ -230,8 +231,8 @@ export function DynamicSequenceTransformer() {
       case 'start':
         return (
           <div className="flex flex-col items-center gap-4">
-            <div className="font-mono text-lg">Level: {adaptiveState?.currentLevel}</div>
-            <Button onClick={startNewSession} size="lg">Start Sequence</Button>
+            <div className="font-mono text-lg text-cyan-300">Level: {adaptiveState?.currentLevel}</div>
+            <Button onClick={startNewSession} size="lg" className="bg-cyan-600 hover:bg-cyan-500 text-white">Dynamic Sequence</Button>
           </div>
         );
       case 'memorizing':
@@ -278,7 +279,7 @@ export function DynamicSequenceTransformer() {
             <div className="flex flex-col items-center gap-4">
                 <CardTitle>Session Complete!</CardTitle>
                 <p>Accuracy: {isNaN(finalAccuracy) ? 'N/A' : (finalAccuracy * 100).toFixed(0) + '%'}</p>
-                <Button onClick={() => setGameState('start')} size="lg">Play Again</Button>
+                <Button onClick={() => setGameState('start')} size="lg" className="bg-cyan-600 hover:bg-cyan-500 text-white">Play Again</Button>
             </div>
         )
     }
@@ -288,7 +289,7 @@ export function DynamicSequenceTransformer() {
     <Card className="w-full max-w-2xl text-center bg-gray-900 border-teal-500/20 text-teal-100">
       <CardHeader>
         <CardTitle className="flex items-center justify-center gap-2 text-cyan-400">
-            <MemoryStick />
+            <span className="p-2 bg-cyan-500/10 rounded-md"><domainIcons.Gwm className="w-6 h-6 text-cyan-400" /></span>
             (Gwm) Dynamic Sequence
         </CardTitle>
         <CardDescription className="text-cyan-400/70">Memorize the sequence, then transform it as instructed.</CardDescription>
@@ -299,3 +300,5 @@ export function DynamicSequenceTransformer() {
     </Card>
   );
 }
+
+    

@@ -2,6 +2,7 @@
 import type { LucideIcon } from 'lucide-react';
 import { Archive, BookOpenText, BrainCircuit, Ear, Goal, MemoryStick, View, Zap } from 'lucide-react';
 import type { CHCDomain } from '@/types';
+import { DOMAIN_META } from '@/lib/domain-constants';
 
 export const domainIcons: Record<CHCDomain, LucideIcon> = {
   Gf: BrainCircuit,
@@ -13,6 +14,18 @@ export const domainIcons: Record<CHCDomain, LucideIcon> = {
   Glr: Archive,
   EF: Goal,
 };
+
+export const domainIconColors: Record<CHCDomain, string> = {
+  Gf: DOMAIN_META.Gf.color,
+  Gc: DOMAIN_META.Gc.color,
+  Gwm: DOMAIN_META.Gwm.color,
+  Gs: DOMAIN_META.Gs.color,
+  Gv: DOMAIN_META.Gv.color,
+  Ga: DOMAIN_META.Ga.color,
+  Glr: DOMAIN_META.Glr.color,
+  EF: DOMAIN_META.EF.color,
+};
+
 
 export const CheckHexagonIcon = (props: React.SVGProps<SVGSVGElement>) => (
     <svg
@@ -48,3 +61,5 @@ export const SigmaIcon = (props: React.SVGProps<SVGSVGElement>) => (
     <path d="M18 7H6l6 5-6 5h12" />
   </svg>
 );
+
+    

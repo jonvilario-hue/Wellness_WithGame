@@ -18,6 +18,7 @@ import { GameStub } from "../game-stub";
 import { AuditoryDebugger } from "../logic/auditory-debugger";
 import { GaAbstractAuditoryTasks } from "./ga-abstract-auditory-tasks";
 import { GaAuditoryMath } from "./ga-auditory-math";
+import { domainIcons } from "@/components/icons";
 
 
 const GAME_ID: GameId = 'ga_auditory_lab';
@@ -262,7 +263,7 @@ export function AuditoryProcessingRouter() {
 
         switch (gameState) {
             case 'idle':
-                return <Button onClick={() => setGameState('headphoneCheck')} size="lg">Auditory Processing Lab</Button>;
+                return <Button onClick={() => setGameState('headphoneCheck')} size="lg" className="bg-violet-600 hover:bg-violet-500 text-white">Auditory Processing Lab</Button>;
             
             case 'headphoneCheck':
                 return (
@@ -288,7 +289,7 @@ export function AuditoryProcessingRouter() {
                             <Volume2 />
                             <Slider value={[volume * 100]} onValueChange={([v]) => setLocalVolume(v/100)} />
                         </div>
-                        <Button onClick={startTraining}>Start Training</Button>
+                        <Button onClick={startTraining} className="bg-violet-600 hover:bg-violet-500 text-white">Start Training</Button>
                     </div>
                 );
 
@@ -300,7 +301,7 @@ export function AuditoryProcessingRouter() {
                     <div className="text-center space-y-4">
                         <CardTitle>Session Complete!</CardTitle>
                         <p>You've completed your auditory workout.</p>
-                        <Button onClick={() => setGameState('idle')}>Back to Menu</Button>
+                        <Button onClick={() => setGameState('idle')} className="bg-violet-600 hover:bg-violet-500 text-white">Back to Menu</Button>
                     </div>
                 );
             default:
@@ -311,7 +312,10 @@ export function AuditoryProcessingRouter() {
     return (
         <Card className="w-full max-w-2xl bg-violet-900/80 border-violet-500/30 backdrop-blur-sm text-violet-100">
             <CardHeader className="text-center">
-                <CardTitle className="flex items-center justify-center gap-2 text-violet-300"><MessageSquare />(Ga) Auditory Processing Lab</CardTitle>
+                <CardTitle className="flex items-center justify-center gap-2 text-violet-300">
+                    <span className="p-2 bg-violet-500/10 rounded-md"><domainIcons.Ga className="w-6 h-6 text-violet-400" /></span>
+                    (Ga) Auditory Processing Lab
+                </CardTitle>
                 <CardDescription className="text-violet-300/70">A rotating lab of exercises to sharpen your brain's ability to analyze and distinguish sounds.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center justify-center gap-6 min-h-[350px]">
@@ -320,3 +324,5 @@ export function AuditoryProcessingRouter() {
         </Card>
     );
 }
+
+    

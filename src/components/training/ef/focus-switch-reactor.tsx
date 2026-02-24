@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Loader2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Keyboard } from 'lucide-react';
+import { Loader2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Keyboard, Music, Check, X } from 'lucide-react';
 import { adjustDifficulty, startSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
@@ -39,15 +39,19 @@ const arrowMap: Record<ArrowDir, React.ElementType> = {
 
 type NeutralRule = 'position' | 'arrow' | 'no_go';
 type MathRule = 'parity' | 'magnitude' | 'no_go';
+type MusicRule = 'pitch_direction' | 'rhythm_evenness' | 'no_go';
+
 
 type Stimulus = {
     position?: Position;
     arrow?: ArrowDir;
     value?: number;
+    pitch?: number;
+    rhythm?: number[];
 };
 
 export function FocusSwitchReactor() {
-  const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
+  const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore.getState();
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
   const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
 
@@ -55,7 +59,7 @@ export function FocusSwitchReactor() {
   const [gameState, setGameState] = useState<'loading' | 'start' | 'running' | 'feedback' | 'finished'>('loading');
   
   const [score, setScore] = useState(0);
-  const [rule, setRule] = useState<NeutralRule | MathRule>('position');
+  const [rule, setRule] = useState<NeutralRule | MathRule | MusicRule>('position');
   const [stimulus, setStimulus] = useState<Partial<Stimulus>>({});
   const [inlineFeedback, setInlineFeedback] = useState({ message: '', type: '' });
 
@@ -90,6 +94,11 @@ export function FocusSwitchReactor() {
     } else if (currentMode === 'math') {
         const newValue = Math.floor(Math.random() * 99) + 1; // 1-99
         setStimulus({ value: newValue });
+    } else if (currentMode === 'music') {
+        const newPitch = 60 + Math.floor(Math.random() * 24); // MIDI notes C4-B5
+        const isEvenRhythm = Math.random() > 0.5;
+        const newRhythm = isEvenRhythm ? [0.5, 0.5] : [0.75, 0.25];
+        setStimulus({ pitch: newPitch, rhythm: newRhythm });
     }
   }, [currentMode]);
 
@@ -98,10 +107,10 @@ export function FocusSwitchReactor() {
     
     const levelDef = policy.levelMap[state.currentLevel] || policy.levelMap[20];
     const { mechanic_config } = levelDef;
-    
-    let availableRules: any[] = [];
-    if (currentMode === 'neutral') availableRules = ['position', 'arrow'];
-    else if (currentMode === 'math') availableRules = ['parity', 'magnitude'];
+    const contentConfig = levelDef.content_config[currentMode];
+    if (!contentConfig) return;
+
+    let availableRules = contentConfig.params?.rules as any[] || [];
     
     if (mechanic_config.noGo) availableRules.push('no_go');
 
@@ -148,6 +157,8 @@ export function FocusSwitchReactor() {
     }
     
     let targetSide = 'left';
+    let isCongruent = false;
+    
     if (currentMode === 'neutral') {
         const correctDir: Record<Position, ArrowDir> = { top: 'up', bottom: 'down', left: 'left', right: 'right' };
         if (ruleRef.current === 'position') {
@@ -155,15 +166,20 @@ export function FocusSwitchReactor() {
         } else {
              targetSide = stimulus.arrow === 'up' || stimulus.arrow === 'left' ? 'left' : 'right';
         }
+        isCongruent = (stimulus.position === 'left' && targetSide === 'left') || (stimulus.position === 'right' && targetSide === 'right');
     } else if (currentMode === 'math') {
         if (ruleRef.current === 'parity') {
             targetSide = stimulus.value! % 2 === 0 ? 'left' : 'right';
         } else {
              targetSide = stimulus.value! > 50 ? 'left' : 'right';
         }
+    } else if (currentMode === 'music') {
+        if (ruleRef.current === 'pitch_direction') {
+            targetSide = stimulus.pitch! > 71 ? 'left' : 'right'; // Higher than B4
+        } else {
+             targetSide = stimulus.rhythm![0] === stimulus.rhythm![1] ? 'left' : 'right'; // Even vs. Uneven
+        }
     }
-
-    const isCongruent = currentMode === 'neutral' ? (stimulus.position === targetSide) : false;
 
     const trialResult: TrialResult = { 
         correct, 
@@ -174,13 +190,14 @@ export function FocusSwitchReactor() {
             switchTrial: ruleRef.current !== previousRuleRef.current,
             targetSide,
             responseSide: responseSide || null,
-            congruent: isCongruent
+            congruent: isCongruent,
         }
     };
     
     logTrial({
       module_id: GAME_ID,
-      currentLevel: levelPlayed,
+      mode: currentMode,
+      levelPlayed,
       isCorrect: correct,
       responseTime_ms: reactionTimeMs,
       meta: trialResult.telemetry
@@ -233,6 +250,15 @@ export function FocusSwitchReactor() {
              targetSide = stimulus.value! > 50 ? 'left' : 'right';
             isCorrect = (answer === targetSide);
         }
+    } else if (currentMode === 'music') {
+        if (ruleRef.current === 'pitch_direction') {
+            targetSide = stimulus.pitch! > 71 ? 'left' : 'right'; // Higher than B4 vs not
+            isCorrect = (answer === targetSide);
+        }
+        else {
+             targetSide = stimulus.rhythm![0] === stimulus.rhythm![1] ? 'left' : 'right'; // Even vs. Uneven
+            isCorrect = (answer === targetSide);
+        }
     }
     
     processNextTurn(isCorrect, source, answer);
@@ -270,6 +296,9 @@ export function FocusSwitchReactor() {
       } else if (currentMode === 'math') {
         if (rule === 'parity') text = 'LEFT for EVEN, RIGHT for ODD';
         else if (rule === 'magnitude') text = 'LEFT for > 50, RIGHT for <= 50';
+      } else if (currentMode === 'music') {
+        if (rule === 'pitch_direction') text = 'LEFT for HIGH pitch, RIGHT for LOW';
+        else if (rule === 'rhythm_evenness') text = 'LEFT for EVEN rhythm, RIGHT for UNEVEN';
       }
       if (rule === 'no_go') text = "DON'T RESPOND";
       return <span className="font-bold text-primary uppercase">{text}</span>;
@@ -293,8 +322,8 @@ export function FocusSwitchReactor() {
         case 'start':
           return (
             <div className="flex flex-col items-center gap-4 text-center">
-              <div className="font-mono text-lg">Level: {adaptiveState?.currentLevel}</div>
-              <Button onClick={startNewSession} size="lg" disabled={!adaptiveState}>Focus Switch Reactor</Button>
+              <div className="font-mono text-lg text-rose-300">Level: {adaptiveState?.currentLevel}</div>
+              <Button onClick={startNewSession} size="lg" className="bg-rose-600 hover:bg-rose-500 text-white" disabled={!adaptiveState}>Focus Switch Reactor</Button>
                <div className="flex items-center gap-2 text-muted-foreground mt-4">
                   <Keyboard className="w-5 h-5"/>
                   <p>Controls: Use (A / ←) and (L / →) keys</p>
@@ -306,7 +335,7 @@ export function FocusSwitchReactor() {
             <div className="flex flex-col items-center gap-4">
               <CardTitle>Session Complete!</CardTitle>
               <p>Score: {score} / {policy.sessionLength}</p>
-              <Button onClick={() => setGameState('start')} size="lg">Play Again</Button>
+              <Button onClick={() => setGameState('start')} size="lg" className="bg-rose-600 hover:bg-rose-500 text-white">Play Again</Button>
             </div>
           );
         case 'running':
@@ -314,11 +343,11 @@ export function FocusSwitchReactor() {
            const options: ('left' | 'right')[] = ['left', 'right'];
            return (
             <div className="flex flex-col items-center gap-4 w-full">
-              <div className="flex justify-between w-full font-mono">
+              <div className="flex justify-between w-full font-mono text-rose-200">
                 <span>Trial: {currentTrialIndex.current + 1} / {policy.sessionLength}</span>
                 <span>Score: {score}</span>
               </div>
-              <div className="relative p-8 bg-muted rounded-lg w-full h-48 flex items-center justify-center">
+              <div className="relative p-8 bg-card rounded-lg w-full h-48 flex items-center justify-center">
                   <div className={cn("absolute inset-0 flex", stimulus.position ? positionClasses[stimulus.position] : 'items-center justify-center')}>
                     {currentMode === 'neutral' && stimulus.arrow && (
                         <div className="w-20 h-20 bg-background rounded-md flex items-center justify-center">
@@ -330,6 +359,11 @@ export function FocusSwitchReactor() {
                             {stimulus.value}
                         </div>
                     )}
+                    {currentMode === 'music' && stimulus.pitch !== undefined && (
+                        <div className="text-7xl font-bold text-primary flex items-center gap-2">
+                           <Music /> {stimulus.pitch}
+                        </div>
+                    )}
                   </div>
               </div>
               <p className="text-xl mb-4 h-12 flex items-center text-center">Rule: {getRuleText()}</p>
@@ -337,7 +371,7 @@ export function FocusSwitchReactor() {
                 {inlineFeedback.message && (
                   <p className={cn(
                     "animate-in fade-in",
-                    inlineFeedback.type === 'success' ? 'text-green-600' : 'text-amber-600'
+                    inlineFeedback.type === 'success' ? 'text-green-500' : 'text-amber-500'
                   )}>
                     {inlineFeedback.message}
                   </p>
@@ -347,7 +381,7 @@ export function FocusSwitchReactor() {
                 {options.map((option) => {
                   const Icon = arrowMap[option as ArrowDir] || (() => <span className="text-2xl">{option}</span>);
                   return (
-                      <Button key={option} onClick={() => handleAnswer(option, 'click')} disabled={gameState === 'feedback'} variant="secondary" size="lg" className="h-20">
+                      <Button key={option} onClick={() => handleAnswer(option, 'click')} disabled={gameState === 'feedback'} variant="secondary" size="lg" className="h-20 bg-rose-900/50 border-rose-500/20 text-white hover:bg-rose-900">
                           <Icon className={options.length === 4 ? "w-10 h-10" : "w-10 h-10"} />
                       </Button>
                   )
@@ -359,10 +393,13 @@ export function FocusSwitchReactor() {
   }
 
   return (
-    <Card className="w-full max-w-2xl text-center bg-background">
+    <Card className="w-full max-w-2xl text-center bg-rose-950 border-rose-500/20 text-rose-100">
       <CardHeader>
-        <CardTitle>(EF) Focus Switch Reactor</CardTitle>
-        <CardDescription>Inhibition & Task-Switching Challenge. Pay attention to the rule!</CardDescription>
+        <CardTitle className="text-rose-300 flex items-center justify-center gap-2">
+           <span className="p-2 bg-rose-500/10 rounded-md"><domainIcons.EF className="w-6 h-6 text-rose-400" /></span>
+           (EF) Focus Switch Reactor
+        </CardTitle>
+        <CardDescription className="text-rose-300/70">Inhibition & Task-Switching Challenge. Pay attention to the rule!</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-6 min-h-[500px] justify-center">
         {renderContent()}
@@ -370,3 +407,5 @@ export function FocusSwitchReactor() {
     </Card>
   );
 }
+
+    

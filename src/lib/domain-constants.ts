@@ -32,7 +32,7 @@ export const DOMAIN_META: Record<
     gameTitle: 'Pattern Matrix',
     id: 'gf_pattern_matrix',
     icon: BrainCircuit,
-    color: 'bg-blue-500/10 text-blue-500',
+    color: 'bg-blue-500/10 text-blue-400',
   },
   Gc: {
     name: '(Gc) Crystallized Intelligence',
@@ -40,7 +40,7 @@ export const DOMAIN_META: Record<
     gameTitle: 'Verbal Inference Builder',
     id: 'gc_verbal_inference',
     icon: BookOpenText,
-    color: 'bg-amber-500/10 text-amber-500',
+    color: 'bg-amber-500/10 text-amber-400',
   },
   Gwm: {
     name: '(Gwm) Working Memory',
@@ -48,7 +48,7 @@ export const DOMAIN_META: Record<
     gameTitle: 'Dynamic Sequence',
     id: 'gwm_dynamic_sequence',
     icon: MemoryStick,
-    color: 'bg-cyan-500/10 text-cyan-500',
+    color: 'bg-cyan-500/10 text-cyan-400',
   },
   Gs: {
     name: '(Gs) Processing Speed',
@@ -56,7 +56,7 @@ export const DOMAIN_META: Record<
     gameTitle: 'Rapid Code Match',
     id: 'gs_rapid_code',
     icon: Zap,
-    color: 'bg-orange-500/10 text-orange-500',
+    color: 'bg-orange-500/10 text-orange-400',
   },
   Gv: {
     name: '(Gv) Visual Processing',
@@ -64,7 +64,7 @@ export const DOMAIN_META: Record<
     gameTitle: 'Visual Processing Lab',
     id: 'gv_visual_lab',
     icon: View,
-    color: 'bg-lime-500/10 text-lime-500',
+    color: 'bg-lime-500/10 text-lime-400',
   },
   Ga: {
     name: '(Ga) Auditory Processing',
@@ -72,7 +72,7 @@ export const DOMAIN_META: Record<
     gameTitle: 'Auditory Processing Lab',
     id: 'ga_auditory_lab',
     icon: Ear,
-    color: 'bg-violet-500/10 text-violet-500',
+    color: 'bg-violet-500/10 text-violet-400',
   },
   Glr: {
     name: '(Glr) Long-Term Retrieval',
@@ -80,7 +80,7 @@ export const DOMAIN_META: Record<
     gameTitle: 'Retrieval Trainer',
     id: 'glr_fluency_storm',
     icon: Archive,
-    color: 'bg-emerald-500/10 text-emerald-500',
+    color: 'bg-emerald-500/10 text-emerald-400',
   },
   EF: {
     name: '(EF) Executive Function',
@@ -88,7 +88,7 @@ export const DOMAIN_META: Record<
     gameTitle: 'Focus Switch Reactor',
     id: 'ef_focus_switch',
     icon: Goal,
-    color: 'bg-rose-500/10 text-rose-500',
+    color: 'bg-rose-500/10 text-rose-400',
   },
 };
 
@@ -110,3 +110,5 @@ export const chcDomains = Object.entries(DOMAIN_META).map(([key, value]) => ({
 export const MODE_INCOMPATIBILITY_MAP: Partial<
   Record<TrainingFocus, Partial<Record<CHCDomain, string>>>
 > = {};
+
+    

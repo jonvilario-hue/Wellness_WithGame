@@ -11,6 +11,8 @@ import { GameStub } from '../game-stub';
 import { FlowchartTracer } from '../logic/flowchart-tracer';
 import { EmotionalCrowdSearch } from './emotional-crowd-search';
 import { GvSpatialAssembly } from './gv-spatial-assembly';
+import { BalancePuzzle } from './balance-puzzle';
+
 
 export function VisualProcessingRouter() {
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
@@ -26,20 +28,13 @@ export function VisualProcessingRouter() {
   
   switch (effectiveFocus) {
     case 'math':
-      return <GvSpatialAssembly focus={effectiveFocus} />;
+      return <BalancePuzzle focus={effectiveFocus} />;
     case 'music':
       return <VisualMusicMatch focus={effectiveFocus} />;
     case 'verbal':
         return <TypographicSearch focus={effectiveFocus} />;
     case 'spatial':
-        return <GameStub 
-            name="Voxel Jigsaw"
-            description="Assemble an 'exploded view' of a complex object made of voxels (3D pixels). Then, select the correctly assembled final shape from a set of highly similar options, some with subtle assembly errors."
-            chcFactor="Visual Processing (Gv) / Spatial Visualization"
-            techStack={['Three.js', 'Voxel Engine']}
-            complexity="High"
-            fallbackPlan="Use 2D 'pixel art' sprites on an isometric grid. The task becomes assembling a 2.5D object from its parts, preserving the part-to-whole visualization goal."
-        />;
+        return <GvSpatialAssembly focus={effectiveFocus} />;
     case 'logic':
         return <FlowchartTracer />;
     case 'eq':
@@ -49,3 +44,5 @@ export function VisualProcessingRouter() {
       return <MentalRotationLab focus={effectiveFocus} />;
   }
 }
+
+    
