@@ -2,17 +2,18 @@
 'use client';
 
 import { CardContent } from '@/components/ui/card';
-import { TrendingUp, BrainCircuit, MemoryStick, Shuffle, Lightbulb, Info, Zap, Archive, ArrowDown, ArrowUp, Minus, X } from 'lucide-react';
+import { Lightbulb, Info, ArrowDown, ArrowUp, Minus, X } from 'lucide-react';
 import { Separator } from '../ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { Progress } from '../ui/progress';
 import { Button } from '../ui/button';
-import { efficiencyData } from '@/data/efficiency-data';
+import { usePerformanceStore } from '@/hooks/use-performance-store';
+import { chcDomains } from '@/lib/domain-constants';
+import type { CHCDomain } from '@/types';
 
-type Timeframe = 'weekly' | 'monthly' | 'overall';
+type ChcFactor = 'Gf' | 'Gwm' | 'EF' | 'Gs' | 'Glr';
 
 const TrendIndicator = ({ trend }: { trend: number }) => {
   const trendInfo = {
@@ -29,13 +30,13 @@ const TrendIndicator = ({ trend }: { trend: number }) => {
   );
 };
 
-
 export function CognitiveEfficiency() {
-  const [timeframe, setTimeframe] = useState<Timeframe>('weekly');
   const [isInsightVisible, setIsInsightVisible] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+  const { getAdaptiveState } = usePerformanceStore();
 
   useEffect(() => {
-    // This effect should only run on the client
+    setIsClient(true);
     const dismissed = localStorage.getItem('cognitiveEfficiencyInsightDismissed');
     if (dismissed !== 'true') {
       setIsInsightVisible(true);
@@ -47,36 +48,65 @@ export function CognitiveEfficiency() {
     localStorage.setItem('cognitiveEfficiencyInsightDismissed', 'true');
   };
 
-  const currentData = efficiencyData[timeframe];
-  const trendText = timeframe === 'overall' ? 'since starting' : `from last ${timeframe.slice(0, -2)}`;
-  const trendColor = currentData.trend > 0 ? 'text-green-500' : 'text-amber-500';
+  const efficiencyFactors = useMemo(() => {
+    if (!isClient) return [];
+
+    const coreFactorKeys: ChcFactor[] = ['Gf', 'Gwm', 'EF', 'Gs', 'Glr'];
+    
+    return coreFactorKeys.map(key => {
+        const domainInfo = chcDomains.find(d => d.key === key)!;
+        const state = getAdaptiveState(domainInfo.id, 'neutral');
+
+        const value = state ? Math.round((state.currentLevel / state.levelCeiling) * 100) : 0;
+        
+        let trend = 0;
+        if (state && state.levelHistory.length > 0) {
+             const startLevel = state.levelHistory[0].startLevel;
+             const endLevel = state.levelHistory[state.levelHistory.length - 1].endLevel;
+             if (startLevel > 0) {
+                 trend = Math.round(((endLevel - startLevel) / startLevel) * 100);
+             }
+        }
+
+        return {
+            name: domainInfo.name.replace(/\(.*\)\s/, ''),
+            key,
+            trend,
+            value,
+            icon: domainInfo.icon,
+            description: domainInfo.description,
+        };
+    });
+  }, [isClient, getAdaptiveState]);
+  
+  const overallTrend = useMemo(() => {
+    if (efficiencyFactors.length === 0) return 0;
+    const averageTrend = efficiencyFactors.reduce((acc, factor) => acc + factor.trend, 0) / efficiencyFactors.length;
+    return Math.round(averageTrend);
+  }, [efficiencyFactors]);
+
+  const trendColor = overallTrend > 0 ? 'text-green-500' : 'text-amber-500';
+  const insight = "Your performance trend reflects your growth across different cognitive domains.";
 
   return (
     <CardContent>
         <TooltipProvider>
-          <Tabs defaultValue="weekly" onValueChange={(value) => setTimeframe(value as Timeframe)}>
-            <TabsList className="grid w-full grid-cols-3 mb-4">
-              <TabsTrigger value="weekly">Weekly</TabsTrigger>
-              <TabsTrigger value="monthly">Monthly</TabsTrigger>
-              <TabsTrigger value="overall">Overall</TabsTrigger>
-            </TabsList>
-
             <div className="space-y-4">
               <div className="text-center">
-                <p className="text-sm text-muted-foreground">Performance Trend</p>
+                <p className="text-sm text-muted-foreground">Overall Performance Trend</p>
                 <p className={cn("text-4xl font-bold", trendColor)}>
-                    {currentData.trend > 0 ? '+' : ''}{currentData.trend}%
+                    {overallTrend > 0 ? '+' : ''}{overallTrend}%
                 </p>
                 <p className="text-sm font-semibold text-muted-foreground">
-                    {trendText}
+                    since starting
                 </p>
               </div>
               
               <Separator />
 
               <div className="space-y-4">
-                <h4 className="font-semibold text-center text-muted-foreground">Efficiency Factors</h4>
-                {currentData.subMetrics.map(metric => {
+                <h4 className="font-semibold text-center text-muted-foreground">Skill Index</h4>
+                {efficiencyFactors.map(metric => {
                   const Icon = metric.icon;
                   return (
                     <div key={metric.name} className="space-y-2">
@@ -107,7 +137,7 @@ export function CognitiveEfficiency() {
                 <div className="p-3 bg-primary/10 rounded-lg text-center relative">
                     <p className="text-sm flex items-start gap-2 pr-6">
                         <Lightbulb className="w-5 h-5 mt-0.5 text-primary shrink-0"/> 
-                        <span className="text-foreground text-left"><span className="font-bold">Insight:</span> {currentData.insight}</span>
+                        <span className="text-foreground text-left"><span className="font-bold">Insight:</span> {insight}</span>
                     </p>
                     <Button 
                         variant="ghost" 
@@ -122,7 +152,6 @@ export function CognitiveEfficiency() {
                 </>
               )}
             </div>
-          </Tabs>
         </TooltipProvider>
       </CardContent>
   );
