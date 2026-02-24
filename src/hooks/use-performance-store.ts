@@ -23,7 +23,7 @@ type PerformanceActions = {
     setGameTier: (gameId: GameId, focus: TrainingFocus, tier: TierSelection) => void;
     setGlobalTier: (tier: TierSelection) => void;
     hydrate: () => Promise<void>;
-    logTrial: (record: Omit<TrialRecord, 'id' | 'sessionId' | 'schemaVersion'> & { sessionId: string }) => Promise<void>;
+    logTrial: (record: Omit<TrialRecord, 'id' | 'seq' | 'schemaVersion'>) => Promise<void>;
     flushFailedWrites: () => Promise<void>;
     exportData: () => Promise<string>;
     importData: (json: string) => Promise<void>;
@@ -112,6 +112,8 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
                 });
             },
             
+            // This function is called when the user navigates away from the page
+            // to ensure that any buffered telemetry is saved.
             flushFailedWrites: async () => {
                 const buffered = get().failedWrites;
                 if (buffered.length === 0) return;
@@ -126,19 +128,25 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
                 }
             },
 
+            // This function is the primary entry point for logging a trial.
+            // It includes offline resilience by buffering failed writes.
             logTrial: async (record) => {
                 const fullRecord: TrialRecord = {
                     ...record,
                     id: `${record.sessionId}-${record.trialIndex}`,
+                    seq: record.trialIndex, // Set the monotonic sequence number
                     schemaVersion: 2,
                 };
                  // First, try to log the new record. This may trigger an eviction run.
                 try {
+                    // IndexedDB can be unavailable in some browser modes (e.g., private browsing)
                     await idbStore.logTrial(fullRecord);
                 } catch (error) {
                     console.warn("[Storage] IDB write failed. Buffering trial record.", error);
+                    // Add to the in-memory buffer for later retry.
                     set(state => {
                         state.failedWrites.push(fullRecord);
+                        // To prevent unbounded memory usage, cap the buffer.
                         if (state.failedWrites.length > 500) {
                             console.warn(`[Storage] In-memory buffer full. Dropping oldest trial record.`);
                             state.failedWrites.shift(); 

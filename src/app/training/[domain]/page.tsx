@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -14,6 +15,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useTrainingOverride } from '@/hooks/use-training-override';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
+import { GameErrorBoundary } from '@/components/shared/game-error-boundary';
+import { usePerformanceStore } from '@/hooks/use-performance-store';
+import type { ErrorInfo } from 'react';
 
 
 export default function TrainingPage() {
@@ -24,6 +28,8 @@ export default function TrainingPage() {
   // The new override hook replaces the global focus switcher for this page's logic
   const { override, setOverride } = useTrainingOverride();
   const { focus: globalDefaultFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
+
+  const { logTrial } = usePerformanceStore();
 
   if (!domainInfo) {
     notFound();
@@ -53,6 +59,29 @@ export default function TrainingPage() {
       if (mode.key === 'logic' && !domainInfo.supportsLogic) return false;
       return true;
   });
+
+  const handleResetError = () => {
+    // Simple reset: reload the page. A more sophisticated implementation
+    // might reset just the game component's state.
+    window.location.reload();
+  };
+
+  const handleLogError = (error: Error, info: ErrorInfo) => {
+    // A real implementation would need to get the current session ID.
+    // For this demonstration, we'll use a placeholder.
+    logTrial({
+        sessionId: 'error-session-' + Date.now(),
+        trialIndex: -1, // Indicates an error outside a specific trial
+        correct: false,
+        rtMs: 0,
+        timestamp: Date.now(),
+        difficultyLevel: 0,
+        stimulusParams: { error: error.message, componentStack: info.componentStack },
+        stimulusOnsetTs: 0,
+        responseTs: 0,
+        responseType: 'crash',
+    });
+  };
 
   return (
     <div className="flex flex-col min-h-screen bg-background text-foreground">
@@ -104,7 +133,9 @@ export default function TrainingPage() {
        </div>
 
       <main className="flex-1 p-4 sm:p-6 md:p-8 flex items-center justify-center">
-        {isGlobalFocusLoaded ? <GameComponent /> : <Skeleton className="h-96 w-full max-w-2xl" />}
+        <GameErrorBoundary onReset={handleResetError} logError={handleLogError}>
+            {isGlobalFocusLoaded ? <GameComponent /> : <Skeleton className="h-96 w-full max-w-2xl" />}
+        </GameErrorBoundary>
       </main>
     </div>
   );
