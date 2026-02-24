@@ -93,7 +93,7 @@ const generatePuzzleForLevel = (level: number): Puzzle => {
 };
 
 export function MentalRotationLab({ focus }: { focus: TrainingFocus }) {
-  const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
+  const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
 
   const [adaptiveState, setAdaptiveState] = useState<AdaptiveState | null>(null);
   const [gameState, setGameState] = useState<'loading' | 'start' | 'playing' | 'feedback' | 'finished'>('loading');
@@ -123,11 +123,12 @@ export function MentalRotationLab({ focus }: { focus: TrainingFocus }) {
   const startNewSession = useCallback(() => {
     if (!adaptiveState) return;
     const sessionState = startSession(adaptiveState);
+    updateAdaptiveState(GAME_ID, focus, sessionState);
     setAdaptiveState(sessionState);
     setSessionTrials([]);
     currentTrialIndex.current = 0;
     startNewTrial(sessionState);
-  }, [adaptiveState, startNewTrial]);
+  }, [adaptiveState, startNewTrial, updateAdaptiveState, focus]);
 
   const handleSelectOption = (option: Grid) => {
     if (gameState !== 'playing' || !puzzle || !adaptiveState) return;
@@ -136,10 +137,25 @@ export function MentalRotationLab({ focus }: { focus: TrainingFocus }) {
     const reactionTimeMs = Date.now() - trialStartTime.current;
     const isCorrect = areGridsEqual(option, puzzle.answer);
 
-    const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs };
+    const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs, telemetry: {} };
+    logTrial({
+      id: crypto.randomUUID(),
+      userId: 'local_user',
+      timestamp: Date.now(),
+      module_id: GAME_ID,
+      currentLevel: adaptiveState.currentLevel,
+      isCorrect,
+      responseTime_ms: reactionTimeMs,
+      meta: {
+        rotationDegrees: 0, // Placeholder
+        errorMarginPx: 0, // Placeholder
+      }
+    });
+
     setSessionTrials(prev => [...prev, trialResult]);
     
     const newState = adjustDifficulty(trialResult, adaptiveState, policy);
+    updateAdaptiveState(GAME_ID, focus, newState);
     setAdaptiveState(newState);
 
     setInlineFeedback({ message: isCorrect ? getSuccessFeedback('Gv') : getFailureFeedback('Gv'), type: isCorrect ? 'success' : 'failure' });
@@ -162,7 +178,7 @@ export function MentalRotationLab({ focus }: { focus: TrainingFocus }) {
       return (
         <div className="flex flex-col items-center gap-4">
           <div className="font-mono text-lg">Level: {adaptiveState?.currentLevel}</div>
-          <Button onClick={startNewSession} size="lg">Start Session</Button>
+          <Button onClick={startNewSession} size="lg">Visual Processing Lab</Button>
         </div>
       );
     }

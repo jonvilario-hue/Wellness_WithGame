@@ -84,7 +84,7 @@ const MusicNotation = ({ path, className, isContour }: { path: string; className
 
 
 export function VisualMusicMatch({ focus }: { focus: TrainingFocus }) {
-    const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
+    const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
 
     const [adaptiveState, setAdaptiveState] = useState<AdaptiveState | null>(null);
     const [gameState, setGameState] = useState<'loading' | 'start' | 'playing' | 'feedback' | 'finished'>('loading');
@@ -118,11 +118,12 @@ export function VisualMusicMatch({ focus }: { focus: TrainingFocus }) {
     const startNewSession = useCallback(() => {
         if (!adaptiveState) return;
         const sessionState = startSession(adaptiveState);
+        updateAdaptiveState(GAME_ID, focus, sessionState);
         setAdaptiveState(sessionState);
         setSessionTrials([]);
         currentTrialIndex.current = 0;
         startNewTrial(sessionState);
-    }, [adaptiveState, startNewTrial]);
+    }, [adaptiveState, startNewTrial, updateAdaptiveState, focus]);
 
     const handleSelect = (option: Measure) => {
         if (gameState !== 'playing' || !puzzle || !adaptiveState) return;
@@ -131,10 +132,25 @@ export function VisualMusicMatch({ focus }: { focus: TrainingFocus }) {
         const reactionTimeMs = Date.now() - trialStartTime.current;
         const isCorrect = option.id === puzzle.answer.id;
         
-        const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs };
+        const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs, telemetry: {} };
+        logTrial({
+            id: crypto.randomUUID(),
+            userId: 'local_user',
+            timestamp: Date.now(),
+            module_id: GAME_ID,
+            currentLevel: adaptiveState.currentLevel,
+            isCorrect,
+            responseTime_ms: reactionTimeMs,
+            meta: {
+                puzzleType: 'visual_music_match',
+                targetMeasure: puzzle.target.id,
+                options: puzzle.options.map(o => o.id),
+            }
+        });
         setSessionTrials(prev => [...prev, trialResult]);
         
         const newState = adjustDifficulty(trialResult, adaptiveState, policy);
+        updateAdaptiveState(GAME_ID, focus, newState);
         setAdaptiveState(newState);
 
         setFeedback(isCorrect ? getSuccessFeedback('Gv') : getFailureFeedback('Gv'));
@@ -144,7 +160,7 @@ export function VisualMusicMatch({ focus }: { focus: TrainingFocus }) {
             if (currentTrialIndex.current >= policy.sessionLength) {
                 setGameState('finished');
                 const finalState = endSession(newState, [...sessionTrials, trialResult]);
-                updateAdaptiveState(GAME_ID, finalState);
+                updateAdaptiveState(GAME_ID, focus, finalState);
             } else {
                 startNewTrial(newState);
             }
@@ -157,7 +173,7 @@ export function VisualMusicMatch({ focus }: { focus: TrainingFocus }) {
              return (
                 <div className="flex flex-col items-center gap-4">
                   <div className="font-mono text-lg">Level: {adaptiveState.currentLevel}</div>
-                  <Button onClick={startNewSession} size="lg">Start Session</Button>
+                  <Button onClick={startNewSession} size="lg">Visual Processing Lab</Button>
                 </div>
             );
         }

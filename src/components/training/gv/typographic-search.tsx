@@ -65,7 +65,7 @@ const generateGrid = (level: number): { grid: string[], task: SearchTask, soluti
 
 
 export function TypographicSearch({ focus }: { focus: TrainingFocus }) {
-  const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
+  const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
   const [adaptiveState, setAdaptiveState] = useState<AdaptiveState | null>(null);
   const [gameState, setGameState] = useState<'loading' | 'start' | 'playing' | 'feedback' | 'finished'>('loading');
   const [sessionTrials, setSessionTrials] = useState<TrialResult[]>([]);
@@ -97,11 +97,12 @@ export function TypographicSearch({ focus }: { focus: TrainingFocus }) {
   const startNewSession = useCallback(() => {
     if (!adaptiveState) return;
     const sessionState = startSession(adaptiveState);
+    updateAdaptiveState(GAME_ID, focus, sessionState);
     setAdaptiveState(sessionState);
     setSessionTrials([]);
     currentTrialIndex.current = 0;
     startNewTrial(sessionState);
-  }, [adaptiveState, startNewTrial]);
+  }, [adaptiveState, startNewTrial, updateAdaptiveState, focus]);
 
   const handleWordClick = (word: string) => {
     if(gameState !== 'playing') return;
@@ -124,10 +125,27 @@ export function TypographicSearch({ focus }: { focus: TrainingFocus }) {
     // Check if selected words exactly match the solution
     const isCorrect = puzzle.solution.length === selectedWords.size && puzzle.solution.every(word => selectedWords.has(word));
 
-    const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs };
+    const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs, telemetry: {} };
+    logTrial({
+      id: crypto.randomUUID(),
+      userId: 'local_user',
+      timestamp: Date.now(),
+      module_id: GAME_ID,
+      currentLevel: adaptiveState.currentLevel,
+      isCorrect,
+      responseTime_ms: reactionTimeMs,
+      meta: {
+        puzzleType: 'typographic_search',
+        prompt: puzzle.task.prompt,
+        solution: puzzle.solution,
+        userSelection: Array.from(selectedWords),
+      }
+    });
+
     setSessionTrials(prev => [...prev, trialResult]);
     
     const newState = adjustDifficulty(trialResult, adaptiveState, policy);
+    updateAdaptiveState(GAME_ID, focus, newState);
     setAdaptiveState(newState);
 
     setInlineFeedback({ message: isCorrect ? getSuccessFeedback('Gv') : getFailureFeedback('Gv'), type: isCorrect ? 'success' : 'failure' });
@@ -137,7 +155,7 @@ export function TypographicSearch({ focus }: { focus: TrainingFocus }) {
       if (currentTrialIndex.current >= policy.sessionLength) {
         setGameState('finished');
         const finalState = endSession(newState, [...sessionTrials, trialResult]);
-        updateAdaptiveState(GAME_ID, finalState);
+        updateAdaptiveState(GAME_ID, focus, finalState);
       } else {
         startNewTrial(newState);
       }
@@ -150,7 +168,7 @@ export function TypographicSearch({ focus }: { focus: TrainingFocus }) {
       return (
         <div className="flex flex-col items-center gap-4">
           <div className="font-mono text-lg">Level: {adaptiveState.currentLevel}</div>
-          <Button onClick={startNewSession} size="lg">Start Session</Button>
+          <Button onClick={startNewSession} size="lg">Visual Processing Lab</Button>
         </div>
       );
     }

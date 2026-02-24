@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -261,7 +262,7 @@ export function AuditoryProcessingRouter() {
 
         switch (gameState) {
             case 'idle':
-                return <Button onClick={() => setGameState('headphoneCheck')} size="lg">Start Auditory Lab</Button>;
+                return <Button onClick={() => setGameState('headphoneCheck')} size="lg">Auditory Processing Lab</Button>;
             
             case 'headphoneCheck':
                 return (

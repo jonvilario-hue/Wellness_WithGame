@@ -139,7 +139,7 @@ export function GvSpatialAssembly({ focus }: { focus: TrainingFocus }) {
     if (gameState === 'start') {
       return (
         <div className="flex flex-col items-center gap-4">
-          <Button onClick={startNewSession} size="lg" variant="outline" className="border-lime-400 text-lime-400 hover:bg-lime-400/10 hover:text-lime-300">Start Assembly</Button>
+          <Button onClick={startNewSession} size="lg" variant="outline" className="border-lime-400 text-lime-400 hover:bg-lime-400/10 hover:text-lime-300">Visual Processing Lab</Button>
         </div>
       );
     }

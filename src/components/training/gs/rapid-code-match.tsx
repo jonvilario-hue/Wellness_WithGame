@@ -245,7 +245,7 @@ export function RapidCodeMatch() {
         return (
             <div className="flex flex-col items-center gap-4">
               <div className="font-mono text-lg">Level: {adaptiveState?.currentLevel}</div>
-              <Button onClick={startNewSession} size="lg">Begin Speed Test</Button>
+              <Button onClick={startNewSession} size="lg">Rapid Code Match</Button>
             </div>
           );
     }

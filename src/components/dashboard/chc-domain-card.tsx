@@ -82,7 +82,7 @@ export function ChcDomainCard({ domain, onPlay }: { domain: CHCDomain, onPlay: (
           disabled={isLocked}
           onClick={() => !isLocked && onPlay(domain)}
         >
-          {isLocked ? 'Unavailable in Core' : `Start Assessment`}
+          {isLocked ? 'Unavailable in Core' : domainMeta.gameTitle}
         </Button>
       </CardFooter>
     </Card>

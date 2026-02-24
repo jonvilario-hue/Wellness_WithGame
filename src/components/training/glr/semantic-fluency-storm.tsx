@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -78,7 +79,7 @@ export function SemanticFluencyStorm() {
             return (
                 <div className="flex flex-col items-center gap-4">
                     <p className="text-center text-muted-foreground">This game trains your ability to store and retrieve information efficiently. It rotates through different modes each time you play.</p>
-                    <Button onClick={handleStart} size="lg">Start Glr Training</Button>
+                    <Button onClick={handleStart} size="lg">Retrieval Trainer</Button>
                 </div>
             );
         }

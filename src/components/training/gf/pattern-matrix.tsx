@@ -306,7 +306,7 @@ export function PatternMatrix() {
                 return (
                     <div className="flex flex-col items-center gap-4">
                         <div className="font-mono text-lg">Level: {adaptiveState?.currentLevel}</div>
-                        <Button onClick={startNewSession} size="lg" disabled={!adaptiveState}>Begin Analysis</Button>
+                        <Button onClick={startNewSession} size="lg" disabled={!adaptiveState}>Pattern Matrix</Button>
                     </div>
                 );
             case 'finished':

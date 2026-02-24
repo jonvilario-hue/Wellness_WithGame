@@ -295,7 +295,7 @@ export function FocusSwitchReactor() {
           return (
             <div className="flex flex-col items-center gap-4 text-center">
               <div className="font-mono text-lg">Level: {adaptiveState?.currentLevel}</div>
-              <Button onClick={startNewSession} size="lg" disabled={!adaptiveState}>Start Challenge</Button>
+              <Button onClick={startNewSession} size="lg" disabled={!adaptiveState}>Focus Switch Reactor</Button>
                <div className="flex items-center gap-2 text-muted-foreground mt-4">
                   <Keyboard className="w-5 h-5"/>
                   <p>Controls: Use (A / ←) and (L / →) keys</p>

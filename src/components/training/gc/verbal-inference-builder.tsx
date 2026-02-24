@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -85,7 +86,7 @@ const generatePuzzleForLevel = (level: number, focus: TrainingFocus): Puzzle => 
 
 // --- Main Game Component ---
 export function VerbalInferenceBuilder() {
-  const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
+  const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
   const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
 
@@ -128,11 +129,12 @@ export function VerbalInferenceBuilder() {
   const startNewSession = useCallback(() => {
     if (!adaptiveState) return;
     const sessionState = startSession(adaptiveState);
+    updateAdaptiveState(GAME_ID, currentMode, sessionState);
     setAdaptiveState(sessionState);
     setSessionTrials([]);
     currentTrialIndex.current = 0;
     startNewTrial(sessionState);
-  }, [adaptiveState, startNewTrial]);
+  }, [adaptiveState, startNewTrial, updateAdaptiveState, currentMode]);
 
   const handleAnswer = (option: string) => {
     if (gameState !== 'playing' || !puzzle || !adaptiveState) return;
@@ -142,10 +144,24 @@ export function VerbalInferenceBuilder() {
     const reactionTimeMs = Date.now() - trialStartTime.current;
     const isCorrect = option === puzzle.answer;
 
-    const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs };
+    const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs, telemetry: {} };
+    logTrial({
+      id: crypto.randomUUID(),
+      userId: 'local_user',
+      timestamp: Date.now(),
+      module_id: GAME_ID,
+      currentLevel: adaptiveState.currentLevel,
+      isCorrect,
+      responseTime_ms: reactionTimeMs,
+      meta: {
+        puzzleType: puzzle.type,
+      }
+    });
+
     setSessionTrials(prev => [...prev, trialResult]);
     
     const newState = adjustDifficulty(trialResult, adaptiveState, policy);
+    updateAdaptiveState(GAME_ID, currentMode, newState);
     setAdaptiveState(newState);
 
     setInlineFeedback({ message: isCorrect ? getSuccessFeedback('Gc') : getFailureFeedback('Gc'), type: isCorrect ? 'success' : 'failure' });
@@ -179,26 +195,7 @@ export function VerbalInferenceBuilder() {
   }
 
   if (currentMode === 'math') {
-    return <GcMathConcepts onGameComplete={(result) => {
-        const { score, accuracy, trials, avgResponseTimeMs } = result;
-        const currentState = getAdaptiveState(GAME_ID, 'math');
-        const finalState: AdaptiveState = {
-            ...currentState,
-            lastSessionAt: Date.now(),
-            sessionCount: currentState.sessionCount + 1,
-            levelHistory: [
-                ...currentState.levelHistory,
-                {
-                    sessionDate: Date.now(),
-                    startLevel: currentState.currentLevel,
-                    endLevel: currentState.currentLevel, // Math concepts don't have levels, so keep it flat
-                    avgAccuracy: accuracy,
-                    avgRT: avgResponseTimeMs,
-                }
-            ]
-        };
-        updateAdaptiveState(GAME_ID, 'math', finalState);
-    }} />;
+    return <GcMathConcepts focus={currentMode} />;
   }
 
   if (currentMode === 'spatial') {
@@ -222,7 +219,7 @@ export function VerbalInferenceBuilder() {
       return (
         <div className="flex flex-col items-center gap-4">
           <div className="font-mono text-lg">Level: {adaptiveState?.currentLevel}</div>
-          <Button onClick={startNewSession} size="lg" disabled={!adaptiveState}>Start Session</Button>
+          <Button onClick={startNewSession} size="lg" disabled={!adaptiveState}>Verbal Inference Builder</Button>
         </div>
       );
     }
