@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -37,7 +38,7 @@ export function StrengthProfileRadar({ focus }: { focus: TrainingFocus }) {
   }, []);
 
   const chartData = chcDomains.map(domain => ({
-    subject: domain.friendlyLabel,
+    subject: `(${domain.key}) ${domain.friendlyLabel}`,
     score: getFilteredScore(gameStates, domain.key, focus),
     fullMark: 100,
   }));
