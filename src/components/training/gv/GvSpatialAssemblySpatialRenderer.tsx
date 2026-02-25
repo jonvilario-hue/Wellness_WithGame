@@ -8,7 +8,7 @@ import type { BaseRendererProps } from "@/types";
 import type { GvSpatialAssemblyState, GvSpatialAssemblyEvent } from "./gv-spatial-assembly";
 
 // Placeholder for a real Three.js or other WebGL renderer
-const WebGLCanvas = ({ onUnmount }: { onUnmount: () => void }) => {
+const WebGLCanvas = ({ onUnmount, label }: { onUnmount: () => void, label: string }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
     useEffect(() => {
@@ -20,22 +20,23 @@ const WebGLCanvas = ({ onUnmount }: { onUnmount: () => void }) => {
         return () => {
             // --- WebGL & Memory Management (B2.1) ---
             // This cleanup is CRITICAL to prevent memory leaks and WebGL context loss on mobile.
-            console.log("[SpatialRenderer] Cleaning up WebGL resources...");
             // renderer.dispose();
             // renderer.forceContextLoss();
             onUnmount(); // Signal to parent that cleanup is done
         };
     }, [onUnmount]);
 
-    return <canvas ref={canvasRef} className="w-full h-full rounded-lg" />;
+    return <canvas ref={canvasRef} className="w-full h-full rounded-lg" role="img" aria-label={label} />;
 };
 
 
 export const GvSpatialAssemblySpatialRenderer: React.FC<BaseRendererProps<GvSpatialAssemblyState, GvSpatialAssemblyEvent>> = (props) => {
 
     const handleUnmount = () => {
-        console.log("Spatial Renderer WebGL Canvas has been unmounted and cleaned up.");
+        // This function is called when the WebGL canvas is unmounted.
     };
+
+    const canvasLabel = `A 3D spatial assembly puzzle. Current state: ${props.gameState.gameState}. Fragments are being displayed.`;
 
     return (
          <Card className="w-full max-w-2xl bg-gray-950 border-lime-500/20 text-gray-100">
@@ -45,9 +46,9 @@ export const GvSpatialAssemblySpatialRenderer: React.FC<BaseRendererProps<GvSpat
             </CardHeader>
             <CardContent className="flex flex-col items-center gap-6 min-h-[450px] justify-center">
                 <div className="w-full h-96 bg-gray-900 rounded-lg">
-                    <WebGLCanvas onUnmount={handleUnmount} />
+                    <WebGLCanvas onUnmount={handleUnmount} label={canvasLabel} />
                 </div>
-                 <p className="text-sm text-muted-foreground">This demonstrates the correct memory cleanup pattern for WebGL contexts.</p>
+                 <p className="text-sm text-muted-foreground">This demonstrates the correct memory cleanup and accessibility patterns for WebGL contexts.</p>
             </CardContent>
         </Card>
     );
