@@ -104,10 +104,6 @@ export function SemanticFluencyStorm() {
         return <AlgorithmFluency />;
     }
 
-    if (currentTrainingFocus === 'eq') {
-        return <CategorySwitchingMode onComplete={handleGameComplete as any} focus={currentTrainingFocus} />;
-    }
-
     const renderContent = () => {
         if (gameState === 'idle') {
             const { Icon, label } = FOCUS_MODE_META[currentTrainingFocus];
