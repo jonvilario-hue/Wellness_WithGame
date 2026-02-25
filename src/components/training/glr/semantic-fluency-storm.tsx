@@ -66,7 +66,7 @@ const isAssociativelyRelated = (prevWord: string, currentWord: string, rule: str
     return prevWord.charAt(prevWord.length - 1).toLowerCase() === currentWord.charAt(0).toLowerCase();
 };
 
-type GlrGameMode = ReturnType<typeof useGlrStore.getState().getNextMode>;
+type GlrGameMode = 'associative' | 'spaced' | 'category' | 'operator_recall' | 'spatial';
 
 export function SemanticFluencyStorm() {
     const [gameState, setGameState] = useState<'idle' | 'running' | 'finished'>('idle');
@@ -399,5 +399,3 @@ function CategorySwitchingMode({ onComplete, focus }: { onComplete: (result: { s
         </div>
     );
 }
-
-    
