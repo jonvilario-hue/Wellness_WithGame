@@ -1,42 +1,42 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
-import { ArrowUp, ArrowDown, Minus } from 'lucide-react';
+import { ArrowUp, ArrowDown, Minus, Play } from 'lucide-react';
 import { usePerformanceStore } from '@/hooks/use-performance-store';
-import type { CHCDomain } from '@/types';
-import { DOMAIN_META } from '@/lib/domain-constants';
+import type { CHCDomain, GameId } from '@/types';
 import { useMemo } from 'react';
 import { formatDistanceToNow } from 'date-fns';
+import { Button } from '../ui/button';
+import { useRouter } from 'next/navigation';
 
 const useDomainStats = (domainId: GameId) => {
   const { gameStates } = usePerformanceStore();
 
   return useMemo(() => {
-    const neutralState = gameStates[`${domainId}/neutral`];
-    const eqState = gameStates[`${domainId}/eq`];
-    
-    // Prioritize EQ score if it exists, otherwise use neutral
-    const primaryState = eqState || neutralState;
-    
-    if (!primaryState) {
-        return { score: 0, trend: 0, lastPlayed: null };
+    const allStatesForGame = Object.values(gameStates).filter(state => state.gameId === domainId);
+
+    if (allStatesForGame.length === 0) {
+      return { score: 0, trend: 0, lastPlayed: 'Never' };
     }
+    
+    const mostRecentState = allStatesForGame.reduce((latest, current) => {
+        return (current.lastSessionAt || 0) > (latest.lastSessionAt || 0) ? current : latest;
+    });
 
-    const score = Math.round((primaryState.currentLevel / primaryState.levelCeiling) * 100);
+    const score = Math.round((mostRecentState.currentLevel / mostRecentState.levelCeiling) * 100);
+    const lastPlayed = mostRecentState.lastSessionAt ? formatDistanceToNow(new Date(mostRecentState.lastSessionAt), { addSuffix: true }) : 'Never';
+    
+    const combinedHistory = allStatesForGame.flatMap(state => state.levelHistory).sort((a,b) => a.sessionDate - b.sessionDate);
 
-    const history = primaryState.levelHistory;
     let trend = 0;
-    if (history.length >= 5) {
-        const recentHistory = history.slice(-5);
-        const startScore = (recentHistory[0].startLevel / primaryState.levelCeiling) * 100;
-        const endScore = (recentHistory[recentHistory.length - 1].endLevel / primaryState.levelCeiling) * 100;
+    if (combinedHistory.length >= 5) {
+        const recentHistory = combinedHistory.slice(-5);
+        const startScore = (recentHistory[0].startLevel / mostRecentState.levelCeiling) * 100;
+        const endScore = (recentHistory[recentHistory.length - 1].endLevel / mostRecentState.levelCeiling) * 100;
         trend = endScore - startScore;
     }
-    
-    const lastPlayed = primaryState.lastSessionAt ? formatDistanceToNow(new Date(primaryState.lastSessionAt), { addSuffix: true }) : 'Never';
 
     return { score, trend, lastPlayed };
   }, [gameStates, domainId]);
@@ -44,15 +44,21 @@ const useDomainStats = (domainId: GameId) => {
 
 
 export function GameCard({ domain, onSelect }: { domain: (typeof import('@/lib/domain-constants').chcDomains)[0], onSelect: (domainKey: CHCDomain) => void }) {
+  const router = useRouter();
   const { score, trend, lastPlayed } = useDomainStats(domain.id);
   
   const TrendIcon = trend > 2 ? ArrowUp : trend < -2 ? ArrowDown : Minus;
   const trendColor = trend > 2 ? 'text-green-500' : trend < -2 ? 'text-amber-500' : 'text-muted-foreground';
 
+  const handlePlayClick = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent the card's onClick from firing
+    router.push(`/training/${domain.key}`);
+  };
+
   return (
     <Card
       onClick={() => onSelect(domain.key)}
-      className="flex flex-col h-full transition-all duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer"
+      className="flex flex-col aspect-square justify-between transition-all duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer"
     >
       <CardHeader className="flex-row items-start gap-4 space-y-0 pb-2">
         <div className={cn("p-3 rounded-lg", domain.color)}>
@@ -66,7 +72,7 @@ export function GameCard({ domain, onSelect }: { domain: (typeof import('@/lib/d
             <TrendIcon className="w-4 h-4" />
         </div>
       </CardHeader>
-      <CardContent className="flex-grow space-y-4 py-4">
+      <CardContent className="space-y-4 py-0">
         <div>
           <div className="flex justify-between items-center mb-1">
             <span className="text-sm font-medium text-muted-foreground">Skill Score</span>
@@ -74,9 +80,12 @@ export function GameCard({ domain, onSelect }: { domain: (typeof import('@/lib/d
           </div>
           <Progress value={score} aria-label={`${domain.name} skill score`} />
         </div>
+         <p className="text-xs text-muted-foreground pt-2">Last played: {lastPlayed}</p>
       </CardContent>
-       <CardFooter>
-        <p className="text-xs text-muted-foreground">Last played: {lastPlayed}</p>
+       <CardFooter className="p-4">
+        <Button onClick={handlePlayClick} className="w-full">
+            <Play className="mr-2 h-4 w-4" /> Play Now
+        </Button>
       </CardFooter>
     </Card>
   );
