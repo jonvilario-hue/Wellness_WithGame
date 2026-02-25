@@ -23,7 +23,7 @@ type Trial = {
 };
 
 export function AuditoryFlanker() {
-    const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
+    const { getAdaptiveState, updateAdaptiveState, logEvent } = usePerformanceStore();
     const { playFlanker, resumeContext, isAudioReady, getAudioContextTime, getLatencyInfo } = useAudioEngine();
 
     const [gameState, setGameState] = useState<'loading' | 'start' | 'running' | 'feedback' | 'finished'>('loading');
@@ -110,14 +110,26 @@ export function AuditoryFlanker() {
 
         sessionTrials.current.push(trialResult);
 
-        logTrial({
-            sessionId: sessionId.current,
-            gameId: GAME_ID,
-            difficultyLevel: state.currentLevel,
-            trialIndex: trialCount.current,
-            responseType: isCorrect ? 'hit' : 'error',
-            ...trialResult,
-        } as any);
+        logEvent({
+            type: 'trial_complete',
+            sessionId: sessionId.current!,
+            seq: trialCount.current,
+            payload: {
+                id: `${sessionId.current!}-${trialCount.current}`,
+                sessionId: sessionId.current!,
+                gameId: GAME_ID,
+                trialIndex: trialCount.current,
+                difficultyLevel: state.currentLevel,
+                stimulusParams: trialResult.telemetry || {},
+                stimulusOnsetTs: trialResult.stimulusOnsetTs || 0,
+                responseTs: trialResult.responseTs || 0,
+                rtMs: reactionTimeMs,
+                correct: isCorrect,
+                responseType: isCorrect ? 'hit' : 'error',
+                pausedDurationMs: 0,
+                wasFallback: false,
+            }
+        });
 
         const newState = adjustDifficulty(trialResult, state, policy);
         updateAdaptiveState(GAME_ID, 'music', newState);
