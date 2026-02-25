@@ -26,7 +26,7 @@ export function HolisticView() {
                 <div className="flex justify-center mb-4">
                     <TabsList>
                         <TabsTrigger value="focus">By Training Focus</TabsTrigger>
-                        <TabsTrigger value="domain">Cognitive Domain</TabsTrigger>
+                        <TabsTrigger value="domain">Training Focus</TabsTrigger>
                     </TabsList>
                 </div>
 
