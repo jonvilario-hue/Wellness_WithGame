@@ -11,6 +11,7 @@ import { TrainingOverrideProvider } from '@/hooks/use-training-override.tsx';
 import { useEffect } from 'react';
 import { usePerformanceStore } from '@/hooks/use-performance-store';
 import { AudioEngineProvider } from '@/hooks/useAudioEngine';
+import { AppShell } from '@/components/app-shell';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -67,7 +68,9 @@ export default function RootLayout({
             <AudioEngineProvider>
               <TrainingFocusProvider>
                 <TrainingOverrideProvider>
-                  {children}
+                  <AppShell>
+                    {children}
+                  </AppShell>
                   <Toaster />
                 </TrainingOverrideProvider>
               </TrainingFocusProvider>

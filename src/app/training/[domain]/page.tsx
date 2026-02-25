@@ -85,9 +85,9 @@ export default function TrainingPage() {
         <div className="mx-auto max-w-7xl flex items-center justify-between">
           <div className="flex-1 flex justify-start">
             <Button asChild variant="outline">
-              <Link href="/">
+              <Link href="/games">
                 <ArrowLeft className="mr-2" />
-                Back to Dashboard
+                Back to Games
               </Link>
             </Button>
           </div>

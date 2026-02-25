@@ -19,6 +19,7 @@ export const DOMAIN_META: Record<
   CHCDomain,
   {
     name: string;
+    friendlyLabel: string;
     description: string;
     gameTitle: string;
     id: GameId;
@@ -28,6 +29,7 @@ export const DOMAIN_META: Record<
 > = {
   Gf: {
     name: '(Gf) Fluid Reasoning',
+    friendlyLabel: 'Reasoning',
     description: 'Solve new problems',
     gameTitle: 'Pattern Matrix',
     id: 'gf_pattern_matrix',
@@ -36,6 +38,7 @@ export const DOMAIN_META: Record<
   },
   Gc: {
     name: '(Gc) Crystallized Intelligence',
+    friendlyLabel: 'Knowledge',
     description: 'Use learned knowledge',
     gameTitle: 'Verbal Inference Builder',
     id: 'gc_verbal_inference',
@@ -44,6 +47,7 @@ export const DOMAIN_META: Record<
   },
   Gwm: {
     name: '(Gwm) Working Memory',
+    friendlyLabel: 'Memory',
     description: 'Use and hold information',
     gameTitle: 'Dynamic Sequence',
     id: 'gwm_dynamic_sequence',
@@ -52,6 +56,7 @@ export const DOMAIN_META: Record<
   },
   Gs: {
     name: '(Gs) Processing Speed',
+    friendlyLabel: 'Speed',
     description: 'Work fast and accurately',
     gameTitle: 'Rapid Code Match',
     id: 'gs_rapid_code',
@@ -60,6 +65,7 @@ export const DOMAIN_META: Record<
   },
   Gv: {
     name: '(Gv) Visual Processing',
+    friendlyLabel: 'Visual',
     description: 'Visualize and manipulate',
     gameTitle: 'Visual Processing Lab',
     id: 'gv_visual_lab',
@@ -68,6 +74,7 @@ export const DOMAIN_META: Record<
   },
   Ga: {
     name: '(Ga) Auditory Processing',
+    friendlyLabel: 'Listening',
     description: 'Analyze and distinguish sounds',
     gameTitle: 'Auditory Processing Lab',
     id: 'ga_auditory_lab',
@@ -76,6 +83,7 @@ export const DOMAIN_META: Record<
   },
   Glr: {
     name: '(Glr) Long-Term Retrieval',
+    friendlyLabel: 'Retrieval',
     description: 'Store and retrieve information',
     gameTitle: 'Retrieval Trainer',
     id: 'glr_fluency_storm',
@@ -84,6 +92,7 @@ export const DOMAIN_META: Record<
   },
   EF: {
     name: '(EF) Executive Function',
+    friendlyLabel: 'Focus',
     description: 'Focus, switch, and control',
     gameTitle: 'Focus Switch Reactor',
     id: 'ef_focus_switch',
@@ -100,7 +109,7 @@ export const chcDomains = Object.entries(DOMAIN_META).map(([key, value]) => ({
   supportsMath: true,
   supportsMusic: true,
   supportsVerbal: true,
-  supportsSpatial: true, // Formerly disabled for Ga and Glr, now enabled.
+  supportsSpatial: true,
   supportsEq: true,
   supportsLogic: true,
 }));
