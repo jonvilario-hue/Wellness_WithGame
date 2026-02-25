@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
@@ -15,17 +15,98 @@ import { useAudioEngine } from "@/hooks/use-audio-engine";
 import { generateAnalogyProblem } from "@/lib/verbal-stimulus-factory";
 import { PatternMatrixRenderer } from "./pattern-matrix-renderer";
 import { PRNG } from '@/lib/rng';
+import { Loader2 } from 'lucide-react';
+import type { Color } from '@react-three/fiber';
+
+const GfSpatialRenderer = lazy(() => import('./GfSpatialRenderer'));
 
 const GAME_ID: GameId = 'gf_pattern_matrix';
 const policy = difficultyPolicies[GAME_ID];
 
-type GameVariant = 'neutral' | 'math' | 'probability' | 'verbal' | 'music';
+type GameVariant = 'neutral' | 'math' | 'probability' | 'verbal' | 'music' | 'spatial';
 
 // --- STIMULUS GENERATION LOGIC ---
 const neutralShapes = ['circle', 'square', 'triangle', 'diamond'];
 const neutralColors = ['bg-primary', 'bg-accent', 'bg-chart-3', 'bg-chart-4'];
 const neutralRotations = [0, 90, 180, 270];
 const neutralFills = ['fill', 'outline'];
+
+// --- SPATIAL STIMULUS GENERATION ---
+export type SpatialObject = {
+    shape: 'box' | 'sphere' | 'cone' | 'cylinder';
+    color: Color;
+    scale: [number, number, number];
+    rotation: [number, number, number];
+};
+const spatialShapes: SpatialObject['shape'][] = ['box', 'sphere', 'cone', 'cylinder'];
+const spatialColors: Color[] = ['#4285F4', '#DB4437', '#F4B400', '#0F9D58']; // Google colors
+
+const generateSpatialPuzzleForLevel = (level: number, prng: PRNG) => {
+    const levelDef = policy.levelMap[level] || policy.levelMap[Object.keys(policy.levelMap).pop() as any];
+    const params = levelDef.content_config['spatial']?.params || { attributes: 2, rules: ['additive'] };
+    
+    const size = 3;
+    const grid: (SpatialObject | null)[] = Array(size * size).fill(null);
+    const missingIndex = prng.nextIntRange(0, size*size-1);
+
+    const rowRuleAttr = prng.shuffle(['rotation', 'scale'])[0];
+    const colRuleAttr = prng.shuffle(['color', 'shape'])[0];
+
+    const baseObject: SpatialObject = {
+        shape: prng.shuffle(spatialShapes)[0],
+        color: prng.shuffle(spatialColors)[0],
+        scale: [1, 1, 1],
+        rotation: [0, 0, 0],
+    };
+
+    for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+            let newObj = JSON.parse(JSON.stringify(baseObject));
+            // Apply column rule (shape or color)
+            if (colRuleAttr === 'shape') {
+                newObj.shape = spatialShapes[(spatialShapes.indexOf(baseObject.shape) + c) % spatialShapes.length];
+            } else { // color
+                newObj.color = spatialColors[(spatialColors.indexOf(baseObject.color as string) + c) % spatialColors.length];
+            }
+
+            // Apply row rule (rotation or scale)
+            if (rowRuleAttr === 'rotation') {
+                newObj.rotation = [0, baseObject.rotation[1] + (r * Math.PI / 4), 0];
+            } else { // scale
+                 newObj.scale = [1, baseObject.scale[1] + r * 0.2, 1];
+            }
+            grid[r * size + c] = newObj;
+        }
+    }
+    
+    const answer = grid[missingIndex]!;
+    grid[missingIndex] = null;
+
+    const options: SpatialObject[] = [answer];
+     while (options.length < 4) {
+        let decoy = JSON.parse(JSON.stringify(answer));
+        const changeAttr = prng.shuffle(['shape', 'color', 'rotation', 'scale'])[0];
+        if (changeAttr === 'shape') {
+            decoy.shape = prng.shuffle(spatialShapes.filter(s => s !== answer.shape))[0];
+        } else if (changeAttr === 'color') {
+             decoy.color = prng.shuffle(spatialColors.filter(c => c !== answer.color))[0];
+        }
+        if (!options.some(o => JSON.stringify(o) === JSON.stringify(decoy))) {
+            options.push(decoy);
+        }
+    }
+
+    return {
+        type: 'spatial',
+        grid,
+        missingIndex,
+        answer,
+        options: prng.shuffle(options),
+        size,
+        params,
+    };
+}
+
 
 const getNextInSequence = <T,>(val: T, collection: T[], prng: PRNG): T => {
   const currentIndex = collection.indexOf(val);
@@ -37,6 +118,9 @@ const generatePuzzleForLevel = (level: number, focus: GameVariant, prng: PRNG) =
     const { mechanic_config, content_config } = levelDef;
     const size = mechanic_config.gridSize === "3x3" ? 3 : 2;
     
+    if (focus === 'spatial') {
+        return generateSpatialPuzzleForLevel(level, prng);
+    }
     if (focus === 'verbal') {
         return generateAnalogyProblem(level, prng);
     }
@@ -271,11 +355,27 @@ export function PatternMatrix() {
         }
     }, [componentState, getAdaptiveState, activeSession, logEvent, startNewTrial, updateAdaptiveState, currentMode, playSequence, resumeContext, startNewGameSession, completeCurrentGameSession]);
 
-
+    const renderLoading = () => (
+        <div className="w-full max-w-md h-[500px] flex items-center justify-center">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        </div>
+    );
+    
     if (currentMode === 'spatial') {
-        return <GameStub name="Assembly Logic" description="Deduce the assembly rule from a 3x3 grid showing a sequence of 3D parts being assembled. Then, select the correct final object for the empty slot." chcFactor="Fluid Reasoning (Gf) / Assembly" techStack={['CSS 3D Transforms', 'Three.js']} complexity="High" fallbackPlan="Use animated SVGs." />;
+        return (
+            <Suspense fallback={renderLoading()}>
+                <GfSpatialRenderer 
+                    gameState={componentState}
+                    feedback={feedback}
+                    onEvent={handleEvent}
+                    adaptiveState={adaptiveState}
+                    currentTrialIndex={currentTrialIndex.current}
+                    sessionLength={policy.sessionLength}
+                />
+            </Suspense>
+        );
     }
-
+    
     if (currentMode === 'logic') {
         return <RuleInductionEngine />;
     }
