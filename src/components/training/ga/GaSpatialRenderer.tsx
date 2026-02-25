@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { Suspense, useRef } from 'react';
@@ -84,7 +83,7 @@ const GaSpatialRenderer: React.FC<RendererProps> = ({
             <Suspense fallback={null}>
               <ambientLight intensity={0.3} />
               <pointLight position={[10, 10, 10]} intensity={0.8} />
-              {trial.positions.map(pos => (
+              {trial.positions.filter(p => p).map(pos => (
                 <PositionNode 
                     key={pos.id} 
                     position={pos} 
@@ -95,8 +94,8 @@ const GaSpatialRenderer: React.FC<RendererProps> = ({
               ))}
               {userSequence.length > 1 && userSequence.map((id, i) => {
                   if (i === 0) return null;
-                  const from = trial.positions.find(p => p.id === userSequence[i-1]);
-                  const to = trial.positions.find(p => p.id === id);
+                  const from = trial.positions.find(p => p && p.id === userSequence[i-1]);
+                  const to = trial.positions.find(p => p && p.id === id);
                   if (!from || !to) return null;
                   return <Line key={i} points={[[from.x, from.y, from.z], [to.x, to.y, to.z]]} color="white" lineWidth={2} dashed dashScale={10} />
               })}
