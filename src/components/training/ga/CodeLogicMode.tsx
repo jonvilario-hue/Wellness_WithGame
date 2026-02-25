@@ -4,298 +4,177 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { useAudioEngine } from "@/hooks/useAudioEngine";
-import { Loader2, Check, X, Code } from "lucide-react";
+import { useAudioEngine, type ToneConfig } from "@/hooks/useAudioEngine";
+import { Loader2, Check, X, Code, Volume2, HelpCircle } from "lucide-react";
 import { domainIcons } from "@/components/icons";
 import { cn } from "@/lib/utils";
+import { usePerformanceStore } from "@/hooks/use-performance-store";
+import { adjustDifficulty, startSession } from "@/lib/adaptive-engine";
+import { difficultyPolicies } from "@/data/difficulty-policies";
+import type { AdaptiveState, TrialResult, GameId } from "@/types";
+import { PRNG } from '@/lib/rng';
 
-// Types
-type MiniGameType = 'debugging' | 'inference';
-type Rule = 'ascending' | 'descending' | 'alternating' | 'every_third_high';
-type Tone = { pitch: number, duration: number };
+const GAME_ID: GameId = 'ga_auditory_lab';
+const policy = difficultyPolicies[GAME_ID];
 
-type DebuggingPuzzle = {
-  type: 'debugging';
-  reference: Tone[];
-  buggy: Tone[];
-  bugPosition: number; // 0-indexed
-};
+// --- Type Definitions ---
+type Gate = 'AND' | 'OR' | 'NOT' | 'XOR' | 'NAND' | 'NOR';
+type TaskType = 'reproduction' | 'oddOneOut' | 'nBack';
 
-type InferencePuzzle = {
-  type: 'inference';
-  rule: Rule;
-  examples: Tone[][];
-  candidates: [Tone[], Tone[]];
-  correctCandidateIndex: number;
-};
-
-type Puzzle = DebuggingPuzzle | InferencePuzzle;
-const TRIALS_PER_ROUND = 20;
-const MAX_LEVEL = 5;
-
-// --- STIMULUS GENERATION ---
-const pitchPalette = [60, 62, 64, 65, 67, 69, 71, 72]; // C4 to C5
-const durations = { short: 100, long: 300 };
-
-const generateSequence = (length: number, rule: Rule): Tone[] => {
-    const seq: Tone[] = [];
-    let lastPitchIndex = Math.floor(Math.random() * 4);
-    for(let i=0; i<length; i++) {
-        let pitchIndex, duration;
-        switch(rule) {
-            case 'ascending':
-                pitchIndex = lastPitchIndex + 1;
-                duration = durations.short;
-                break;
-            case 'descending':
-                pitchIndex = lastPitchIndex - 1;
-                duration = durations.short;
-                break;
-            case 'alternating':
-                pitchIndex = lastPitchIndex;
-                duration = i % 2 === 0 ? durations.short : durations.long;
-                break;
-            case 'every_third_high':
-                pitchIndex = i % 3 === 2 ? 7 : 3;
-                duration = durations.short;
-                break;
-        }
-        pitchIndex = Math.max(0, Math.min(pitchPalette.length - 1, pitchIndex));
-        seq.push({ pitch: pitchPalette[pitchIndex], duration });
-        lastPitchIndex = pitchIndex;
-    }
-    return seq;
+interface GateConfig extends ToneConfig {
+    name: Gate;
+    color: string;
 }
 
+const gateToneMap: Record<Gate, GateConfig> = {
+    'AND': { name: 'AND', frequency: 261.63, duration: 0.3, type: 'sine', color: '#a6e3a1' },
+    'OR': { name: 'OR', frequency: 329.63, duration: 0.3, type: 'sine', color: '#89b4fa' },
+    'NOT': { name: 'NOT', frequency: 392.00, duration: 0.3, type: 'square', color: '#f38ba8' },
+    'XOR': { name: 'XOR', frequency: 523.25, duration: 0.3, type: 'triangle', color: '#f9e2af' },
+    'NAND': { name: 'NAND', frequency: 261.63, duration: 0.3, type: 'square', color: '#94e2d5' },
+    'NOR': { name: 'NOR', frequency: 329.63, duration: 0.3, type: 'square', color: '#cba6f7' },
+};
 
-const generatePuzzle = (level: number, prevType: MiniGameType): Puzzle => {
-    const type: MiniGameType = prevType === 'debugging' ? 'inference' : 'debugging';
-    const sequenceLength = 4 + Math.floor((level - 1) * (4 / (MAX_LEVEL - 1)));
+type Trial = {
+    taskType: TaskType;
+    sequence: Gate[];
+    answer: number[] | number; // sequence of indices for reproduction, single index for odd-one-out
+    nBackMatches?: boolean[]; // for n-back
+};
+
+// --- Stimulus Generation ---
+const generateGaTrial = (level: number, prng: PRNG, lastTask?: TaskType): Trial => {
+    const params = policy.levelMap[level]?.content_config['logic']?.params;
+    if (!params) throw new Error(`No logic params for Ga level ${level}`);
+
+    const { gatePool, sequenceLength, taskMix, n_back } = params;
     
-    if (type === 'debugging') {
-        const rule: Rule = 'ascending'; // Simple rule for debugging task
-        const reference = generateSequence(sequenceLength, rule);
-        const buggy = [...reference];
-        const bugPosition = Math.floor(Math.random() * sequenceLength);
-        const originalTone = buggy[bugPosition];
-        buggy[bugPosition] = { ...originalTone, pitch: originalTone.pitch + (Math.random() > 0.5 ? 2 : -2) };
-        return { type: 'debugging', reference, buggy, bugPosition };
-    } else { // inference
-        const rules: Rule[] = ['ascending', 'descending', 'alternating', 'every_third_high'];
-        const rule = rules[Math.floor(Math.random() * rules.length)];
-        const examples = [generateSequence(sequenceLength, rule), generateSequence(sequenceLength, rule), generateSequence(sequenceLength, rule)];
-        const validCandidate = generateSequence(sequenceLength, rule);
-        let invalidCandidate: Tone[];
-        do {
-            const otherRule = rules.find(r => r !== rule)!;
-            invalidCandidate = generateSequence(sequenceLength, otherRule);
-        } while (JSON.stringify(invalidCandidate) === JSON.stringify(validCandidate));
-        
-        const candidates: [Tone[], Tone[]] = Math.random() > 0.5 ? [validCandidate, invalidCandidate] : [invalidCandidate, validCandidate];
-        const correctCandidateIndex = candidates[0] === validCandidate ? 0 : 1;
-
-        return { type: 'inference', rule, examples, candidates, correctCandidateIndex };
+    let taskType: TaskType;
+    const rand = prng.nextFloat();
+    if (rand < taskMix[0]) taskType = 'reproduction';
+    else if (rand < taskMix[0] + taskMix[1]) taskType = 'oddOneOut';
+    else taskType = 'nBack';
+    
+    if (lastTask && taskType === lastTask && taskMix.filter((p: number) => p > 0).length > 1) {
+        return generateGaTrial(level, prng, lastTask);
     }
-}
+    
+    let sequence: Gate[] = [];
+    let answer: number[] | number = [];
+    let nBackMatches: boolean[] | undefined;
+
+    switch (taskType) {
+        case 'reproduction':
+            sequence = Array.from({ length: sequenceLength }, () => prng.shuffle(gatePool)[0]);
+            answer = sequence.map(gate => gatePool.indexOf(gate));
+            break;
+        case 'oddOneOut':
+            const baseGate = prng.shuffle(gatePool)[0];
+            sequence = Array(sequenceLength).fill(baseGate);
+            const oddIndex = prng.nextIntRange(0, sequenceLength);
+            let oddGate: Gate;
+            do {
+                oddGate = prng.shuffle(gatePool)[0];
+            } while (oddGate === baseGate);
+            sequence[oddIndex] = oddGate;
+            answer = oddIndex;
+            break;
+        case 'nBack':
+            nBackMatches = [];
+            for (let i = 0; i < sequenceLength; i++) {
+                const isMatch = i >= n_back && prng.nextFloat() < 0.3;
+                nBackMatches.push(isMatch);
+                let gate;
+                if (isMatch) {
+                    gate = sequence[i - n_back];
+                } else {
+                    do {
+                        gate = prng.shuffle(gatePool)[0];
+                    } while (i >= n_back && gate === sequence[i - n_back]);
+                }
+                sequence.push(gate);
+            }
+            break;
+    }
+
+    return { taskType, sequence, answer, nBackMatches };
+};
 
 
-export function CodeLogicMode() {
+// --- Main Component ---
+export default function CodeLogicMode() {
   const { engine } = useAudioEngine();
-  const [gameState, setGameState] = useState<'idle' | 'playing' | 'feedback' | 'summary'>('idle');
+  const [gameState, setGameState] = useState<'loading' | 'learn' | 'playing' | 'feedback' | 'summary'>('loading');
+  const [trial, setTrial] = useState<Trial | null>(null);
   const [level, setLevel] = useState(1);
-  const [trialCount, setTrialCount] = useState(0);
-  const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
+  const [userResponse, setUserResponse] = useState<number[]>([]);
   const [score, setScore] = useState(0);
-  const [feedback, setFeedback] = useState<{ correct: boolean, userChoice?: any, correctChoice?: any, show: boolean }>({ correct: false, show: false });
-  const [replaysLeft, setReplaysLeft] = useState(1);
-  const correctStreak = useRef(0);
-
-  const playSequence = useCallback((sequence: Tone[]) => {
-      if(!engine) return;
-      sequence.forEach((tone, index) => {
-          engine.playTone({
-              frequency: tone.pitch,
-              duration: tone.duration / 1000,
-              delay: index * 0.2, // Fixed ISI for simplicity
-              type: 'square',
-              volume: 0.3
-          });
-      });
-  }, [engine]);
-
-  const startNextTrial = useCallback(() => {
-    if (trialCount >= TRIALS_PER_ROUND) {
-      setGameState('summary');
-      return;
+  const [trialCount, setTrialCount] = useState(0);
+  const [feedback, setFeedback] = useState('');
+  
+  const { getAdaptiveState } = usePerformanceStore();
+  
+  useEffect(() => {
+    if (engine) {
+        engine.resumeContext();
+        setGameState('learn');
     }
-    const newPuzzle = generatePuzzle(level, puzzle?.type ?? 'inference');
-    setPuzzle(newPuzzle);
-    setTrialCount(c => c + 1);
-    setReplaysLeft(1);
-    setFeedback({ correct: false, show: false });
+    const adaptiveState = getAdaptiveState(GAME_ID, 'logic');
+    setLevel(adaptiveState.currentLevel);
+  }, [engine, getAdaptiveState]);
+
+  const handleStartTrials = () => {
     setGameState('playing');
-  }, [level, trialCount, puzzle]);
-  
-  useEffect(() => {
-    if (gameState === 'playing' && puzzle) {
-        if(puzzle.type === 'debugging') {
-            playSequence(puzzle.reference);
-            setTimeout(() => playSequence(puzzle.buggy), (puzzle.reference.length * 200) + 1000);
-        } else { // inference
-            playSequence(puzzle.examples[0]);
-             setTimeout(() => playSequence(puzzle.examples[1]), (puzzle.examples[0].length * 200) + 500);
-             setTimeout(() => playSequence(puzzle.examples[2]), (puzzle.examples[0].length * 200) * 2 + 1000);
-        }
-    }
-  }, [gameState, puzzle, playSequence]);
-
-  const handleStart = () => {
-    engine?.resumeContext();
-    setLevel(1);
-    setTrialCount(0);
-    setScore(0);
-    correctStreak.current = 0;
-    startNextTrial();
-  };
-
-  const handleReplay = () => {
-    if (replaysLeft > 0 && gameState === 'playing' && puzzle) {
-        setReplaysLeft(r => r-1);
-        if(puzzle.type === 'debugging') {
-             playSequence(puzzle.reference);
-            setTimeout(() => playSequence(puzzle.buggy), (puzzle.reference.length * 200) + 1000);
-        } else {
-             playSequence(puzzle.candidates[0]);
-             setTimeout(() => playSequence(puzzle.candidates[1]), (puzzle.candidates[0].length * 200) + 500);
-        }
-    }
-  }
-  
-  const handleInferencePlay = () => {
-      if(!puzzle || puzzle.type !== 'inference') return;
-      playSequence(puzzle.candidates[0]);
-      setTimeout(() => playSequence(puzzle.candidates[1]), (puzzle.candidates[0].length * 200) + 500);
-  }
-
-  const handleResponse = (userAnswer: number) => {
-    if (gameState !== 'playing' || !puzzle) return;
-
-    let isCorrect = false;
-    if (puzzle.type === 'debugging') {
-        isCorrect = userAnswer === puzzle.bugPosition;
-    } else { // inference
-        isCorrect = userAnswer === puzzle.correctCandidateIndex;
-    }
-    
-    setGameState('feedback');
-    setFeedback({ correct: isCorrect, userChoice: userAnswer, correctChoice: puzzle.type === 'debugging' ? puzzle.bugPosition : puzzle.correctCandidateIndex, show: true });
-    
-    if(isCorrect) {
-        setScore(s => s + 1);
-        correctStreak.current++;
-        if(correctStreak.current >= 2) {
-            setLevel(l => Math.min(MAX_LEVEL, l+1));
-            correctStreak.current = 0;
-        }
-    } else {
-        correctStreak.current = 0;
-        setLevel(l => Math.max(1, l-1));
-    }
-
-    setTimeout(() => {
-      startNextTrial();
-    }, 2500);
+    // In a full implementation, this would trigger the first trial generation and playback
   };
   
-  useEffect(() => {
-    return () => {
-        engine?.stopAll();
-    }
-  }, [engine]);
+  const currentGatePool = useMemo(() => {
+      const params = policy.levelMap[level]?.content_config['logic']?.params;
+      return params?.gatePool || [];
+  }, [level]);
 
+  // Simplified game loop for demonstration
+  const handlePlay = () => {
+      if (!engine || !trial) return;
+      const tones = trial.sequence.map(gateName => gateToneMap[gateName]);
+      const intervalMs = policy.levelMap[level]?.mechanic_config.intervalMs || 800;
+      engine.playSequence(tones, intervalMs);
+  };
+
+  if(gameState === 'loading') return <div className="flex flex-col items-center gap-2"><Loader2 className="animate-spin" /><p>Initializing Audio...</p></div>;
 
   return (
-    <Card className="w-full max-w-2xl text-center bg-gray-900 border-gray-500/30 text-gray-100">
+    <Card className="w-full max-w-xl text-center bg-zinc-900 border-teal-500/20 text-teal-100">
       <CardHeader>
-        <CardTitle className="flex items-center justify-center gap-2 text-gray-300">
-          <span className="p-2 bg-gray-500/10 rounded-md"><Code className="w-6 h-6 text-gray-400" /></span>
-          Auditory Pattern Compiler
+        <CardTitle className="flex items-center justify-center gap-2 text-teal-300">
+          <Code className="w-6 h-6" /> Logic Tone Sequences
         </CardTitle>
-        <CardDescription className="text-gray-300/70">Listen to the "code" sequences and identify bugs or infer the underlying logic.</CardDescription>
+        <CardDescription className="text-teal-300/70">Listen to sequences of logic-gate tones and complete the auditory task.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-6 min-h-[450px] justify-center">
-        {gameState === 'idle' && <Button onClick={handleStart} size="lg" className="bg-gray-600 hover:bg-gray-500 text-white">Start</Button>}
-        {gameState === 'summary' && (
-            <div className="flex flex-col items-center gap-4 text-gray-200">
-                <CardTitle>Round Complete!</CardTitle>
-                <div className="text-lg">Final Score: <span className="font-bold text-gray-300">{score} / {TRIALS_PER_ROUND}</span></div>
-                <div className="text-lg">Peak Level: <span className="font-bold text-gray-300">{level}</span></div>
-                <Button onClick={handleStart} size="lg" className="mt-4 bg-gray-600 hover:bg-gray-500 text-white">Play Again</Button>
+        {gameState === 'learn' && (
+             <div className="flex flex-col items-center gap-4 w-full">
+                <h3 className="text-xl font-semibold">Learn the Tones</h3>
+                <p className="text-muted-foreground">Tap each gate to hear its unique sound.</p>
+                <div className="grid grid-cols-3 gap-3">
+                    {currentGatePool.map((gateName: Gate) => (
+                        <Button
+                            key={gateName}
+                            onClick={() => engine?.playTone(gateToneMap[gateName])}
+                            style={{ backgroundColor: gateToneMap[gateName].color, color: 'hsl(var(--foreground))', textShadow: '1px 1px 2px black' }}
+                            className="h-20 text-lg font-bold"
+                        >
+                            {gateName}
+                        </Button>
+                    ))}
+                </div>
+                <Button onClick={handleStartTrials} className="mt-4 bg-teal-600 hover:bg-teal-500">I'm Ready!</Button>
             </div>
         )}
-        {(gameState === 'playing' || gameState === 'feedback') && puzzle && (
-          <>
-            <div className="w-full flex justify-between font-mono text-gray-200 px-4">
-                <span>Trial: {trialCount}/{TRIALS_PER_ROUND}</span>
-                <span>Level: {level}</span>
-            </div>
-            
-            <p className="font-semibold text-lg h-12 text-center text-gray-200">
-              {puzzle.type === 'debugging' ? 'Find the auditory bug.' : 'Which candidate pattern follows the rule demonstrated by the examples?'}
-            </p>
-            
-            {puzzle.type === 'inference' && (
-                <Button onClick={handleInferencePlay} disabled={gameState === 'feedback'}>Play Candidates</Button>
-            )}
-
-            <div className="h-10">
-                {feedback.show && (
-                    feedback.correct ? 
-                    <Check className="w-10 h-10 text-green-400 animate-in fade-in" /> : 
-                    <X className="w-10 h-10 text-rose-400 animate-in fade-in" />
-                )}
-            </div>
-
-            <div className="flex flex-wrap justify-center gap-2">
-              {puzzle.type === 'debugging' ? (
-                Array.from({ length: puzzle.reference.length }).map((_, i) => (
-                  <Button 
-                    key={i}
-                    onClick={() => handleResponse(i)} 
-                    disabled={gameState === 'feedback'} 
-                    className={cn(
-                        "w-16 h-16 text-xl",
-                        feedback.show && feedback.correctChoice === i && "bg-green-600",
-                        feedback.show && feedback.userChoice === i && !feedback.correct && "bg-rose-600"
-                    )}
-                  >{i + 1}</Button>
-                ))
-              ) : (
-                <>
-                  <Button 
-                    onClick={() => handleResponse(0)} 
-                    disabled={gameState === 'feedback'} 
-                    className={cn("h-24 text-2xl", feedback.show && feedback.correctChoice === 0 && "bg-green-600", feedback.show && feedback.userChoice === 0 && !feedback.correct && "bg-rose-600")}
-                  >Pattern 1</Button>
-                  <Button 
-                    onClick={() => handleResponse(1)} 
-                    disabled={gameState === 'feedback'} 
-                    className={cn("h-24 text-2xl", feedback.show && feedback.correctChoice === 1 && "bg-green-600", feedback.show && feedback.userChoice === 1 && !feedback.correct && "bg-rose-600")}
-                  >Pattern 2</Button>
-                </>
-              )}
-            </div>
-
-            <div className="h-10 mt-2">
-                <Button onClick={handleReplay} variant="ghost" disabled={replaysLeft === 0 || gameState === 'feedback'}>
-                    Replay ({replaysLeft})
-                </Button>
-            </div>
-          </>
+        {gameState !== 'learn' && gameState !== 'loading' && (
+            <p>Game logic for 'playing', 'feedback', and 'summary' states would be implemented here.</p>
         )}
       </CardContent>
     </Card>
   );
 }
-
-    

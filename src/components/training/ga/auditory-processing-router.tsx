@@ -16,7 +16,7 @@ import { domainIcons } from "@/components/icons";
 import { usePreloadAssets } from "@/hooks/usePreloadAssets";
 import CoreMode from './CoreMode';
 import { AuditoryFlanker } from './auditory-flanker';
-import { CodeLogicMode } from './CodeLogicMode';
+import CodeLogicMode from './CodeLogicMode';
 import VerbalMode from './VerbalMode';
 import { GaSpatialAudioGame } from './GaSpatialAudioGame';
 import MathMode from './MathMode';
