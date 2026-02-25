@@ -1,12 +1,13 @@
+
 'use client';
 
-import { Settings, Brain, Music, MessageSquare, View, Smile, Share2 } from 'lucide-react';
+import { Settings } from 'lucide-react';
 import { Button } from './ui/button';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { GlobalFocusSwitcher } from './global-focus-switcher';
-import { useTrainingFocus, type TrainingFocus } from '@/hooks/use-training-focus';
-import { SigmaIcon } from './icons';
+import { useTrainingFocus } from '@/hooks/use-training-focus';
+import { FOCUS_MODE_META } from '@/lib/mode-constants';
   
 export function Header() {
   const pathname = usePathname();
@@ -16,17 +17,7 @@ export function Header() {
     { href: '/settings', label: 'Settings', icon: Settings },
   ];
 
-  const focusInfo: Record<TrainingFocus, { Icon: React.ElementType; label: string }> = {
-    neutral: { Icon: Brain, label: 'Core Thinking' },
-    math: { Icon: SigmaIcon, label: 'Math Reasoning' },
-    music: { Icon: Music, label: 'Music Cognition' },
-    verbal: { Icon: MessageSquare, label: 'Verbal Reasoning' },
-    spatial: { Icon: View, label: 'Spatial Reasoning' },
-    eq: { Icon: Smile, label: 'Emotional Intelligence' },
-    logic: { Icon: Share2, label: 'Logic & Coding' }
-  };
-
-  const { Icon } = focusInfo[focus] || focusInfo.neutral;
+  const { Icon } = FOCUS_MODE_META[focus] || FOCUS_MODE_META.neutral;
 
   return (
     <header className="px-4 sm:px-6 md:px-8 py-2 border-b bg-card">

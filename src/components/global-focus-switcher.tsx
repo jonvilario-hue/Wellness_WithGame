@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -12,8 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useTrainingFocus, type TrainingFocus } from '@/hooks/use-training-focus';
-import { Brain, Music, MessageSquare, View, Sigma, Smile, Share2, Wand } from 'lucide-react';
-import { SigmaIcon } from './icons';
+import { FOCUS_MODE_META } from "@/lib/mode-constants";
 
 export function GlobalFocusSwitcher() {
   const { focus, setFocus, isLoaded } = useTrainingFocus();
@@ -23,17 +23,7 @@ export function GlobalFocusSwitcher() {
     setFocus(newFocus);
   };
   
-  const focusInfo: Record<TrainingFocus, { Icon: React.ElementType; label: string }> = {
-    neutral: { Icon: Brain, label: 'Core Thinking' },
-    math: { Icon: SigmaIcon, label: 'Math Reasoning' },
-    music: { Icon: Music, label: 'Music Cognition' },
-    verbal: { Icon: MessageSquare, label: 'Verbal Reasoning' },
-    spatial: { Icon: View, label: 'Spatial Reasoning' },
-    eq: { Icon: Smile, label: 'Emotional Intelligence' },
-    logic: { Icon: Share2, label: 'Logic & Coding' }
-  };
-
-  const { Icon, label } = focusInfo[focus] || focusInfo.neutral;
+  const { Icon, label } = FOCUS_MODE_META[focus] || FOCUS_MODE_META.neutral;
 
   return (
     <DropdownMenu>
@@ -56,27 +46,11 @@ export function GlobalFocusSwitcher() {
         <DropdownMenuLabel>Global Training Focus</DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuRadioGroup value={focus} onValueChange={handleFocusChange}>
-          <DropdownMenuRadioItem value="neutral" className="gap-2">
-            <Brain className="w-4 h-4"/> Core Thinking
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="math" className="gap-2">
-            <SigmaIcon className="w-4 h-4"/> Math Reasoning
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="music" className="gap-2">
-            <Music className="w-4 h-4"/> Music Cognition
-          </DropdownMenuRadioItem>
-           <DropdownMenuRadioItem value="verbal" className="gap-2">
-            <MessageSquare className="w-4 h-4"/> Verbal Reasoning
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="spatial" className="gap-2">
-            <View className="w-4 h-4"/> Spatial Reasoning
-          </DropdownMenuRadioItem>
-           <DropdownMenuRadioItem value="eq" className="gap-2">
-            <Smile className="w-4 h-4"/> Emotional Intelligence
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="logic" className="gap-2">
-            <Share2 className="w-4 h-4"/> Logic & Coding
-          </DropdownMenuRadioItem>
+          {Object.entries(FOCUS_MODE_META).map(([key, { Icon, label }]) => (
+             <DropdownMenuRadioItem key={key} value={key} className="gap-2">
+              <Icon className="w-4 h-4"/> {label}
+            </DropdownMenuRadioItem>
+          ))}
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>

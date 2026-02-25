@@ -1,22 +1,23 @@
+
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, Brain, Settings, Music, MessageSquare, View, Smile, Share2 } from 'lucide-react';
+import { ArrowLeft, Brain, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { type CHCDomain, type TrainingFocus } from '@/types';
 import { chcDomains } from '@/lib/domain-constants';
-import { domainIcons, SigmaIcon } from '@/components/icons';
-import { notFound, useParams } from 'next/navigation';
+import { domainIcons } from '@/components/icons';
+import { notFound } from 'next/navigation';
 import { gameComponents } from '@/components/training/game-components';
 import { useTrainingFocus } from '@/hooks/use-training-focus';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useTrainingOverride } from '@/hooks/use-training-override';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AuditoryOddball } from '@/components/training/gs/auditory-oddball';
+import { FOCUS_MODE_META } from '@/lib/mode-constants';
 
 export default function TrainingPage() {
-  const params = useParams();
   const domain = 'Gs' as CHCDomain;
   const domainInfo = chcDomains.find(d => d.key === domain);
   
@@ -28,28 +29,26 @@ export default function TrainingPage() {
   }
 
   const effectiveFocus = override || globalDefaultFocus;
+  const ModeIcon = FOCUS_MODE_META[effectiveFocus]?.Icon || Brain;
+
 
   const GameComponent = effectiveFocus === 'music' ? AuditoryOddball : (gameComponents[domainInfo.key] || (() => <p>Game not found</p>));
   const gameTitle = effectiveFocus === 'music' ? "Auditory Oddball" : (domainInfo.gameTitle || domainInfo.name);
   const PageIcon = domainIcons[domainInfo.key];
 
-  const supportedModes: { key: TrainingFocus; Icon: any; label: string; }[] = [
-    { key: 'neutral', Icon: Brain, label: 'Core' },
-    { key: 'math', Icon: SigmaIcon, label: 'Math' },
-    { key: 'music', Icon: Music, label: 'Music' },
-    { key: 'verbal', Icon: MessageSquare, label: 'Verbal' },
-    { key: 'spatial', Icon: View, label: 'Spatial' },
-    { key: 'eq', Icon: Smile, label: 'EQ' },
-    { key: 'logic', Icon: Share2, label: 'Logic' },
-  ].filter(mode => {
-      if (mode.key === 'math' && !domainInfo.supportsMath) return false;
-      if (mode.key === 'music' && !domainInfo.supportsMusic) return false;
-      if (mode.key === 'verbal' && !domainInfo.supportsVerbal) return false;
-      if (mode.key === 'spatial' && !domainInfo.supportsSpatial) return false;
-      if (mode.key === 'eq' && !domainInfo.supportsEq) return false;
-      if (mode.key === 'logic' && !domainInfo.supportsLogic) return false;
-      return true;
-  });
+  const supportedModes: { key: TrainingFocus; Icon: any; label: string; }[] = 
+    Object.entries(FOCUS_MODE_META).map(([key, { Icon, label }]) => {
+      const modeKey = key as TrainingFocus;
+      const domainSupport = domainInfo as any;
+      if (modeKey === 'math' && !domainSupport.supportsMath) return null;
+      if (modeKey === 'music' && !domainSupport.supportsMusic) return null;
+      if (modeKey === 'verbal' && !domainSupport.supportsVerbal) return null;
+      if (modeKey === 'spatial' && !domainSupport.supportsSpatial) return null;
+      if (modeKey === 'eq' && !domainSupport.supportsEq) return null;
+      if (modeKey === 'logic' && !domainSupport.supportsLogic) return null;
+      return { key: modeKey, Icon, label };
+  }).filter(Boolean) as { key: TrainingFocus; Icon: any; label: string; }[];
+
 
   return (
     <div className="flex flex-col min-h-screen bg-background text-foreground">
@@ -69,20 +68,28 @@ export default function TrainingPage() {
               <h1 className="text-2xl font-bold text-foreground font-headline tracking-tight">
                 {gameTitle}
               </h1>
-               <Badge variant="secondary" className="capitalize">
-                 Training: {domainInfo.name}
-               </Badge>
+              <div className="flex items-center gap-2 mt-1">
+                 <Badge variant="secondary" className="capitalize">
+                   {domainInfo.name}
+                 </Badge>
+                 <Badge variant="outline" className="capitalize flex items-center gap-1.5">
+                    <ModeIcon className="h-3.5 w-3.5" />
+                    {FOCUS_MODE_META[effectiveFocus].label} Mode
+                 </Badge>
+              </div>
             </div>
           </div>
           <div className="flex-1 flex justify-end">
             <Button variant="ghost" size="icon">
-              <Settings />
+              <Link href="/settings">
+                <Settings />
+              </Link>
             </Button>
           </div>
         </div>
       </header>
 
-       <div className="border-b bg-card sticky top-[85px] z-10">
+       <div className="border-b bg-card sticky top-[93px] z-10">
          <div className="mx-auto max-w-5xl px-4 sm:px-6 md:px-8">
             <Tabs
               value={effectiveFocus}

@@ -1,22 +1,24 @@
+
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, Brain, Settings, Music, MessageSquare, View, Smile, Share2 } from 'lucide-react';
+import { ArrowLeft, Brain, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { type CHCDomain, type TrainingFocus } from '@/types';
 import { chcDomains } from '@/lib/domain-constants';
-import { domainIcons, SigmaIcon } from '@/components/icons';
+import { domainIcons } from '@/components/icons';
 import { notFound, useParams } from 'next/navigation';
 import { gameComponents } from '@/components/training/game-components';
 import { useTrainingFocus } from '@/hooks/use-training-focus';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useTrainingOverride } from '@/hooks/use-training-override';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { cn } from '@/lib/utils';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { GameErrorBoundary } from '@/components/shared/game-error-boundary';
 import { usePerformanceStore } from '@/hooks/use-performance-store';
 import type { ErrorInfo } from 'react';
+import { FOCUS_MODE_META } from '@/lib/mode-constants';
+import type { TelemetryEvent } from '@/lib/telemetry-events';
 
 
 export default function TrainingPage() {
@@ -28,7 +30,7 @@ export default function TrainingPage() {
   const { override, setOverride } = useTrainingOverride();
   const { focus: globalDefaultFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
 
-  const { logTrial } = usePerformanceStore();
+  const { logEvent, activeSession } = usePerformanceStore();
 
   if (!domainInfo) {
     notFound();
@@ -36,28 +38,26 @@ export default function TrainingPage() {
 
   // Determine the effective training focus: override (local tab) > global default
   const effectiveFocus = override || globalDefaultFocus;
+  const ModeIcon = FOCUS_MODE_META[effectiveFocus]?.Icon || Brain;
 
   const PageIcon = domainIcons[domainInfo.key];
   const GameComponent = gameComponents[domainInfo.key] || (() => <p>Game not found</p>);
   const gameTitle = domainInfo.gameTitle || domainInfo.name;
 
-  const supportedModes: { key: TrainingFocus; Icon: any; label: string; }[] = [
-    { key: 'neutral', Icon: Brain, label: 'Core' },
-    { key: 'math', Icon: SigmaIcon, label: 'Math' },
-    { key: 'music', Icon: Music, label: 'Music' },
-    { key: 'verbal', Icon: MessageSquare, label: 'Verbal' },
-    { key: 'spatial', Icon: View, label: 'Spatial' },
-    { key: 'eq', Icon: Smile, label: 'EQ' },
-    { key: 'logic', Icon: Share2, label: 'Logic' },
-  ].filter(mode => {
-      if (mode.key === 'math' && !domainInfo.supportsMath) return false;
-      if (mode.key === 'music' && !domainInfo.supportsMusic) return false;
-      if (mode.key === 'verbal' && !domainInfo.supportsVerbal) return false;
-      if (mode.key === 'spatial' && !domainInfo.supportsSpatial) return false;
-      if (mode.key === 'eq' && !domainInfo.supportsEq) return false;
-      if (mode.key === 'logic' && !domainInfo.supportsLogic) return false;
-      return true;
-  });
+  const supportedModes: { key: TrainingFocus; Icon: any; label: string; }[] = 
+    Object.entries(FOCUS_MODE_META).map(([key, { Icon, label }]) => {
+      const modeKey = key as TrainingFocus;
+      // This is a bit of a hacky way to check support, assumes chcDomains has boolean flags
+      const domainSupport = domainInfo as any;
+      if (modeKey === 'math' && !domainSupport.supportsMath) return null;
+      if (modeKey === 'music' && !domainSupport.supportsMusic) return null;
+      if (modeKey === 'verbal' && !domainSupport.supportsVerbal) return null;
+      if (modeKey === 'spatial' && !domainSupport.supportsSpatial) return null;
+      if (modeKey === 'eq' && !domainSupport.supportsEq) return null;
+      if (modeKey === 'logic' && !domainSupport.supportsLogic) return null;
+      return { key: modeKey, Icon, label };
+  }).filter(Boolean) as { key: TrainingFocus; Icon: any; label: string; }[];
+
 
   const handleResetError = () => {
     // Simple reset: reload the page. A more sophisticated implementation
@@ -66,20 +66,17 @@ export default function TrainingPage() {
   };
 
   const handleLogError = (error: Error, info: ErrorInfo) => {
-    // A real implementation would need to get the current session ID.
-    // For this demonstration, we'll use a placeholder.
-    logTrial({
-        sessionId: 'error-session-' + Date.now(),
-        trialIndex: -1, // Indicates an error outside a specific trial
-        correct: false,
-        rtMs: 0,
-        timestamp: Date.now(),
-        difficultyLevel: 0,
-        stimulusParams: { error: error.message, componentStack: info.componentStack },
-        stimulusOnsetTs: 0,
-        responseTs: 0,
-        responseType: 'crash',
-    });
+    logEvent({
+        type: 'error',
+        sessionId: activeSession?.sessionId || 'no-session',
+        seq: activeSession?.trialCount || -1,
+        payload: {
+            error: error.toString(),
+            stack: info.componentStack,
+            gameId: domainInfo.id,
+            trialIndex: activeSession?.trialCount ?? -1
+        }
+    } as any);
   };
 
   return (
@@ -100,9 +97,15 @@ export default function TrainingPage() {
               <h1 className="text-2xl font-bold text-foreground font-headline tracking-tight">
                 {gameTitle}
               </h1>
-               <Badge variant="secondary" className="capitalize">
-                 Training: {domainInfo.name}
-               </Badge>
+              <div className="flex items-center gap-2 mt-1">
+                 <Badge variant="secondary" className="capitalize">
+                   {domainInfo.name}
+                 </Badge>
+                 <Badge variant="outline" className="capitalize flex items-center gap-1.5">
+                    <ModeIcon className="h-3.5 w-3.5" />
+                    {FOCUS_MODE_META[effectiveFocus].label} Mode
+                 </Badge>
+              </div>
             </div>
           </div>
           <div className="flex-1 flex justify-end">
@@ -115,7 +118,7 @@ export default function TrainingPage() {
         </div>
       </header>
 
-       <div className="border-b bg-card sticky top-[85px] z-10">
+       <div className="border-b bg-card sticky top-[93px] z-10">
          <div className="mx-auto max-w-5xl px-4 sm:px-6 md:px-8">
             <Tabs
               value={effectiveFocus}
@@ -134,7 +137,7 @@ export default function TrainingPage() {
        </div>
 
       <main className="flex-1 p-4 sm:p-6 md:p-8 flex items-center justify-center">
-        <GameErrorBoundary onReset={handleResetError} logError={handleLogError}>
+        <GameErrorBoundary onReset={handleResetError} logEvent={logEvent}>
             {isGlobalFocusLoaded ? <GameComponent /> : <Skeleton className="h-96 w-full max-w-2xl" />}
         </GameErrorBoundary>
       </main>
