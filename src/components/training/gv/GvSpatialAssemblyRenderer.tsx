@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { Suspense, useRef, useEffect } from "react";
@@ -11,6 +10,7 @@ import { cn } from "@/lib/utils";
 import type { BaseRendererProps } from "@/types";
 import type { GvSpatialAssemblyState, GvSpatialAssemblyEvent } from "./gv-spatial-assembly";
 import type { Polycube } from "@/lib/polycube-generator";
+import { FOCUS_MODE_META } from "@/lib/mode-constants";
 
 const PolycubeObject = ({ polycube, color }: { polycube: Polycube, color: string }) => (
   <group>
@@ -30,7 +30,8 @@ export const GvSpatialAssemblyRenderer: React.FC<BaseRendererProps<GvSpatialAsse
   onEvent,
   adaptiveState,
   currentTrialIndex,
-  sessionLength
+  sessionLength,
+  focus
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
     useEffect(() => {
@@ -44,8 +45,13 @@ export const GvSpatialAssemblyRenderer: React.FC<BaseRendererProps<GvSpatialAsse
     if (gameState === 'loading' || !adaptiveState) return <Loader2 className="h-12 w-12 animate-spin text-lime-400" />;
     
     if (gameState === 'start') {
+      const { Icon, label } = FOCUS_MODE_META[focus];
       return (
         <div className="flex flex-col items-center gap-4">
+            <div className="flex flex-col items-center gap-2 text-lime-300 mb-4">
+                <Icon className="w-10 h-10" />
+                <span className="font-semibold">{label} Mode</span>
+            </div>
            <div className="font-mono text-lg">Level: {adaptiveState.currentLevel}</div>
           <Button onClick={() => onEvent({ type: 'START_SESSION' })} size="lg" className="bg-teal-600 hover:bg-teal-500 text-white">Start 3D Assembly</Button>
         </div>

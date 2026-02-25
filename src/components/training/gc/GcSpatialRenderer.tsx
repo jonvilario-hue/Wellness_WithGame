@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { Suspense, useMemo, useRef } from 'react';
@@ -13,6 +12,7 @@ import type { BaseRendererProps } from "@/types";
 import { domainIcons } from '@/components/icons';
 import type { GcVerbalGameState, GcVerbalGameEvent } from './verbal-inference-builder';
 import type { GcSpatialPuzzleNode } from '@/lib/gc-spatial-stimulus-factory';
+import { FOCUS_MODE_META } from '@/lib/mode-constants';
 
 const Node: React.FC<{ node: GcSpatialPuzzleNode, onNodeClick: (node: GcSpatialPuzzleNode) => void, isSelected: boolean, isCorrect: boolean, isIncorrect: boolean, disabled: boolean }> = ({ node, onNodeClick, isSelected, isCorrect, isIncorrect, disabled }) => {
     const meshRef = useRef<Mesh>(null!);
@@ -63,7 +63,8 @@ const GcSpatialRenderer: React.FC<BaseRendererProps<GcVerbalGameState, GcVerbalG
   onEvent,
   adaptiveState,
   currentTrialIndex,
-  sessionLength
+  sessionLength,
+  focus,
 }) => {
 
   const renderContent = () => {
@@ -72,8 +73,13 @@ const GcSpatialRenderer: React.FC<BaseRendererProps<GcVerbalGameState, GcVerbalG
     }
     
     if (gameState === 'start') {
+      const { Icon, label } = FOCUS_MODE_META[focus];
       return (
         <div className="flex flex-col items-center gap-4">
+           <div className="flex flex-col items-center gap-2 text-amber-300 mb-4">
+              <Icon className="w-10 h-10" />
+              <span className="font-semibold">{label} Mode</span>
+          </div>
           <div className="font-mono text-lg text-amber-300">Level: {adaptiveState.currentLevel}</div>
           <Button onClick={() => onEvent({type: 'START_SESSION'})} size="lg" className="bg-amber-600 hover:bg-amber-500 text-white">Start Spatial Concepts</Button>
         </div>

@@ -1,4 +1,3 @@
-
 'use client';
 
 import React from 'react';
@@ -9,17 +8,17 @@ import { cn } from "@/lib/utils";
 import { domainIcons } from "@/components/icons";
 import type { BaseRendererProps } from '@/types';
 import type { GcVerbalGameState, GcVerbalGameEvent } from './verbal-inference-builder';
+import { FOCUS_MODE_META } from '@/lib/mode-constants';
 
 export const GcVerbalRenderer: React.FC<BaseRendererProps<GcVerbalGameState, GcVerbalGameEvent>> = ({
-  gameState,
+  gameState: { gameState: phase, puzzle, selectedAnswer },
   onEvent,
   feedback,
   adaptiveState,
   sessionLength,
   currentTrialIndex,
+  focus,
 }) => {
-  const { gameState: phase, puzzle, selectedAnswer } = gameState;
-
   const getButtonClass = (option: string) => {
     if (phase !== 'feedback' || !puzzle) return "bg-background";
     if (option === puzzle.answer) return "bg-green-600 hover:bg-green-700 text-white";
@@ -32,10 +31,15 @@ export const GcVerbalRenderer: React.FC<BaseRendererProps<GcVerbalGameState, GcV
       return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
     }
     if (phase === 'start') {
+      const { Icon, label } = FOCUS_MODE_META[focus];
       return (
         <div className="flex flex-col items-center gap-4">
+           <div className="flex flex-col items-center gap-2 text-amber-300 mb-4">
+              <Icon className="w-10 h-10" />
+              <span className="font-semibold">{label} Mode</span>
+          </div>
           <div className="font-mono text-lg">Level: {adaptiveState?.currentLevel}</div>
-          <Button onClick={() => onEvent({ type: 'START_SESSION' })} size="lg" disabled={!adaptiveState}>Verbal Inference Builder</Button>
+          <Button onClick={() => onEvent({ type: 'START_SESSION' })} size="lg" disabled={!adaptiveState} className="bg-amber-600 hover:bg-amber-500 text-white">Verbal Inference Builder</Button>
         </div>
       );
     }

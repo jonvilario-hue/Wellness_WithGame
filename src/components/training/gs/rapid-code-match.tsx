@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,6 +19,7 @@ import { useAudioEngine } from "@/hooks/use-audio-engine";
 import { generateLexicalDecisionProblem } from '@/lib/verbal-stimulus-factory';
 import { generateSpatialGvRotationTrial, type Polycube } from "@/lib/polycube-generator";
 import { PRNG } from "@/lib/rng";
+import { FOCUS_MODE_META } from "@/lib/mode-constants";
 
 const GsSpatialRenderer = lazy(() => import('./GsSpatialRenderer'));
 
@@ -264,8 +264,13 @@ export function RapidCodeMatch() {
                 </div>
             )
         }
+        const { Icon, label } = FOCUS_MODE_META[currentMode];
         return (
             <div className="flex flex-col items-center gap-4">
+              <div className="flex flex-col items-center gap-2 text-orange-300 mb-4">
+                <Icon className="w-10 h-10" />
+                <span className="font-semibold">{label} Mode</span>
+              </div>
               <div className="font-mono text-lg text-orange-300">Level: {state?.currentLevel}</div>
               <Button onClick={startNewSession} size="lg" className="bg-orange-600 hover:bg-orange-500 text-white">Rapid Code Match</Button>
             </div>
