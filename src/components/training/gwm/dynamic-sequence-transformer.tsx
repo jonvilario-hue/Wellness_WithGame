@@ -14,10 +14,13 @@ import { StateMachineTracer } from "../logic/state-machine-tracer";
 import { useAudioEngine } from "@/hooks/use-audio-engine";
 import { ComplexSpanTask } from "./ComplexSpanTask";
 import { generateVerbalSequence, applyVerbalTransformation } from "@/lib/verbal-stimulus-factory";
+import { generateCorsiBlockTrial, type CorsiBlockPuzzle } from "@/lib/gwm-spatial-stimulus-factory";
 import { PRNG } from "@/lib/rng";
 import { usePageVisibility } from "@/hooks/use-page-visibility";
 import { Loader2 } from "lucide-react";
 import { DynamicSequenceRenderer } from './DynamicSequenceRenderer';
+import { GwmSpatialRenderer } from "./GwmSpatialRenderer";
+
 
 const GAME_ID: GameId = 'gwm_dynamic_sequence';
 const policy = difficultyPolicies[GAME_ID];
@@ -46,20 +49,23 @@ const tasks = [
 
 // --- Types ---
 export type DynamicSequencePuzzle = {
+  type: 'sequence';
   sequence: (string|number)[] | string;
   task: { id: string; label: string };
   correctAnswer: string;
 };
 
-export type DynamicSequenceGameState = {
+export type GwmPuzzle = DynamicSequencePuzzle | CorsiBlockPuzzle;
+
+export type GwmGameState = {
   gameState: 'loading' | 'start' | 'memorizing' | 'answering' | 'feedback' | 'finished';
-  puzzle: DynamicSequencePuzzle | null;
-  userAnswer: string;
+  puzzle: GwmPuzzle | null;
+  userAnswer: string | string[]; // string for sequence, string[] for spatial
 };
 
-export type DynamicSequenceGameEvent = 
+export type GwmGameEvent = 
   | { type: 'START_SESSION' }
-  | { type: 'SUBMIT_ANSWER', answer: string };
+  | { type: 'SUBMIT_ANSWER', answer: string | string[] };
 
 // --- Logic Component ---
 export function DynamicSequenceTransformer() {
@@ -68,7 +74,7 @@ export function DynamicSequenceTransformer() {
   const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
   const { resumeContext } = useAudioEngine();
 
-  const [componentState, setComponentState] = useState<DynamicSequenceGameState>({
+  const [componentState, setComponentState] = useState<GwmGameState>({
       gameState: 'loading',
       puzzle: null,
       userAnswer: ''
@@ -109,49 +115,55 @@ export function DynamicSequenceTransformer() {
 
   const startNewTrial = useCallback((state: AdaptiveState) => {
     const prng = prngRef.current;
-    const prngStateAtTrialStart = prng.getState();
-
+    
     const onRamp = state.uncertainty > 0.7;
     const loadedLevel = onRamp
       ? Math.max(state.levelFloor, state.currentLevel - 2)
       : state.currentLevel;
 
-    let levelDef = difficultyPolicies[GAME_ID]?.levelMap[loadedLevel];
-    let newSequence: string | (string|number)[] = '';
-    let newTask = tasks[0];
-    
-    if (!levelDef || !levelDef.content_config[currentMode]?.params) {
-      console.warn(`Falling back for ${currentMode} at level ${loadedLevel}`);
-      const tempPrng = new PRNG(prngStateAtTrialStart);
-      levelDef = difficultyPolicies[GAME_ID].levelMap[1];
-      newSequence = generateNeutralSequence(levelDef.mechanic_config.sequenceLength, levelDef.content_config['neutral']!.params.charSet, tempPrng);
-      newTask = tempPrng.shuffle([...tasks].filter(t => t.id !== 'sentence_unscramble'))[0];
-      
-      if (currentMode === 'verbal') generateVerbalSequence(loadedLevel, prng);
-      else generateNeutralSequence(levelDef?.mechanic_config.sequenceLength || 5, 'alphanumeric', prng);
+    let newPuzzle: GwmPuzzle;
+    if (currentMode === 'spatial') {
+        newPuzzle = generateCorsiBlockTrial(loadedLevel, prng);
     } else {
-        const { mechanic_config, content_config } = levelDef;
-        const currentContentConfig = content_config[currentMode]!;
-        if (currentMode === 'verbal') {
-            const verbalStim = generateVerbalSequence(loadedLevel, prng);
-            newSequence = verbalStim.sequence;
-            const possibleTasks = tasks.filter(t => t.id === verbalStim.transformationRule);
-            newTask = prng.shuffle(possibleTasks)[0] || tasks[0];
-            if (verbalStim.correctAnswer) correctSentenceRef.current = verbalStim.correctAnswer;
+        let newSequence: string | (string|number)[] = '';
+        let newTask = tasks[0];
+        let levelDef = difficultyPolicies[GAME_ID]?.levelMap[loadedLevel];
+        
+        if (!levelDef || !levelDef.content_config[currentMode]?.params) {
+            levelDef = difficultyPolicies[GAME_ID].levelMap[1];
+            newSequence = generateNeutralSequence(levelDef.mechanic_config.sequenceLength, levelDef.content_config['neutral']!.params.charSet, prng);
+            newTask = prng.shuffle([...tasks].filter(t => t.id !== 'sentence_unscramble'))[0];
         } else {
-            newSequence = generateNeutralSequence(mechanic_config.sequenceLength, currentContentConfig.params.charSet, prng);
-            const availableTasks = tasks.filter(t => t.id !== 'sentence_unscramble');
-            newTask = prng.shuffle(availableTasks)[0];
+            const { mechanic_config, content_config } = levelDef;
+            const currentContentConfig = content_config[currentMode]!;
+            if (currentMode === 'verbal') {
+                const verbalStim = generateVerbalSequence(loadedLevel, prng);
+                newSequence = verbalStim.sequence;
+                const possibleTasks = tasks.filter(t => t.id === verbalStim.transformationRule);
+                newTask = prng.shuffle(possibleTasks)[0] || tasks[0];
+                if (verbalStim.correctAnswer) correctSentenceRef.current = verbalStim.correctAnswer;
+            } else {
+                newSequence = generateNeutralSequence(mechanic_config.sequenceLength, currentContentConfig.params.charSet, prng);
+                const availableTasks = tasks.filter(t => t.id !== 'sentence_unscramble');
+                newTask = prng.shuffle(availableTasks)[0];
+            }
         }
+        
+        const correctAnswer = applyVerbalTransformation(Array.isArray(newSequence) ? newSequence.join('') : newSequence, newTask.id, correctSentenceRef.current);
+        
+        newPuzzle = { type: 'sequence', sequence: newSequence, task: newTask, correctAnswer };
     }
     
-    const correctAnswer = applyVerbalTransformation(Array.isArray(newSequence) ? newSequence.join('') : newSequence, newTask.id, correctSentenceRef.current);
-    
-    setComponentState({ gameState: 'memorizing', puzzle: { sequence: newSequence, task: newTask, correctAnswer }, userAnswer: '' });
+    setComponentState({ gameState: 'memorizing', puzzle: newPuzzle, userAnswer: currentMode === 'spatial' ? [] : '' });
     setFeedback('');
     pausedDurationRef.current = 0;
     
-    const displayTime = currentMode === 'verbal' ? (levelDef?.mechanic_config.visualDisplayTimeMs ?? 800) : (levelDef?.mechanic_config.displayTimeMs ?? 1500);
+    let displayTime = 1500;
+    const levelDef = difficultyPolicies[GAME_ID]?.levelMap[loadedLevel];
+    if (levelDef) {
+        displayTime = currentMode === 'verbal' ? (levelDef.mechanic_config.visualDisplayTimeMs ?? 800) : (levelDef.mechanic_config.displayTimeMs ?? 1500);
+        if(currentMode === 'spatial') displayTime = levelDef.mechanic_config.sequenceLength * 1000;
+    }
 
     setTimeout(() => {
       setComponentState(prev => ({...prev, gameState: 'answering'}));
@@ -160,7 +172,7 @@ export function DynamicSequenceTransformer() {
     
   }, [currentMode]);
   
-  const handleEvent = useCallback((event: DynamicSequenceGameEvent) => {
+  const handleEvent = useCallback((event: GwmGameEvent) => {
     if(event.type === 'START_SESSION') {
       resumeContext();
       const state = getAdaptiveState(GAME_ID, currentMode);
@@ -169,7 +181,7 @@ export function DynamicSequenceTransformer() {
       prngRef.current = new PRNG(newSessionId);
 
       const sessionState = startSession(state);
-      updateAdaptiveState(GAME_ID, currentMode, sessionState, { seed: newSessionId, buildVersion: 'dev', gameId: GAME_ID, focus: currentMode, difficultyConfig: policy, samplerConfig: null });
+      updateAdaptiveState(GAME_ID, currentMode, sessionState);
       currentTrialIndex.current = 0;
       startNewTrial(sessionState);
     } else if (event.type === 'SUBMIT_ANSWER') {
@@ -181,8 +193,13 @@ export function DynamicSequenceTransformer() {
       const responseTs = Date.now();
       const reactionTimeMs = responseTs - trialStartTime.current - pausedDurationRef.current;
       
-      const normalize = (str: string) => str.toUpperCase().replace(/[.,!?\s]/g, '').trim();
-      const isCorrect = normalize(event.answer) === normalize(puzzle.correctAnswer);
+      let isCorrect = false;
+      if (puzzle.type === 'sequence') {
+        const normalize = (str: string) => str.toUpperCase().replace(/[.,!?\s]/g, '').trim();
+        isCorrect = normalize(event.answer as string) === normalize(puzzle.correctAnswer);
+      } else if (puzzle.type === 'spatial_corsi') {
+        isCorrect = JSON.stringify(event.answer) === JSON.stringify(puzzle.sequence);
+      }
       
       const levelPlayed = state.currentLevel;
       const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs, telemetry: { /* ... */ } };
@@ -199,7 +216,7 @@ export function DynamicSequenceTransformer() {
         rtMs: reactionTimeMs,
         correct: isCorrect,
         responseType: isCorrect ? 'correct' : 'incorrect',
-        stimulusParams: { sequence: puzzle.sequence, task: puzzle.task.id },
+        stimulusParams: { sequence: puzzle.type === 'sequence' ? puzzle.sequence : puzzle.blocks, task: puzzle.type === 'sequence' ? puzzle.task.id : 'corsi_span' },
         timestamp: Date.now(),
         pausedDurationMs: pausedDurationRef.current,
         wasFallback: false,
@@ -209,7 +226,7 @@ export function DynamicSequenceTransformer() {
       const newState = adjustDifficulty(trialResult, state, policy);
       updateAdaptiveState(GAME_ID, currentMode, newState);
 
-      setFeedback(isCorrect ? getSuccessFeedback('Gwm') : `Incorrect. The answer was: ${puzzle.correctAnswer}. ${getFailureFeedback('Gwm')}`);
+      setFeedback(isCorrect ? getSuccessFeedback('Gwm') : `Incorrect. The answer was: ${puzzle.type === 'sequence' ? puzzle.correctAnswer : (puzzle as CorsiBlockPuzzle).sequence.join(', ')}. ${getFailureFeedback('Gwm')}`);
 
       setTimeout(() => {
           currentTrialIndex.current++;
@@ -220,26 +237,39 @@ export function DynamicSequenceTransformer() {
           }
       }, 2500);
     }
-  }, [componentState, getAdaptiveState, updateAdaptiveState, startNewTrial, currentMode, logTrial]);
+  }, [componentState, getAdaptiveState, updateAdaptiveState, startNewTrial, currentMode, logTrial, resumeContext]);
 
-  if (currentMode === 'spatial') {
-    return <GameStub name="Spatial Span" description="A set of 3D cubes in space flash in a specific sequence. User must repeat the sequence by clicking the cubes in the correct order." chcFactor="Working Memory (Gwm) / Dynamic Tracking" techStack={['CSS 3D Transforms']} complexity="High" fallbackPlan="Use a 2D grid." />;
+  if (!isComponentLoaded) {
+      return <div className="w-full max-w-2xl min-h-[400px] flex items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
   }
-  if (currentMode === 'logic') {
-    return <StateMachineTracer />;
-  }
-  if (currentMode === 'music') {
-    return <ComplexSpanTask />;
-  }
-
-  const Renderer = DynamicSequenceRenderer;
   
-  return <Renderer
-    gameState={componentState}
-    onEvent={handleEvent}
-    feedback={feedback}
-    adaptiveState={adaptiveState}
-    currentTrialIndex={currentTrialIndex.current}
-    sessionLength={policy.sessionLength}
-   />;
+  const rendererMap: Partial<Record<TrainingFocus, React.ComponentType<any>>> = {
+    neutral: DynamicSequenceRenderer,
+    math: DynamicSequenceRenderer,
+    verbal: DynamicSequenceRenderer,
+    spatial: GwmSpatialRenderer,
+    music: ComplexSpanTask,
+    logic: StateMachineTracer,
+    eq: GameStub,
+  };
+
+  const Renderer = rendererMap[currentMode] || GameStub;
+
+  const rendererProps: BaseRendererProps<GwmGameState, GwmGameEvent> = {
+    gameState: componentState,
+    onEvent: handleEvent,
+    feedback: feedback,
+    adaptiveState: adaptiveState,
+    sessionLength: policy.sessionLength,
+    currentTrialIndex: currentTrialIndex.current,
+    focus: currentMode,
+  };
+  
+  if (currentMode === 'eq') {
+      rendererProps.name = "Affective Span";
+      rendererProps.description = "Memorize a sequence of faces showing different emotions, then recall the emotions in the correct order.";
+      rendererProps.chcFactor = "Working Memory (Gwm) / Emotion Recognition";
+  }
+
+  return <Renderer {...rendererProps} />;
 }
