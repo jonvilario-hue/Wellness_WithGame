@@ -8,12 +8,14 @@ import { Card } from "../ui/card";
 import { GrowthDecoration } from "../ui/growth-decoration";
 import { useTheme } from "@/hooks/use-theme";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { FocusProfileRadar } from './focus-profile-radar';
+import { SubjectSelector } from "./subject-selector";
+import type { TrainingFocus } from '@/types';
 
 export type ViewMode = 'domain' | 'focus';
 
 export function HolisticView() {
     const [viewMode, setViewMode] = useState<ViewMode>('domain');
+    const [selectedFocus, setSelectedFocus] = useState<TrainingFocus>('neutral');
     const { organicGrowth } = useTheme();
 
     return (
@@ -32,19 +34,20 @@ export function HolisticView() {
                              {organicGrowth && <GrowthDecoration />}
                             <StrengthProfileRadar />
                         </Card>
-                        <StrengthsWeaknesses viewMode="domain" />
-                        <SubjectInsightCard viewMode="domain" />
+                        <StrengthsWeaknesses />
+                        <SubjectInsightCard />
                     </div>
                 </TabsContent>
 
                 <TabsContent value="focus">
                      <div className="space-y-6">
+                        <SubjectSelector selectedSubject={selectedFocus} onSelectSubject={setSelectedFocus} />
                         <Card className="hover:shadow-lg transition-shadow duration-300 relative overflow-hidden">
                             {organicGrowth && <GrowthDecoration />}
-                            <FocusProfileRadar />
+                            <StrengthProfileRadar focus={selectedFocus} />
                         </Card>
-                        <StrengthsWeaknesses viewMode="focus" />
-                        <SubjectInsightCard viewMode="focus" />
+                        <StrengthsWeaknesses subject={selectedFocus} />
+                        <SubjectInsightCard subject={selectedFocus} />
                     </div>
                 </TabsContent>
             </Tabs>

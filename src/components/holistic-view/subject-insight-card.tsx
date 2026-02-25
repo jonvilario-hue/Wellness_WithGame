@@ -1,37 +1,65 @@
 'use client';
 
+import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Lightbulb } from 'lucide-react';
 import { GrowthDecoration } from '../ui/growth-decoration';
 import { useTheme } from '@/hooks/use-theme';
-import type { TrainingFocus } from '@/types';
+import type { TrainingFocus, CHCDomain, AdaptiveState } from '@/types';
+import { usePerformanceStore } from '@/hooks/use-performance-store';
+import { DOMAIN_META } from '@/lib/domain-constants';
 
-export function SubjectInsightCard({ viewMode = 'domain' }: { viewMode?: 'domain' | 'focus' }) {
+const getAggregatedDomainScore = (gameStates: any, domainKey: CHCDomain): number => {
+    const domainId = DOMAIN_META[domainKey].id;
+    const allStatesForDomain = Object.keys(gameStates)
+        .filter(key => key.startsWith(`${domainId}/`))
+        .map(key => gameStates[key] as AdaptiveState);
+    
+    if (allStatesForDomain.length === 0) return 40;
+
+    const activeStates = allStatesForDomain.filter(s => s.sessionCount > 0);
+    if (activeStates.length === 0) return 40;
+
+    const totalScore = activeStates.reduce((acc, state) => acc + (state.currentLevel / state.levelCeiling) * 100, 0);
+    return Math.round(totalScore / activeStates.length);
+};
+
+const getScoreForDomain = (gameStates: any, domainKey: CHCDomain, focus: TrainingFocus) => {
+    const domainId = DOMAIN_META[domainKey].id;
+    const state = gameStates[`${domainId}/${focus}`];
+    if (!state || state.sessionCount === 0) return 40; // Baseline for no data
+    return Math.round((state.currentLevel / state.levelCeiling) * 100);
+};
+
+
+export function SubjectInsightCard({ subject }: { subject?: TrainingFocus }) {
     const { organicGrowth } = useTheme();
+    const { gameStates } = usePerformanceStore();
 
-  const getInsight = () => {
-    if (viewMode === 'focus') {
-      return "Your scores are highest in Logic-based tasks, but lowest in modes requiring musical processing.";
-    }
-    // Hardcoded for now. A future improvement would be to make this dynamic based on the aggregated scores.
-    return "Your weakest area appears to be Listening. Try the Auditory Processing Lab to improve.";
-  };
+    const insight = useMemo(() => {
+        const domainScores = (Object.keys(DOMAIN_META) as CHCDomain[]).map(key => ({
+            key,
+            friendlyLabel: DOMAIN_META[key].friendlyLabel,
+            score: subject ? getScoreForDomain(gameStates, key, subject) : getAggregatedDomainScore(gameStates, key),
+        })).sort((a, b) => b.score - a.score);
+
+        if (domainScores.length < 3) return "Keep playing to unlock new insights!";
+
+        const strongest = domainScores[0];
+        const weakest = domainScores[domainScores.length - 1];
+
+        if (strongest.score > weakest.score + 20) {
+             return `Your top strength is currently ${strongest.friendlyLabel}, while ${weakest.friendlyLabel} is a great area for growth.`;
+        }
+        
+        if (subject) {
+             return `You're showing balanced development across all domains within the ${subject} focus.`;
+        }
+
+        return "You are showing balanced development across all cognitive domains. Keep up the great work!";
+
+    }, [gameStates, subject]);
   
-  const renderSubjectSpecificContent = () => {
-      // This is now dead code since `subject` is removed, but harmless to leave for now.
-      if (viewMode === 'domain' && 1 === 2) { // Logic changed to never run
-          return (
-              <div className="space-y-4 mt-4">
-                  <h4 className="font-semibold">EQ-Specific Breakdown</h4>
-                  <div className="p-4 bg-muted/50 rounded-lg text-sm text-muted-foreground text-center">
-                    Emotion recognition accuracy, confusion pairs, and prosody sensitivity scores will appear here once you've played more EQ-mode games.
-                  </div>
-              </div>
-          )
-      }
-      return null;
-  }
-
   return (
     <Card className="hover:shadow-lg transition-shadow duration-300 relative overflow-hidden">
        {organicGrowth && <GrowthDecoration />}
@@ -42,8 +70,7 @@ export function SubjectInsightCard({ viewMode = 'domain' }: { viewMode?: 'domain
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <p className="text-lg italic text-center">"{getInsight()}"</p>
-        {renderSubjectSpecificContent()}
+        <p className="text-lg italic text-center">"{insight}"</p>
       </CardContent>
     </Card>
   );
