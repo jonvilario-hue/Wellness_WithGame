@@ -8,6 +8,7 @@ import { usePathname } from 'next/navigation';
 import { GlobalFocusSwitcher } from './global-focus-switcher';
 import { useTrainingFocus } from '@/hooks/use-training-focus';
 import { FOCUS_MODE_META } from '@/lib/mode-constants';
+import { cn } from '@/lib/utils';
   
 export function Header() {
   const pathname = usePathname();
@@ -17,7 +18,7 @@ export function Header() {
     { href: '/settings', label: 'Settings', icon: Settings },
   ];
 
-  const { Icon } = FOCUS_MODE_META[focus] || FOCUS_MODE_META.neutral;
+  const { Icon, color } = FOCUS_MODE_META[focus] || FOCUS_MODE_META.neutral;
 
   return (
     <header className="px-4 sm:px-6 md:px-8 py-2 border-b bg-card">
@@ -31,7 +32,7 @@ export function Header() {
         {/* Center: Branding */}
         <div className="flex-1 flex justify-center items-center">
             <Link href="/" className="flex items-center gap-2 rounded-lg p-2 transition-colors hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring">
-                 <Icon className="h-7 w-7 text-primary" />
+                 <Icon className={cn("h-7 w-7 transition-colors", color || 'text-primary')} />
                  <h1 className="text-xl font-bold text-foreground tracking-tight hidden sm:block">Cognitive Crucible</h1>
             </Link>
         </div>
