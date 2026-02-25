@@ -90,7 +90,7 @@ export function GameCard({ domain, onSelect }: { domain: (typeof import('@/lib/d
       </CardContent>
        <CardFooter className="p-4">
         <Button onClick={handlePlayClick} className="w-full">
-            <Play className="mr-2 h-4 w-4" /> Play {domain.gameTitle}
+            <Play className="mr-2 h-4 w-4" /> {domain.gameTitle}
         </Button>
       </CardFooter>
     </Card>
