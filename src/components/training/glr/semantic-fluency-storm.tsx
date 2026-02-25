@@ -23,6 +23,8 @@ import { PRNG } from "@/lib/rng";
 import { GlrMemoryPalace } from "./GlrMemoryPalace";
 import { FOCUS_MODE_META } from "@/lib/mode-constants";
 import { Input } from "@/components/ui/input";
+import { emotionLexicon, type EmotionCluster } from '@/data/emotion-lexicon';
+
 
 const GLR_GAME_ID: GameId = 'glr_fluency_storm';
 const glrPolicy = difficultyPolicies[GLR_GAME_ID];
@@ -68,6 +70,7 @@ export function SemanticFluencyStorm() {
     const [gameState, setGameState] = useState<'idle' | 'running' | 'finished'>('idle');
     const [currentMode, setCurrentMode] = useState<'associative' | 'spaced' | 'category' | 'spatial' | null>(null);
     const [lastScore, setLastScore] = useState(0);
+    const [lastClusterBreadth, setLastClusterBreadth] = useState(0);
     const { getNextMode } = useGlrStore();
     const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
 
@@ -83,9 +86,10 @@ export function SemanticFluencyStorm() {
         setGameState('running');
     };
 
-    const handleGameComplete = (result: { score: number, trials: TrialResult[] }) => {
-        const { score, trials } = result;
+    const handleGameComplete = (result: { score: number, trials: TrialResult[], cluster_breadth?: number }) => {
+        const { score, trials, cluster_breadth } = result;
         setLastScore(score);
+        setLastClusterBreadth(cluster_breadth || 0);
         
         const adaptiveState = getAdaptiveState(GLR_GAME_ID, currentTrainingFocus);
         if (trials.length > 0) {
@@ -122,7 +126,10 @@ export function SemanticFluencyStorm() {
              return (
                 <div className="text-center space-y-4">
                     <CardTitle>Session Complete!</CardTitle>
-                    <p className="text-xl">Your score for this mode was: <span className="font-bold text-primary">{lastScore}</span></p>
+                    <p className="text-xl">Words Found: <span className="font-bold text-primary">{lastScore}</span></p>
+                    {lastClusterBreadth > 0 && (
+                        <p className="text-lg">Emotion Clusters Explored: <span className="font-bold text-primary">{lastClusterBreadth}</span></p>
+                    )}
                     <Button onClick={handleStart} size="lg" className="bg-emerald-600 hover:bg-emerald-500 text-white">Play Next Mode</Button>
                 </div>
             );
@@ -134,7 +141,7 @@ export function SemanticFluencyStorm() {
                 case 'spaced':
                     return <SpacedRetrievalMode onComplete={handleGameComplete as any} focus={currentTrainingFocus} />;
                 case 'category':
-                    return <CategorySwitchingMode onComplete={handleGameComplete as any} focus={currentTrainingFocus} />;
+                    return <CategorySwitchingMode onComplete={handleGameComplete} focus={currentTrainingFocus} />;
                 case 'spatial':
                     return <GlrMemoryPalace onComplete={handleGameComplete as any} focus={currentTrainingFocus} />;
                 default:
@@ -242,8 +249,7 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (result: { sc
     );
 }
 
-function CategorySwitchingMode({ onComplete, focus }: { onComplete: (result: { score: number, trials: TrialResult[] }) => void, focus: TrainingFocus }) {
-    const { logSubmittedWord, isWordSubmitted } = useGlrStore();
+function CategorySwitchingMode({ onComplete, focus }: { onComplete: (result: { score: number, cluster_breadth: number, trials: TrialResult[] }) => void, focus: TrainingFocus }) {
     const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
     
     const [timeLeft, setTimeLeft] = useState(10);
@@ -251,21 +257,32 @@ function CategorySwitchingMode({ onComplete, focus }: { onComplete: (result: { s
     const [score, setScore] = useState(0);
     const [userInput, setUserInput] = useState('');
     const [trials, setTrials] = useState<TrialResult[]>([]);
+    const [submittedLemmas, setSubmittedLemmas] = useState<Set<string>>(new Set());
+    const [touchedClusters, setTouchedClusters] = useState<Set<EmotionCluster>>(new Set());
     const { toast } = useToast();
     
     const categoryTimerRef = useRef<NodeJS.Timeout>();
     const totalTimerRef = useRef<NodeJS.Timeout>();
     const trialStartTime = useRef<number>(0);
     const isVisible = usePageVisibility();
-
     const sessionId = useRef(crypto.randomUUID());
     const prng = useMemo(() => new PRNG(sessionId.current), [sessionId.current]);
 
     const categoryList = useMemo(() => {
+        if (focus === 'eq') {
+            return [
+                'Positive Emotions', 
+                'Negative Emotions', 
+                'Feelings Associated with Achievement', 
+                'Emotions You Might Feel at Work', 
+                'Feelings Related to Loss',
+                'Low-Arousal Emotions',
+                'High-Arousal Emotions',
+            ];
+        }
         if (focus === 'math') return mathCategories;
         if (focus === 'music') return musicCategories;
         if (focus === 'verbal') return verbalCategories;
-        if (focus === 'eq') return ['Positive Emotions', 'Negative Emotions', 'Social Roles', 'Causes of Joy'];
         return generalCategories;
     }, [focus]);
     
@@ -290,7 +307,7 @@ function CategorySwitchingMode({ onComplete, focus }: { onComplete: (result: { s
                 setTotalTimeLeft(prev => {
                     if (prev <= 1) {
                         stopTimers();
-                        onComplete({ score, trials });
+                        onComplete({ score, cluster_breadth: touchedClusters.size, trials });
                         return 0;
                     }
                     setTimeLeft(p => p > 0 ? p-1 : 9);
@@ -301,7 +318,7 @@ function CategorySwitchingMode({ onComplete, focus }: { onComplete: (result: { s
             stopTimers();
         }
         return stopTimers;
-    }, [isVisible, onComplete, score, trials, switchCategory, stopTimers]);
+    }, [isVisible, onComplete, score, trials, switchCategory, stopTimers, touchedClusters.size]);
 
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -311,36 +328,78 @@ function CategorySwitchingMode({ onComplete, focus }: { onComplete: (result: { s
 
         const reactionTimeMs = Date.now() - trialStartTime.current;
         trialStartTime.current = Date.now();
+        
+        let trial: TrialResult;
+        
+        if (focus === 'eq') {
+            const lexiconEntry = emotionLexicon[word];
+            const isValid = !!lexiconEntry;
+            const isDuplicate = isValid && submittedLemmas.has(lexiconEntry.lemma);
+            const isCorrect = isValid && !isDuplicate;
 
-        const alreadySubmitted = isWordSubmitted(currentCategory, word);
-        const trial: TrialResult = { correct: !alreadySubmitted, reactionTimeMs, telemetry: { mode: 'category', category: currentCategory, word } };
+            trial = { 
+                correct: isCorrect, 
+                reactionTimeMs, 
+                telemetry: { 
+                    mode: 'category_fluency', 
+                    category: currentCategory, 
+                    word,
+                    isValid,
+                    isDuplicate,
+                    lemma: lexiconEntry?.lemma,
+                    cluster: lexiconEntry?.cluster
+                } 
+            };
 
+            if (isCorrect) {
+                setScore(s => s + 1);
+                setSubmittedLemmas(prev => new Set(prev).add(lexiconEntry.lemma));
+                setTouchedClusters(prev => new Set(prev).add(lexiconEntry.cluster));
+                toast({ title: "Accepted!", className: "bg-primary text-primary-foreground" });
+            } else {
+                 toast({ title: isDuplicate ? "Already Used" : "Invalid Word", description: isDuplicate ? "You've already submitted a word from this family (e.g., 'happy'/'happiness')." : "That word is not in the emotion lexicon.", variant: "destructive" });
+            }
+
+        } else {
+            // Original logic for non-EQ modes
+            const isCorrect = validationWordList.has(word) && !Array.from(submittedLemmas).includes(word);
+             trial = { 
+                correct: isCorrect, 
+                reactionTimeMs, 
+                telemetry: { mode: 'category_fluency', category: currentCategory, word } 
+            };
+             if (isCorrect) {
+                setScore(s => s + 1);
+                setSubmittedLemmas(prev => new Set(prev).add(word));
+                toast({ title: "Accepted!", className: "bg-primary text-primary-foreground" });
+            } else {
+                 toast({ title: "Invalid or duplicate word", variant: "destructive" });
+            }
+        }
+        
         const currentState = getAdaptiveState(GLR_GAME_ID, focus);
-        logTrial({ sessionId: sessionId.current, gameId: GLR_GAME_ID, seq: trials.length, ...trial } as any);
+        logTrial({ sessionId: sessionId.current, gameId: GLR_GAME_ID, seq: trials.length, ...trial} as any);
         setTrials(prev => [...prev, trial]);
 
         const newState = adjustDifficulty(trial, currentState, glrPolicy);
         updateAdaptiveState(GLR_GAME_ID, focus, newState);
 
-        if (alreadySubmitted) {
-            toast({ title: "Already submitted!", variant: "destructive" });
-        } else {
-            setScore(s => s + 1);
-            logSubmittedWord(currentCategory, word);
-            toast({ title: "Added!", className: "bg-primary text-primary-foreground" });
-        }
         setUserInput('');
     };
 
     return (
         <div className="w-full flex flex-col items-center gap-4">
-            <div className="w-full flex justify-between font-mono"><span>Total Score: {score}</span><span>Time Left: {totalTimeLeft}s</span></div>
+            <div className="w-full grid grid-cols-3 font-mono text-center">
+                <span>Score: {score}</span>
+                {focus === 'eq' && <span>Clusters: {touchedClusters.size}</span>}
+                <span className={focus === 'eq' ? '' : 'col-start-3'}>Time Left: {totalTimeLeft}s</span>
+            </div>
             <div key={currentCategory} className="w-full p-4 bg-emerald-900/50 rounded-lg text-center animate-in fade-in">
                 <p className="text-3xl font-bold">{currentCategory}</p>
                  <div className="w-full h-1 mt-2 rounded-full bg-background overflow-hidden"><div className="h-full bg-amber-400" style={{ width: `${(timeLeft / 10) * 100}%`, transition: 'width 1s linear' }}></div></div>
             </div>
             <form onSubmit={handleSubmit} className="w-full flex gap-2"><Input value={userInput} onChange={e => setUserInput(e.target.value)} autoFocus placeholder="Type item in category..."/><Button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white">Submit</Button></form>
-            <p className="text-xs text-muted-foreground h-4">Pro-tip: Try to think of sub-categories (e.g., 'farm animals').</p>
+            <p className="text-xs text-muted-foreground h-4">Pro-tip: Think of sub-categories to generate more ideas.</p>
         </div>
     );
 }
