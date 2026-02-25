@@ -26,11 +26,6 @@ const GsSpatialRenderer = lazy(() => import('./GsSpatialRenderer'));
 const GAME_ID: GameId = 'gs_rapid_code';
 const policy = difficultyPolicies[GAME_ID];
 
-const symbolKeyPool = ['★', '●', '▲', '■', '◆', '✚', '❤', '⚡', '☺'];
-const mathSymbolKeyPool = ['+', '−', '×', '÷', '%', '∑', '√', '∞', '='];
-const musicSymbolKeyPool = ['♩', '♪', '♫', '♭', '♯', '♮', '𝄞', '𝄢', '𝄡'];
-const digits = [1, 2, 3, 4, 5, 6, 7, 8, 9];
-
 type Problem = {
     type: 'lexical' | 'symbol' | 'rhythm' | 'spatial_compare';
     stimulus: any;
@@ -299,7 +294,7 @@ export function RapidCodeMatch() {
     }
 
     if (currentMode === 'eq') {
-      return <GameStub name="Flash Recognition" description="A fixation cross, followed by a masked facial expression (e.g., surprise) flashed for 150-500ms. Rapidly classify the flashed universal emotion from a multiple-choice response array before the next trial begins." chcFactor="Processing Speed (Gs) / Micro-Expression Recognition" techStack={['Framer Motion', 'Face Asset Library']} complexity="Medium" fallbackPlan="If face assets fail, use abstract 'emoticon' style SVGs. This preserves the speeded classification mechanic but loses the micro-expression subtlety." difficultyExamples={{ level1: "Evaluate '[T] OR [F]' with a 2000ms time limit.", level8: "Evaluate 'NOT ([T] XOR [F])' with a 700ms time limit, requiring knowledge of operator precedence." }}/>
+      return <GameStub name="Flash Recognition" description="A fixation cross, followed by a masked facial expression (e.g., 'surprise') flashed for 150-500ms. Rapidly classify the flashed universal emotion from a multiple-choice response array before the next trial begins." chcFactor="Processing Speed (Gs) / Micro-Expression Recognition" techStack={['Framer Motion', 'Face Asset Library']} complexity="Medium" fallbackPlan="If face assets fail, use abstract 'emoticon' style SVGs. This preserves the speeded classification mechanic but loses the micro-expression subtlety." difficultyExamples={{ level1: "Evaluate '[T] OR [F]' with a 2000ms time limit.", level8: "Evaluate 'NOT ([T] XOR [F])' with a 700ms time limit, requiring knowledge of operator precedence." }}/>
     }
 
     if (problem.type === 'lexical') {
@@ -403,3 +398,8 @@ export function RapidCodeMatch() {
     </Card>
   );
 }
+
+const symbolKeyPool = ['★', '●', '▲', '■', '◆', '✚', '❤', '⚡', '☺'];
+const mathSymbolKeyPool = ['+', '−', '×', '÷', '%', '∑', '√', '∞', '='];
+const musicSymbolKeyPool = ['♩', '♪', '♫', '♭', '♯', '♮', '𝄞', '𝄢', '𝄡'];
+const digits = [1, 2, 3, 4, 5, 6, 7, 8, 9];
