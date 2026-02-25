@@ -1,8 +1,8 @@
-
 'use client';
 
 import { create } from 'zustand';
 import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
+import { immer } from 'zustand/middleware/immer';
 import type { TrainingFocus } from '@/types';
 import { allLogicPairs, logicPairsTier1, logicPairsTier2, logicPairsTier3 } from '@/data/logic-glr-content';
 import { realWords } from '@/data/verbal-content';
@@ -48,12 +48,13 @@ export interface SpacedPair {
     nextReviewAt: number;
     intervalStage: number;
     correctStreak: number;
-    strength: number; // 0 to 1
+    strength: number; // 0.0 to 1.0
     type: 'verbal' | 'logic'; // To distinguish content types
     hint?: string;
 }
 
-const gameModes: ('associative' | 'spaced' | 'category' | 'operator_recall' | 'spatial')[] = ['category', 'associative', 'spaced', 'operator_recall', 'spatial'];
+export type GlrGameMode = 'associative' | 'spaced' | 'category' | 'operator_recall' | 'spatial';
+const gameModes: GlrGameMode[] = ['category', 'associative', 'spaced', 'operator_recall', 'spatial'];
 
 type GlrState = {
     spacedPairs: Record<string, SpacedPair>;
@@ -63,7 +64,7 @@ type GlrState = {
 };
 
 type GlrActions = {
-    getNextMode: (focus: TrainingFocus) => 'associative' | 'spaced' | 'category' | 'operator_recall' | 'spatial';
+    getNextMode: (focus: TrainingFocus) => GlrGameMode;
     // Spaced Retrieval
     introduceNewPairs: (focus: TrainingFocus, count: number) => SpacedPair[];
     getDueReviewPairs: (focus?: TrainingFocus) => SpacedPair[];
@@ -98,7 +99,7 @@ export const useGlrStore = create<GlrState & GlrActions>()(
                 if (focus === 'logic') return 'operator_recall'; // Logic mode always uses Operator Recall
                 if (focus === 'spatial') return 'spatial';
 
-                const validModesForFocus: typeof gameModes = ['category', 'associative', 'spaced'];
+                const validModesForFocus: GlrGameMode[] = ['category', 'associative', 'spaced'];
                 const lastIndex = get().lastModeIndex[focus];
                 const nextIndex = (lastIndex + 1) % validModesForFocus.length;
                 set(state => { state.lastModeIndex[focus] = nextIndex });
@@ -112,8 +113,8 @@ export const useGlrStore = create<GlrState & GlrActions>()(
 
                 if (focus === 'logic') {
                     tier = get().logicTierUnlocked;
-                    const allLogicPairs = tier === 1 ? logicPairsTier1 : tier === 2 ? [...logicPairsTier1, ...logicPairsTier2] : [...logicPairsTier1, ...logicPairsTier2, ...logicPairsTier3];
-                    const unlearnedPairs = allLogicPairs.filter(p => !existingPairs[`logic-${p.stimulus}`]);
+                    const allLogicPairsInTier = tier === 1 ? logicPairsTier1 : tier === 2 ? [...logicPairsTier1, ...logicPairsTier2] : allLogicPairs;
+                    const unlearnedPairs = allLogicPairsInTier.filter(p => !existingPairs[`logic-${p.stimulus}`]);
                     newPairs = unlearnedPairs.slice(0, count);
                 } else {
                     const shuffledWords = [...realWords].sort(() => 0.5 - Math.random());
@@ -179,14 +180,14 @@ export const useGlrStore = create<GlrState & GlrActions>()(
                     }
 
                     // Check for tier unlock
-                    const allLogicPairs = Object.values(state.spacedPairs).filter(p => p.type === 'logic');
-                    const tier1Pairs = allLogicPairs.filter(p => logicPairsTier1.some(lp => lp.stimulus === p.word1));
+                    const allLogicPairsInStore = Object.values(state.spacedPairs).filter(p => p.type === 'logic');
+                    const tier1Pairs = allLogicPairsInStore.filter(p => logicPairsTier1.some(lp => lp.stimulus === p.word1));
 
                     if (state.logicTierUnlocked === 1 && tier1Pairs.length > 0 && tier1Pairs.every(p => p.strength >= 0.6)) {
                         state.logicTierUnlocked = 2;
                         console.log("LOGIC TIER 2 UNLOCKED");
                     }
-                     const tier2Pairs = allLogicPairs.filter(p => logicPairsTier2.some(lp => lp.stimulus === p.word1));
+                     const tier2Pairs = allLogicPairsInStore.filter(p => logicPairsTier2.some(lp => lp.stimulus === p.word1));
                      if (state.logicTierUnlocked === 2 && tier2Pairs.length > 0 && tier2Pairs.every(p => p.strength >= 0.6)) {
                         state.logicTierUnlocked = 3;
                         console.log("LOGIC TIER 3 UNLOCKED");
