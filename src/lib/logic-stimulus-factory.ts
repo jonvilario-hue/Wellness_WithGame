@@ -7,6 +7,8 @@ import { snippetTemplates, snippetVariables } from '@/data/logic-content';
 type LogicValue = boolean | string;
 type LogicOperator = '&&' | '||' | '!';
 
+// --- Gf (Fluid Reasoning) ---
+
 const generateDistractors = (correctAnswer: LogicValue, prng: PRNG): { type: 'logic', value: string }[] => {
     const distractors = new Set<string>();
     const baseOptions: LogicValue[] = [true, false, 'error', 'null'];
@@ -73,36 +75,28 @@ const generateSequenceTrial = (difficulty: number, prng: PRNG) => {
 };
 
 export const generateGfLogicTrial = (difficulty: number, prng: PRNG) => {
-    // Tier 1
     if (difficulty <= 3) {
         return generateTruthTableTrial(difficulty, prng);
     } 
-    // Tier 2 (stub)
     else if (difficulty <= 6) {
         return generateSequenceTrial(difficulty, prng);
     }
-    // Tier 3 (stub)
     else {
-        // Return a simple truth table as a placeholder for higher tiers
         return generateTruthTableTrial(1, prng);
     }
 };
 
-
-// --- Gs (Processing Speed) - Syntax Scan ---
+// --- Gs (Processing Speed) ---
 
 const generateSnippet = (tier: number, prng: PRNG): string => {
-    // Select a template
     const template = prng.shuffle(snippetTemplates)[0];
     let snippet = template;
 
-    // Fill slots
     Object.entries(snippetVariables).forEach(([key, values]) => {
         const regex = new RegExp(`\\{${key}\\}`, 'g');
         snippet = snippet.replace(regex, () => prng.shuffle(values)[0]);
     });
 
-    // Adjust lines based on tier
     const maxLines = tier < 4 ? 1 : (tier < 7 ? prng.nextIntRange(3, 6) : prng.nextIntRange(4, 8));
     const lines = snippet.split('\n');
     
@@ -137,7 +131,6 @@ const mutateSnippet = (snippet: string, tier: number, prng: PRNG): string => {
         const mutation = prng.shuffle(possibleMutations)[0];
         line = line.replace(mutation.from, mutation.to);
     } else {
-        // Fallback if no mutation is possible, swap two random characters
         if (line.length > 1) {
             const i = prng.nextIntRange(0, line.length);
             let j = prng.nextIntRange(0, line.length);
@@ -169,5 +162,143 @@ export const generateGsLogicTrial = (difficulty: number, prng: PRNG) => {
         snippetA,
         snippetB,
         isSame,
+    };
+};
+
+// --- Gv (Visual Processing) ---
+
+export type FlowchartNode = {
+  id: string;
+  type: 'terminal' | 'decision' | 'process';
+  label: string;
+};
+
+export type FlowchartEdge = {
+  from: string;
+  to: string;
+  label?: string;
+};
+
+export type FlowchartTrial = {
+  type: 'flowchart_trace';
+  nodes: FlowchartNode[];
+  edges: FlowchartEdge[];
+  inputValues: { [varName: string]: any };
+  question: string;
+  correctAnswer: any;
+  options: any[];
+};
+
+export const generateGvLogicTrial = (difficulty: number, prng: PRNG): FlowchartTrial => {
+    if (difficulty <= 3) return generateIfElseTrial(prng);
+    if (difficulty <= 6) return generateLoopTrial(prng);
+    return generateNestedTrial(prng);
+};
+
+const generateIfElseTrial = (prng: PRNG): FlowchartTrial => {
+    const x = prng.nextIntRange(0, 20);
+    const threshold = 10;
+    const nodes: FlowchartNode[] = [
+        { id: 'start', type: 'terminal', label: 'Start' },
+        { id: 'decision', type: 'decision', label: `Is X > ${threshold}?` },
+        { id: 'p_true', type: 'process', label: 'Output: "big"' },
+        { id: 'p_false', type: 'process', label: 'Output: "small"' },
+        { id: 'end', type: 'terminal', label: 'End' },
+    ];
+    const edges: FlowchartEdge[] = [
+        { from: 'start', to: 'decision' },
+        { from: 'decision', to: 'p_true', label: 'Yes' },
+        { from: 'decision', to: 'p_false', label: 'No' },
+        { from: 'p_true', to: 'end' },
+        { from: 'p_false', to: 'end' },
+    ];
+    const correctAnswer = x > threshold ? "big" : "small";
+
+    return {
+        type: 'flowchart_trace',
+        nodes,
+        edges,
+        inputValues: { X: x },
+        question: `What is the output when X = ${x}?`,
+        correctAnswer,
+        options: prng.shuffle(["big", "small", "error", "nothing"])
+    };
+};
+
+const generateLoopTrial = (prng: PRNG): FlowchartTrial => {
+    const iterations = prng.nextIntRange(2, 4);
+    const nodes: FlowchartNode[] = [
+        { id: 'start', type: 'terminal', label: 'Start' },
+        { id: 'init', type: 'process', label: 'Set count = 0' },
+        { id: 'decision', type: 'decision', label: `Is count < ${iterations}?` },
+        { id: 'body', type: 'process', label: 'count = count + 1' },
+        { id: 'output', type: 'process', label: 'Output: count' },
+        { id: 'end', type: 'terminal', label: 'End' },
+    ];
+    const edges: FlowchartEdge[] = [
+        { from: 'start', to: 'init' },
+        { from: 'init', to: 'decision' },
+        { from: 'decision', to: 'body', label: 'Yes' },
+        { from: 'body', to: 'decision' },
+        { from: 'decision', to: 'output', label: 'No' },
+        { from: 'output', to: 'end' },
+    ];
+
+    const correctAnswer = iterations;
+    const options = prng.shuffle([iterations, iterations - 1, iterations + 1, 0]);
+
+    return {
+        type: 'flowchart_trace',
+        nodes,
+        edges,
+        inputValues: {},
+        question: "What is the final output value of 'count'?",
+        correctAnswer,
+        options,
+    };
+};
+
+const generateNestedTrial = (prng: PRNG): FlowchartTrial => {
+    const x = prng.nextIntRange(0, 20);
+    const nodes: FlowchartNode[] = [
+        { id: 'start', type: 'terminal', label: 'Start' },
+        { id: 'init', type: 'process', label: 'result = "default"' },
+        { id: 'd1', type: 'decision', label: 'Is X > 0?' },
+        { id: 'd2', type: 'decision', label: 'Is X > 10?' },
+        { id: 'p_high', type: 'process', label: 'result = "high"' },
+        { id: 'p_med', type: 'process', label: 'result = "medium"' },
+        { id: 'p_low', type: 'process', label: 'result = "low"' },
+        { id: 'end', type: 'terminal', label: 'End' },
+    ];
+    const edges: FlowchartEdge[] = [
+        { from: 'start', to: 'init' },
+        { from: 'init', to: 'd1' },
+        { from: 'd1', to: 'd2', label: 'Yes' },
+        { from: 'd1', to: 'p_low', label: 'No' },
+        { from: 'd2', to: 'p_high', label: 'Yes' },
+        { from: 'd2', to: 'p_med', label: 'No' },
+        { from: 'p_high', to: 'end' },
+        { from: 'p_med', to: 'end' },
+        { from: 'p_low', to: 'end' },
+    ];
+    let correctAnswer: string;
+    if (x > 0) {
+        if (x > 10) {
+            correctAnswer = "high";
+        } else {
+            correctAnswer = "medium";
+        }
+    } else {
+        correctAnswer = "low";
+    }
+
+    return {
+        type: 'flowchart_trace',
+        nodes,
+        edges,
+        inputValues: { X: x },
+        question: `What is the final value of 'result' when X = ${x}?`,
+        correctAnswer,
+        options: prng.shuffle(["high", "medium", "low", "default"]),
     };
 };
