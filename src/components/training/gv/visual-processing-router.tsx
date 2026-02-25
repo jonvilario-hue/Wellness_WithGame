@@ -9,7 +9,7 @@ import { VisualMusicMatch } from './visual-music-match';
 import { TypographicSearch } from './typographic-search';
 import { GameStub } from "../game-stub";
 import { FlowchartTracer } from '../logic/flowchart-tracer';
-import { EmotionalCrowdSearch } from './emotional-crowd-search';
+import { GvEQRotation } from './GvEQRotation';
 import { GvSpatialAssembly } from './gv-spatial-assembly';
 import { BalancePuzzle } from './balance-puzzle';
 
@@ -38,7 +38,7 @@ export function VisualProcessingRouter() {
     case 'logic':
         return <FlowchartTracer />;
     case 'eq':
-        return <EmotionalCrowdSearch />;
+        return <GvEQRotation focus={effectiveFocus} />;
     case 'neutral':
     default:
       return <MentalRotationLab focus={effectiveFocus} />;
