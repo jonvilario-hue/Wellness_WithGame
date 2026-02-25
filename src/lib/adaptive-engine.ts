@@ -42,7 +42,8 @@ export const adjustDifficulty = (
     currentState: AdaptiveState,
     policy: DifficultyPolicy
 ): AdaptiveState => {
-    const state: AdaptiveState = { ...currentState };
+    // By creating a shallow copy of the recentTrials array, we avoid mutating the frozen state object.
+    const state: AdaptiveState = { ...currentState, recentTrials: [...currentState.recentTrials] };
 
     // 1. Record Trial with Telemetry
     state.recentTrials.push({
