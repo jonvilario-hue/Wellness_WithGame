@@ -4,12 +4,17 @@ import type { AssetId } from '@/types';
 import * as idbStore from '@/lib/idb-store';
 import type { AssetUrlResolver } from './types';
 
+interface AssetDefinition {
+    id: AssetId;
+    path: string;
+    isSprite?: boolean;
+    spriteId?: AssetId;
+    offset?: number;
+    duration?: number;
+}
 interface AssetManifest {
     manifestVersion: string;
-    assets: {
-        id: AssetId;
-        path: string;
-    }[];
+    assets: AssetDefinition[];
 }
 
 export class AudioSampleManager {
@@ -46,9 +51,8 @@ export class AudioSampleManager {
         }
     }
 
-    private getAssetPath(assetId: AssetId): string | null {
-        const assetInfo = this.manifest?.assets.find(a => a.id === assetId);
-        return assetInfo ? assetInfo.path : null;
+    public getAssetInfo(assetId: AssetId): AssetDefinition | null {
+        return this.manifest?.assets.find(a => a.id === assetId) || null;
     }
 
     public async getAsset(assetId: AssetId): Promise<AudioBuffer | null> {
@@ -56,35 +60,49 @@ export class AudioSampleManager {
             return this.inMemoryCache.get(assetId)!;
         }
 
-        const path = this.getAssetPath(assetId);
-        if (!path) {
-            console.warn(`[AudioSampleManager] Asset ID "${assetId}" not found in manifest.`);
-            return this.generatePlaceholder(assetId);
+        const assetInfo = this.getAssetInfo(assetId);
+        if (!assetInfo) {
+             console.warn(`[AudioSampleManager] Asset ID "${assetId}" not found in manifest.`);
+             return this.generatePlaceholder(assetId);
+        }
+        
+        // If it's part of a sprite, get the sprite's buffer instead
+        const assetToFetch = assetInfo.spriteId ? this.getAssetInfo(assetInfo.spriteId) : assetInfo;
+        const cacheKey = assetToFetch?.id || assetId;
+
+        if (this.inMemoryCache.has(cacheKey)) {
+             if (assetId !== cacheKey) { // Cache the sub-asset reference for faster future lookups
+                this.inMemoryCache.set(assetId, this.inMemoryCache.get(cacheKey)!);
+             }
+             return this.inMemoryCache.get(cacheKey)!;
         }
 
-        const url = this.assetUrlResolver(assetId, path);
+        const path = assetToFetch?.path;
+        if (!path) {
+            console.warn(`[AudioSampleManager] Asset path for "${cacheKey}" not found.`);
+            return this.generatePlaceholder(assetId);
+        }
+        
+        const url = this.assetUrlResolver(cacheKey, path);
 
         try {
-            // 1. Check IndexedDB for the raw ArrayBuffer
             const cachedArrayBuffer = await idbStore.getCachedAsset(url) as ArrayBuffer;
             if (cachedArrayBuffer) {
-                const audioBuffer = await this.audioContext.decodeAudioData(cachedArrayBuffer.slice(0)); // Use slice(0) to create a copy
-                this.inMemoryCache.set(assetId, audioBuffer);
+                const audioBuffer = await this.audioContext.decodeAudioData(cachedArrayBuffer.slice(0));
+                this.inMemoryCache.set(cacheKey, audioBuffer);
+                if (assetId !== cacheKey) this.inMemoryCache.set(assetId, audioBuffer);
                 return audioBuffer;
             }
 
-            // 2. Fetch from network if not in cache
             const response = await fetch(url);
             if (!response.ok) throw new Error(`Failed to fetch asset: ${url}`);
             
             const arrayBuffer = await response.arrayBuffer();
+            await idbStore.putCachedAsset(url, arrayBuffer.slice(0));
             
-            // 3. Store raw ArrayBuffer in IndexedDB
-            await idbStore.putCachedAsset(url, arrayBuffer);
-            
-            // 4. Decode, store in memory cache, and return
             const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
-            this.inMemoryCache.set(assetId, audioBuffer);
+            this.inMemoryCache.set(cacheKey, audioBuffer);
+            if (assetId !== cacheKey) this.inMemoryCache.set(assetId, audioBuffer);
             return audioBuffer;
 
         } catch (error) {

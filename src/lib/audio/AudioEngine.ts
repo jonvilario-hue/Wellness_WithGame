@@ -96,6 +96,7 @@ export class AudioEngine {
     if (!this.isReady || !this.sampleManager || !this.audioContext || !this.masterGain) return null;
     await this.resumeContext();
 
+    const assetInfo = this.sampleManager.getAssetInfo(assetId);
     const buffer = await this.sampleManager.getAsset(assetId);
     if (!buffer) {
         console.error(`[AudioEngine] Could not load or generate asset for ${assetId}`);
@@ -123,10 +124,14 @@ export class AudioEngine {
     finalNode.connect(this.masterGain);
 
     const scheduledOnset = this.audioContext.currentTime + (config.delay ?? 0);
-    source.start(scheduledOnset, config.startOffset ?? 0);
+    // Use offset/duration from manifest if it's a sprite, otherwise use config
+    const startOffset = assetInfo?.offset ?? config.startOffset ?? 0;
+    const duration = assetInfo?.duration ?? config.duration;
+
+    source.start(scheduledOnset, startOffset);
     
-    if (config.duration) {
-        source.stop(scheduledOnset + config.duration);
+    if (duration) {
+        source.stop(scheduledOnset + duration);
     }
     
     this.activeSources.add(source);
