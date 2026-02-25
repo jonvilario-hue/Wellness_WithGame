@@ -100,6 +100,8 @@ export const chcDomains = Object.entries(DOMAIN_META).map(([key, value]) => ({
   supportsMath: true,
   supportsMusic: true,
   supportsVerbal: true,
+  // The 'Retrieval Trainer' game (glr_fluency_storm) is verbal, so it's disabled in spatial mode.
+  // Auditory games are also disabled in spatial mode.
   supportsSpatial: !['ga_auditory_lab', 'glr_fluency_storm'].includes(value.id),
   supportsEq: true,
   supportsLogic: true,
@@ -112,7 +114,7 @@ export const MODE_INCOMPATIBILITY_MAP: Partial<
   Record<TrainingFocus, Partial<Record<CHCDomain, string>>>
 > = {
     spatial: {
-        Ga: "Auditory tasks do not have a spatial reasoning equivalent.",
-        Glr: "Fluency tasks do not have a spatial reasoning equivalent.",
+        Ga: "Auditory Processing games rely purely on sound, so a spatial version is not applicable for these tasks.",
+        Glr: "The 'Retrieval Trainer' game focuses on verbal fluency. For spatial long-term memory, the 'Memory Palace' mode is used within this game domain instead.",
     }
 };
