@@ -26,7 +26,8 @@ export class AudioSampleManager {
 
     private async loadManifest() {
         try {
-            const response = await fetch('/audio-assets/manifest.json');
+            // Ensure manifest is fetched without browser caching to get the latest version
+            const response = await fetch('/audio-assets/manifest.json', { cache: 'no-store' });
             if (!response.ok) throw new Error('Manifest not found');
             this.manifest = await response.json();
             this.checkCacheVersion();
@@ -64,19 +65,25 @@ export class AudioSampleManager {
         const url = this.assetUrlResolver(assetId, path);
 
         try {
-            const cachedBuffer = await idbStore.getCachedAsset(url) as AudioBuffer;
-            if (cachedBuffer) {
-                this.inMemoryCache.set(assetId, cachedBuffer);
-                return cachedBuffer;
+            // 1. Check IndexedDB for the raw ArrayBuffer
+            const cachedArrayBuffer = await idbStore.getCachedAsset(url) as ArrayBuffer;
+            if (cachedArrayBuffer) {
+                const audioBuffer = await this.audioContext.decodeAudioData(cachedArrayBuffer.slice(0)); // Use slice(0) to create a copy
+                this.inMemoryCache.set(assetId, audioBuffer);
+                return audioBuffer;
             }
 
+            // 2. Fetch from network if not in cache
             const response = await fetch(url);
             if (!response.ok) throw new Error(`Failed to fetch asset: ${url}`);
             
             const arrayBuffer = await response.arrayBuffer();
-            const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
             
-            await idbStore.putCachedAsset(url, audioBuffer);
+            // 3. Store raw ArrayBuffer in IndexedDB
+            await idbStore.putCachedAsset(url, arrayBuffer);
+            
+            // 4. Decode, store in memory cache, and return
+            const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
             this.inMemoryCache.set(assetId, audioBuffer);
             return audioBuffer;
 
