@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Settings } from 'lucide-react';
@@ -12,13 +11,13 @@ import { cn } from '@/lib/utils';
   
 export function Header() {
   const pathname = usePathname();
-  const { focus } = useTrainingFocus();
+  const { focus, isLoaded } = useTrainingFocus();
 
   const navItems = [
     { href: '/settings', label: 'Settings', icon: Settings },
   ];
 
-  const { Icon, color } = FOCUS_MODE_META[focus] || FOCUS_MODE_META.neutral;
+  const { Icon, color } = isLoaded ? (FOCUS_MODE_META[focus] || FOCUS_MODE_META.neutral) : FOCUS_MODE_META.neutral;
 
   return (
     <header className="px-4 sm:px-6 md:px-8 py-2 border-b bg-card">
