@@ -7,8 +7,7 @@ import { chcDomains } from '@/lib/domain-constants';
 import { GameDetailPage } from '@/components/game-detail/game-detail-page';
 
 export default function GameDetail() {
-  const params = useParams();
-  const domain = params.domain as CHCDomain;
+  const { domain } = useParams() as { domain: CHCDomain };
   const domainInfo = chcDomains.find(d => d.key === domain);
 
   if (!domainInfo) {

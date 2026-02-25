@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -11,7 +12,7 @@ import { gameComponents } from '@/components/training/game-components';
 import { useTrainingFocus } from '@/hooks/use-training-focus';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useTrainingOverride } from '@/hooks/use-training-override';
+import { useTrainingOverride } from '@/hooks/use-training-override.tsx';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { GameErrorBoundary } from '@/components/shared/game-error-boundary';
@@ -21,8 +22,7 @@ import type { TelemetryEvent, ErrorEventPayload } from '@/lib/telemetry-events';
 
 
 export default function TrainingPage() {
-  const params = useParams();
-  const domain = params.domain as CHCDomain;
+  const { domain } = useParams() as { domain: CHCDomain };
   const domainInfo = chcDomains.find(d => d.key === domain);
   
   // The new override hook replaces the global focus switcher for this page's logic
@@ -71,7 +71,7 @@ export default function TrainingPage() {
         error: error.toString(),
         stack: info.componentStack,
         gameId: domainInfo.id,
-        trialIndex: activeSession?.currentSeq ?? -1
+        trialIndex: activeSession?.trialCount ?? -1
     };
 
     logEvent({ type: 'error', payload: errorPayload });

@@ -22,8 +22,7 @@ import type { TelemetryEvent } from '@/lib/telemetry-events';
 
 
 export default function TrainingPage() {
-  const params = useParams();
-  const domain = params.domain as CHCDomain;
+  const { domain } = useParams() as { domain: CHCDomain };
   const domainInfo = chcDomains.find(d => d.key === domain);
   
   // The new override hook replaces the global focus switcher for this page's logic
