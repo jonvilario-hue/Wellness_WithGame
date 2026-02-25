@@ -120,9 +120,9 @@ export default function SpatialMode() {
   
   useEffect(() => {
       return () => { // Cleanup on unmount
-          distractorHandles.current.forEach(h => h.stop());
+          engine?.stopAll();
       }
-  }, []);
+  }, [engine]);
 
   return (
     <Card className="w-full max-w-2xl text-center bg-gray-900 border-gray-500/30 text-gray-100">
