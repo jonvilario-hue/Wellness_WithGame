@@ -80,7 +80,7 @@ export default function TrainingPage() {
                   </div>
                 </div>
             </div>
-             {(effectiveFocus === 'music' || effectiveFocus === 'neutral') && (
+             {(effectiveFocus === 'music' || effectiveFocus === 'neutral' || effectiveFocus === 'eq') && (
                 <p className="text-xs text-muted-foreground flex items-center gap-1"><Headphones className="w-3 h-3"/> Wired headphones recommended</p>
             )}
           </div>

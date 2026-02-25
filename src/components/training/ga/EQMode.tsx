@@ -129,6 +129,7 @@ const generatePuzzle = (level: number, lastTask: TaskType): Puzzle => {
 export default function EQMode({ onComplete }: { onComplete: () => void }) {
     const [state, dispatch] = useReducer(gameReducer, initialState);
     const { engine } = useAudioEngine();
+    // Re-enable preloading based on the fixed manifest
     const { isLoading, progress } = usePreloadAssets(ALL_ASSETS);
     const correctStreak = useRef(0);
 
@@ -148,7 +149,11 @@ export default function EQMode({ onComplete }: { onComplete: () => void }) {
 
     const startNextTrial = useCallback(() => {
         dispatch({ type: 'NEXT_TRIAL' });
-        if (state.trialCount + 1 >= TRIALS_PER_ROUND) return;
+        if (state.trialCount + 1 >= TRIALS_PER_ROUND) {
+             if (engine) engine.stopAll();
+             onComplete(); // Signal completion to parent router
+             return;
+        }
 
         const puzzle = generatePuzzle(state.level, state.puzzle?.type ?? 'comparison');
         dispatch({ type: 'SET_PUZZLE', puzzle });
@@ -171,19 +176,23 @@ export default function EQMode({ onComplete }: { onComplete: () => void }) {
             engine.playSample(first, { duration });
             setTimeout(() => engine.playSample(second, { duration }), 2500);
         }
-    }, [state.level, state.puzzle?.type, engine, state.trialCount]);
+    }, [state.level, state.puzzle?.type, engine, state.trialCount, onComplete]);
 
     const handleAnswer = (answer: Emotion | 'first' | 'second') => {
         if (state.phase !== 'playing' || !state.puzzle) return;
         let isCorrect = false;
+        let message = "Incorrect.";
+
         if (state.puzzle.type === 'classification') {
             isCorrect = answer === state.puzzle.correctEmotion;
+             if (!isCorrect) message = `Incorrect. The emotion was ${state.puzzle.correctEmotion}.`
         } else {
             const correctAns = state.puzzle.isFirstStronger ? 'first' : 'second';
             isCorrect = answer === correctAns;
+            if (!isCorrect) message = `Incorrect. The ${correctAns} speaker was more intense.`
         }
         
-        dispatch({ type: 'SUBMIT_ANSWER', correct: isCorrect, message: isCorrect ? 'Correct!' : 'Incorrect.' });
+        dispatch({ type: 'SUBMIT_ANSWER', correct: isCorrect, message: isCorrect ? 'Correct!' : message });
         
         if (isCorrect) {
             correctStreak.current++;
@@ -196,7 +205,7 @@ export default function EQMode({ onComplete }: { onComplete: () => void }) {
             //dispatch({ type: 'LEVEL_DOWN' });
         }
 
-        setTimeout(() => startNextTrial(), 2000);
+        setTimeout(() => startNextTrial(), 2500);
     };
     
     const handleStart = () => {
@@ -227,8 +236,8 @@ export default function EQMode({ onComplete }: { onComplete: () => void }) {
                         {state.puzzle.type === 'classification' ? (
                             <div className="grid grid-cols-2 gap-3">
                                 {state.puzzle.options.map(emotion => {
-                                    const Icon = EMOTION_CONFIG[emotion].icon;
-                                    return <Button key={emotion} onClick={() => handleAnswer(emotion)} disabled={state.phase === 'feedback'} className="h-20 text-lg flex items-center gap-2"><Icon /> {emotion}</Button>
+                                    const Icon = EMOTION_CONFIG[emotion]?.icon || Smile;
+                                    return <Button key={emotion} onClick={() => handleAnswer(emotion)} disabled={state.phase === 'feedback'} className="h-20 text-lg flex items-center gap-2 capitalize"><Icon /> {emotion}</Button>
                                 })}
                             </div>
                         ) : (
@@ -243,5 +252,3 @@ export default function EQMode({ onComplete }: { onComplete: () => void }) {
         </Card>
     )
 }
-
-    
