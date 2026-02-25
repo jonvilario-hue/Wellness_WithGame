@@ -5,24 +5,10 @@ import React from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { Loader2, PieChart } from "lucide-react";
+import { Loader2, PieChart, Music } from "lucide-react";
 import type { AdaptiveState, BaseRendererProps } from "@/types";
 import { domainIcons } from '@/components/icons';
-
-// --- RENDERER-SPECIFIC TYPES ---
-type PatternMatrixState = {
-    gameState: 'loading' | 'start' | 'playing' | 'feedback' | 'finished';
-    puzzle: any;
-    selectedOption: any;
-    feedback: string;
-    isAudioReady: boolean;
-    isComponentLoaded: boolean;
-};
-
-type PatternMatrixEvent = 
-    | { type: 'START_SESSION' }
-    | { type: 'SELECT_OPTION', option: any };
-
+import type { PatternMatrixState, PatternMatrixEvent } from "./pattern-matrix";
 
 const ElementComponent = ({ element }: { element: any }) => {
     if (!element) return null;
@@ -36,7 +22,7 @@ const ElementComponent = ({ element }: { element: any }) => {
       return <div className={cn("text-4xl font-bold text-blue-300")}>{element.value}</div>;
     }
      if (element.type === 'music') {
-        return <div className="text-3xl font-bold text-blue-300">♪</div>
+        return <div className="text-3xl font-bold text-blue-300"><Music /></div>
     }
 
     // Default Neutral Element
@@ -68,13 +54,14 @@ const ElementComponent = ({ element }: { element: any }) => {
 };
 
 export const PatternMatrixRenderer: React.FC<BaseRendererProps<PatternMatrixState, PatternMatrixEvent>> = ({
-  gameState: { gameState, puzzle, selectedOption, feedback, isAudioReady, isComponentLoaded },
+  gameState: { gameState, puzzle, selectedOption },
+  feedback,
   onEvent,
   adaptiveState,
   currentTrialIndex,
   sessionLength
 }) => {
-  if (!isComponentLoaded) {
+  if (!adaptiveState) {
     return (
         <Card className="w-full max-w-md bg-slate-800 border-blue-500/30 text-slate-100">
             <CardContent className="flex flex-col items-center gap-6 min-h-[500px] justify-center">
@@ -89,18 +76,10 @@ export const PatternMatrixRenderer: React.FC<BaseRendererProps<PatternMatrixStat
         case 'loading':
           return <Loader2 className="h-12 w-12 animate-spin text-blue-400" />;
         case 'start':
-          if (adaptiveState?.lastFocus === 'music' && !isAudioReady) {
-            return (
-              <div className="flex flex-col items-center gap-4 text-center">
-                <p className="text-muted-foreground">Audio required for this mode.</p>
-                <Button onClick={() => onEvent({type: 'START_SESSION'})} size="lg" className="bg-blue-600 hover:bg-blue-500 text-white">Tap to Enable Audio & Start</Button>
-              </div>
-            )
-          }
           return (
             <div className="flex flex-col items-center gap-4">
-              <div className="font-mono text-lg text-blue-300">Level: {adaptiveState?.currentLevel}</div>
-              <Button onClick={() => onEvent({type: 'START_SESSION'})} size="lg" className="bg-blue-600 hover:bg-blue-500 text-white">Pattern Matrix</Button>
+              <div className="font-mono text-lg text-blue-300">Level: {adaptiveState.currentLevel}</div>
+              <Button onClick={() => onEvent({type: 'START_SESSION'})} size="lg" className="bg-blue-600 hover:bg-blue-500 text-white">Start Pattern Matrix</Button>
             </div>
           );
         case 'finished':
@@ -121,7 +100,7 @@ export const PatternMatrixRenderer: React.FC<BaseRendererProps<PatternMatrixStat
                   <div className="flex flex-col items-center gap-6 w-full">
                       <div className="flex justify-between w-full font-mono text-sm text-blue-200">
                           <span>Trial: {currentTrialIndex + 1} / {sessionLength}</span>
-                          <span>Level: {adaptiveState?.currentLevel}</span>
+                          <span>Level: {adaptiveState.currentLevel}</span>
                       </div>
                       <div className="text-center">
                           <p className="text-slate-300 mb-2">A sample was drawn from a hidden population.</p>
@@ -133,7 +112,7 @@ export const PatternMatrixRenderer: React.FC<BaseRendererProps<PatternMatrixStat
                       </div>
                       <div className="h-6 text-sm font-semibold mb-2 text-center">
                           {feedback && (
-                              <p className={cn("animate-in fade-in", feedback.includes('Incorrect') ? 'text-red-400' : 'text-green-400')}>{feedback}</p>
+                              <p className={cn("animate-in fade-in", feedback.type === 'failure' ? 'text-red-400' : 'text-green-400')}>{feedback.message}</p>
                           )}
                       </div>
                        <div className="grid grid-cols-4 gap-3">
@@ -161,7 +140,7 @@ export const PatternMatrixRenderer: React.FC<BaseRendererProps<PatternMatrixStat
               <div className="flex flex-col items-center gap-6 w-full">
                    <div className="flex justify-between w-full font-mono text-sm text-blue-200">
                       <span>Trial: {currentTrialIndex + 1} / {sessionLength}</span>
-                      <span>Level: {adaptiveState?.currentLevel}</span>
+                      <span>Level: {adaptiveState.currentLevel}</span>
                   </div>
                   <div className={cn("grid gap-2 p-3 bg-slate-700/50 rounded-lg", gridClass)}>
                   {puzzle.grid.map((cell: any, index: number) => (
@@ -178,7 +157,7 @@ export const PatternMatrixRenderer: React.FC<BaseRendererProps<PatternMatrixStat
                       <h3 className="text-center text-sm text-slate-300 font-semibold mb-2">Choose the correct piece:</h3>
                       <div className="h-6 text-sm font-semibold mb-2 text-center">
                           {feedback && (
-                              <p className={cn("animate-in fade-in", feedback.includes('Incorrect') ? 'text-red-400' : 'text-green-400')}>{feedback}</p>
+                              <p className={cn("animate-in fade-in", feedback.type === 'failure' ? 'text-red-400' : 'text-green-400')}>{feedback.message}</p>
                           )}
                       </div>
                       <div className={cn("grid gap-3", puzzle.type === 'verbal' || puzzle.type === 'music' ? 'grid-cols-2' : 'grid-cols-3')}>

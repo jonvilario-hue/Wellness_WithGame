@@ -1,17 +1,14 @@
+
 'use client';
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { useState, useCallback, useEffect, useMemo, useRef } from "react";
-import { cn } from "@/lib/utils";
-import { BookOpenText, Loader2 } from "lucide-react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
 import { adjustDifficulty, startSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
-import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
+import type { AdaptiveState, TrialResult, GameId, TrainingFocus, BaseRendererProps } from "@/types";
 import { clozeSentences, morphologyWordPairs, spatialConcepts } from "@/data/verbal-content";
 import { GameStub } from "../game-stub";
 import { GcSpatialLexicon } from "./gc-spatial-lexicon";
@@ -20,14 +17,14 @@ import { LogicLibrary } from '../logic/logic-library';
 import { GcNovelConceptLearner } from "./gc-novel-concept-learner";
 import GcMathConcepts from "./gc-math-concepts";
 import { GcMusicKnowledge } from "./gc-music-knowledge";
-import { domainIcons } from "@/components/icons";
-
+import { Loader2 } from "lucide-react";
+import { GcVerbalRenderer } from "./GcVerbalRenderer";
 
 const GAME_ID: GameId = 'gc_verbal_inference';
 const policy = difficultyPolicies[GAME_ID];
 
 // --- Puzzle Types ---
-type Puzzle = {
+export type GcVerbalPuzzle = {
   type: string;
   question: string;
   options: string[];
@@ -35,8 +32,19 @@ type Puzzle = {
   explanation: string;
 };
 
+export type GcVerbalGameState = {
+  gameState: 'loading' | 'start' | 'playing' | 'feedback' | 'finished';
+  puzzle: GcVerbalPuzzle | null;
+  selectedAnswer: string | null;
+}
+
+export type GcVerbalGameEvent = 
+  | { type: 'START_SESSION' }
+  | { type: 'SUBMIT_ANSWER', answer: string | null };
+
+
 // --- Puzzle Generation ---
-const generatePuzzleForLevel = (level: number, focus: TrainingFocus): Puzzle => {
+const generatePuzzleForLevel = (level: number, focus: TrainingFocus): GcVerbalPuzzle => {
     const levelDef = policy.levelMap[level] || policy.levelMap[Object.keys(policy.levelMap).pop() as any];
     const contentConfig = levelDef.content_config[focus];
     if (!contentConfig || !contentConfig.params) { // Fallback to verbal if focus not implemented for Gc
@@ -85,17 +93,18 @@ const generatePuzzleForLevel = (level: number, focus: TrainingFocus): Puzzle => 
     };
 };
 
-// --- Main Game Component ---
 export function VerbalInferenceBuilder() {
   const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
   const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
-  const [gameState, setGameState] = useState<'loading' | 'start' | 'playing' | 'feedback' | 'finished'>('loading');
   
-  const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
-  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
-  const [inlineFeedback, setInlineFeedback] = useState({ message: '', type: '' });
-  
+  const [componentState, setComponentState] = useState<GcVerbalGameState>({
+      gameState: 'loading',
+      puzzle: null,
+      selectedAnswer: null,
+  });
+  const [feedback, setFeedback] = useState<{ message: string; type: string; } | null>(null);
+
   const trialStartTime = useRef(0);
   const currentTrialIndex = useRef(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -103,201 +112,104 @@ export function VerbalInferenceBuilder() {
   const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
   const currentMode = isComponentLoaded ? (override || globalFocus) : 'neutral';
   
-  useEffect(() => {
-    if (isComponentLoaded) {
-      setGameState('start');
-    }
-  }, [isComponentLoaded, currentMode]);
-
-  const handleAnswer = useCallback((option: string | null) => {
-    const state = getAdaptiveState(GAME_ID, currentMode);
-    if (gameState !== 'playing' || !puzzle || !state) return;
-    
-    if (timerRef.current) clearTimeout(timerRef.current);
-    setGameState('feedback');
-    if(option) setSelectedAnswer(option);
-
-    const reactionTimeMs = Date.now() - trialStartTime.current;
-    const isCorrect = option === puzzle.answer;
-
-    const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs, telemetry: { timedOut: option === null } };
-    logTrial({
-      module_id: GAME_ID,
-      mode: currentMode,
-      levelPlayed: state.currentLevel,
-      isCorrect,
-      responseTime_ms: reactionTimeMs,
-      meta: {
-        puzzleType: puzzle.type,
-      }
-    });
-    
-    const newState = adjustDifficulty(trialResult, state, policy);
-    updateAdaptiveState(GAME_ID, currentMode, newState);
-
-    setInlineFeedback({ message: isCorrect ? getSuccessFeedback('Gc') : getFailureFeedback('Gc'), type: isCorrect ? 'success' : 'failure' });
-    
-    setTimeout(() => {
-        currentTrialIndex.current++;
-        if (currentTrialIndex.current >= policy.sessionLength) {
-            setGameState('finished');
-        } else {
-            startNewTrial();
-        }
-    }, 2500);
-  }, [gameState, puzzle, getAdaptiveState, currentMode, logTrial, updateAdaptiveState]);
+  const adaptiveState = getAdaptiveState(GAME_ID, currentMode);
   
-  const startNewTrial = useCallback(() => {
-    const state = getAdaptiveState(GAME_ID, currentMode);
+  const handleEvent = useCallback((event: GcVerbalGameEvent) => {
+    if (event.type === 'START_SESSION') {
+      const sessionState = startSession(getAdaptiveState(GAME_ID, currentMode));
+      updateAdaptiveState(GAME_ID, currentMode, sessionState);
+      currentTrialIndex.current = 0;
+      startNewTrial(sessionState);
+    }
+    else if (event.type === 'SUBMIT_ANSWER') {
+      if (componentState.gameState !== 'playing' || !componentState.puzzle) return;
+      
+      if (timerRef.current) clearTimeout(timerRef.current);
+      
+      const reactionTimeMs = Date.now() - trialStartTime.current;
+      const isCorrect = event.answer === componentState.puzzle.answer;
+
+      const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs, telemetry: { timedOut: event.answer === null } };
+      logTrial({
+        module_id: GAME_ID,
+        mode: currentMode,
+        levelPlayed: adaptiveState.currentLevel,
+        isCorrect,
+        responseTime_ms: reactionTimeMs,
+        meta: { puzzleType: componentState.puzzle.type, }
+      } as any);
+      
+      const newState = adjustDifficulty(trialResult, adaptiveState, policy);
+      updateAdaptiveState(GAME_ID, currentMode, newState);
+
+      setComponentState(prev => ({...prev, gameState: 'feedback', selectedAnswer: event.answer}));
+      setFeedback({ message: isCorrect ? getSuccessFeedback('Gc') : getFailureFeedback('Gc'), type: isCorrect ? 'success' : 'failure' });
+      
+      setTimeout(() => {
+          currentTrialIndex.current++;
+          if (currentTrialIndex.current >= policy.sessionLength) {
+              setComponentState(prev => ({...prev, gameState: 'finished'}));
+          } else {
+              startNewTrial(newState);
+          }
+      }, 2500);
+    }
+  }, [componentState.gameState, componentState.puzzle, getAdaptiveState, currentMode, logTrial, adaptiveState, updateAdaptiveState]);
+
+  
+  const startNewTrial = useCallback((state: AdaptiveState) => {
     const onRamp = state.uncertainty > 0.7;
     const loadedLevel = onRamp
       ? Math.max(state.levelFloor, state.currentLevel - 2)
       : state.currentLevel;
     
     const newPuzzle = generatePuzzleForLevel(loadedLevel, currentMode);
-    setPuzzle(newPuzzle);
-    setSelectedAnswer(null);
-    setInlineFeedback({ message: '', type: '' });
-    setGameState('playing');
+    setComponentState({ gameState: 'playing', puzzle: newPuzzle, selectedAnswer: null });
+    setFeedback(null);
     trialStartTime.current = Date.now();
-  }, [currentMode, getAdaptiveState]);
+  }, [currentMode]);
   
   useEffect(() => {
-    if (gameState === 'playing') {
-      const state = getAdaptiveState(GAME_ID, currentMode);
-      const timeLimit = policy.levelMap[state.currentLevel]?.mechanic_config.timeLimit || 20000;
+    if (componentState.gameState === 'playing') {
+      const timeLimit = policy.levelMap[adaptiveState.currentLevel]?.mechanic_config.timeLimit || 20000;
       timerRef.current = setTimeout(() => {
-        handleAnswer(null);
+        handleEvent({ type: 'SUBMIT_ANSWER', answer: null });
       }, timeLimit);
     }
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [gameState, getAdaptiveState, currentMode, handleAnswer]);
+  }, [componentState.gameState, adaptiveState.currentLevel, handleEvent]);
 
-  const startNewSession = useCallback(() => {
-    const state = getAdaptiveState(GAME_ID, currentMode);
-    const sessionState = startSession(state);
-    updateAdaptiveState(GAME_ID, currentMode, sessionState);
-    currentTrialIndex.current = 0;
-    startNewTrial();
-  }, [startNewTrial, updateAdaptiveState, currentMode, getAdaptiveState]);
+  useEffect(() => {
+    if (isComponentLoaded) {
+      setComponentState(prev => ({...prev, gameState: 'start'}));
+    }
+  }, [isComponentLoaded, currentMode]);
   
-  const getButtonClass = (option: string) => {
-    if (gameState !== 'feedback' || !puzzle) return "bg-background";
-    if (option === puzzle.answer) return "bg-green-600 hover:bg-green-700 text-white";
-    if (option === selectedAnswer) return "bg-destructive hover:bg-destructive/90 text-destructive-foreground";
-    return "bg-background";
-  }
-
-  // --- ROUTER LOGIC ---
   if (!isComponentLoaded) {
-      return <Card className="w-full max-w-2xl min-h-[400px] flex items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-primary" /></Card>;
+      return <div className="w-full max-w-2xl min-h-[400px] flex items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
   }
   
-  if (currentMode === 'neutral') {
-    return <GcNovelConceptLearner focus={currentMode} />;
-  }
-
-  if (currentMode === 'math') {
-    return <GcMathConcepts focus={currentMode} />;
-  }
-
-  if (currentMode === 'music') {
-    return <GcMusicKnowledge focus={currentMode} />;
-  }
-
-  if (currentMode === 'spatial') {
-    return <GcSpatialLexicon />;
-  }
-
-  if (currentMode === 'eq') {
-      return <RegulationArchitect focus={currentMode} />;
-  }
-
-  if (currentMode === 'logic') {
-      return <LogicLibrary focus={currentMode} />;
-  }
-  // --- END ROUTER LOGIC ---
-
-  const renderContent = () => {
-    if (gameState === 'loading') {
-      return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
-    }
-    const state = getAdaptiveState(GAME_ID, currentMode);
-    if (gameState === 'start') {
-      return (
-        <div className="flex flex-col items-center gap-4">
-          <div className="font-mono text-lg">Level: {state?.currentLevel}</div>
-          <Button onClick={startNewSession} size="lg" disabled={!state}>Verbal Inference Builder</Button>
-        </div>
-      );
-    }
-    if (gameState === 'finished') {
-       return (
-        <div className="text-center space-y-4 animate-in fade-in">
-          <CardTitle>Session Complete!</CardTitle>
-          <Button onClick={() => setGameState('start')} size="lg">Play Again</Button>
-        </div>
-      );
-    }
-    if (!puzzle) return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
-
-    return (
-      <>
-        <div className="w-full flex justify-between font-mono text-sm">
-          <span>Trial: {currentTrialIndex.current + 1} / {policy.sessionLength}</span>
-          <span>Level: {state?.currentLevel}</span>
-        </div>
-        <div className="p-6 bg-muted rounded-lg w-full text-center min-h-[100px] flex items-center justify-center">
-          <p className="text-lg md:text-xl font-medium">{puzzle.question}</p>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
-          {puzzle.options.map((option, index) => (
-            <Button 
-              key={index} 
-              onClick={() => handleAnswer(option)}
-              disabled={gameState === 'feedback'}
-              size="lg"
-              variant="outline"
-              className={cn("h-auto py-3 whitespace-normal transition-all duration-300", getButtonClass(option))}
-            >
-              {option}
-            </Button>
-          ))}
-        </div>
-        <div className="h-16 mt-2 text-center">
-          <div className="h-6 text-sm font-semibold">
-            {inlineFeedback.message && (
-              <p className={cn("animate-in fade-in", inlineFeedback.type === 'success' ? 'text-green-600' : 'text-amber-600')}>
-                {inlineFeedback.message}
-              </p>
-            )}
-          </div>
-          {gameState === 'feedback' && (
-            <div className="animate-in fade-in">
-                <p className="text-sm text-muted-foreground">{puzzle.explanation}</p>
-            </div>
-          )}
-        </div>
-      </>
-    );
+  const renderMap: Record<TrainingFocus, React.ComponentType<any>> = {
+    neutral: GcNovelConceptLearner,
+    math: GcMathConcepts,
+    music: GcMusicKnowledge,
+    verbal: GcVerbalRenderer,
+    spatial: GcSpatialLexicon,
+    eq: RegulationArchitect,
+    logic: LogicLibrary,
   };
 
-  return (
-    <Card className="w-full max-w-2xl bg-amber-900/10 border-amber-500/20 text-foreground">
-      <CardHeader>
-        <CardTitle className="flex items-center justify-center gap-2 text-amber-500">
-            <span className="p-2 bg-amber-500/10 rounded-md"><domainIcons.Gc className="w-6 h-6 text-amber-400" /></span>
-            Verbal Inference Builder
-        </CardTitle>
-        <CardDescription className="text-center text-amber-500/80">
-            Deduce the meaning or relationship from the context provided.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col items-center gap-6 min-h-[400px] justify-center">
-        {renderContent()}
-      </CardContent>
-    </Card>
-  );
+  const Renderer = renderMap[currentMode] || GameStub;
+
+  return <Renderer 
+    gameState={componentState}
+    onEvent={handleEvent}
+    feedback={feedback}
+    adaptiveState={adaptiveState}
+    sessionLength={policy.sessionLength}
+    currentTrialIndex={currentTrialIndex.current}
+    focus={currentMode}
+  />;
 }

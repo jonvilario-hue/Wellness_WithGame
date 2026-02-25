@@ -1,8 +1,6 @@
 
 'use client';
 
-import type { LevelDefinition } from "./index";
-
 // This file is the single source of truth for all shared types in the application.
 
 // --- Core Cognitive & Domain Types ---
@@ -103,7 +101,8 @@ export interface DifficultyPolicy {
 export interface BaseRendererProps<TGameState, TGameEvent> {
   gameState: TGameState;
   onEvent: (event: TGameEvent) => void;
-  adaptiveState: AdaptiveState | null;
+  feedback: { message: string, type: string } | null;
+  adaptiveState: AdaptiveState;
   currentTrialIndex: number;
   sessionLength: number;
 }

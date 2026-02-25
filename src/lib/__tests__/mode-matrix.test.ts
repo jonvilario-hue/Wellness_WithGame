@@ -5,7 +5,7 @@
 
 import { difficultyPolicies, getDifficultyParams } from '@/data/difficulty-policies';
 import type { GameId, TrainingFocus } from '@/types';
-import { SPATIAL_INCOMPATIBLE_GAMES } from '../spatial-constants';
+import { isModeSupported } from '../mode-capabilities';
 
 const ALL_GAME_IDS: GameId[] = Object.keys(difficultyPolicies) as GameId[];
 const ALL_MODES: TrainingFocus[] = ['neutral', 'math', 'music', 'verbal', 'spatial', 'eq', 'logic'];
@@ -15,15 +15,10 @@ describe('Mode Matrix Test Suite', () => {
     describe(`Game: ${gameId}`, () => {
       ALL_MODES.forEach(mode => {
         
-        const isIntentionallyIncompatible =
-          (mode === 'spatial' && SPATIAL_INCOMPATIBLE_GAMES.includes(gameId));
+        const isIntentionallyIncompatible = !isModeSupported(gameId, mode);
 
         if (isIntentionallyIncompatible) {
           test(`should be explicitly incompatible with '${mode}' mode`, () => {
-            const params = getDifficultyParams(gameId, 1, mode);
-            // Incompatible modes should not have a content_config for that focus, or it should be handled gracefully
-            // Depending on the implementation of getDifficultyParams, it might return null content or a default.
-            // The key is that the app knows how to handle this (e.g., by showing GameStub).
             const policy = difficultyPolicies[gameId];
             const hasContentConfig = !!policy.levelMap[1]?.content_config[mode];
             expect(hasContentConfig).toBe(false);

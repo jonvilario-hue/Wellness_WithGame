@@ -5,7 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { cn } from "@/lib/utils";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { useToast } from "@/hooks/use-toast";
 import { useGlrStore, type SpacedPair } from "@/hooks/use-glr-store";
@@ -13,7 +12,7 @@ import { Loader2 } from "lucide-react";
 import type { TrainingFocus, AdaptiveState, TrialResult, GameId } from "@/types";
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
-import { generalCategories, mathCategories, musicCategories, verbalCategories, realWords } from "@/data/verbal-content";
+import { generalCategories, mathCategories, musicCategories, verbalCategories, realWords, validationWordList } from "@/data/verbal-content";
 import { GameStub } from "../game-stub";
 import { AlgorithmFluency } from "../logic/algorithm-fluency";
 import { SpacedRetrievalMode } from "./spaced-retrieval-mode";
@@ -26,10 +25,6 @@ import { PRNG } from "@/lib/rng";
 const GLR_GAME_ID: GameId = 'glr_fluency_storm';
 const glrPolicy = difficultyPolicies[GLR_GAME_ID];
 
-/**
- * Fix 2: CategorySampler is now a local utility within the component that uses it,
- * removing the abstraction leak from the shared rng.ts module.
- */
 class CategorySampler {
     private categories: string[];
     private prng: PRNG;
@@ -56,6 +51,15 @@ class CategorySampler {
         return category;
     }
 }
+
+const isAssociativelyRelated = (prevWord: string, currentWord: string, rule: string, chain: string[]): boolean => {
+    if (!currentWord || chain.includes(currentWord) || !validationWordList.has(currentWord)) {
+        return false;
+    }
+    // For this implementation, we will use a simple last-letter-first-letter rule.
+    // A real implementation would have more complex semantic checks.
+    return prevWord.charAt(prevWord.length - 1).toLowerCase() === currentWord.charAt(0).toLowerCase();
+};
 
 
 export function SemanticFluencyStorm() {
@@ -91,14 +95,7 @@ export function SemanticFluencyStorm() {
     };
 
     if (currentTrainingFocus === 'spatial') {
-        return <GameStub 
-            name="Route Retrieval" 
-            description="A complex 3D 'memory palace' or city map is shown briefly. The map disappears. User must answer prompts like 'Which room was next to the library?' or 'Describe the path from the fountain to the tower.'"
-            chcFactor="Long-Term Retrieval (Glr) / Spatial Orientation"
-            techStack={['CSS 3D Transforms', 'SVG']}
-            complexity="High"
-            fallbackPlan="Use a 2D SVG subway-style map. The core mechanic of retrieving valid paths from memory is preserved."
-        />;
+        return <GameStub name="Route Retrieval" description="A complex 3D 'memory palace' or city map is shown briefly. The map disappears. User must answer prompts like 'Which room was next to the library?' or 'Describe the path from the fountain to the tower.'" chcFactor="Long-Term Retrieval (Glr) / Spatial Orientation" techStack={['CSS 3D Transforms', 'SVG']} complexity="High" fallbackPlan="Use a 2D SVG subway-style map." />;
     }
 
     if (currentTrainingFocus === 'logic') {
@@ -164,7 +161,6 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (result: { sc
     const [trials, setTrials] = useState<TrialResult[]>([]);
     const [userInput, setUserInput] = useState('');
     const [timeLeft, setTimeLeft] = useState(6);
-    const [streak, setStreak] = useState(0);
     const { toast } = useToast();
     
     const timerRef = useRef<NodeJS.Timeout>();
@@ -174,7 +170,7 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (result: { sc
     const prngRef = useRef<PRNG>(new PRNG(sessionId.current));
 
     const [currentWord, setCurrentWord] = useState(() => prngRef.current.shuffle(realWords)[0]);
-    const [currentRule, setCurrentRule] = useState<any>(() => prngRef.current.shuffle(["ASSOCIATE", "RHYME", "ANTONYM", "FIRST LETTER MATCH"])[0]);
+    const [currentRule, setCurrentRule] = useState<string>('last-letter');
 
     const handleTimeout = useCallback(() => {
         toast({ title: "Chain Broken!", description: `You built a chain of ${chain.length}.`, variant: "destructive" });
@@ -207,13 +203,11 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (result: { sc
         e.preventDefault();
         const reactionTimeMs = Date.now() - trialStartTime.current;
         const submittedWord = userInput.trim().toLowerCase();
-        if (!submittedWord) return;
 
-        // Simplified validation logic
-        const isValid = true; 
+        const isValid = isAssociativelyRelated(currentWord, submittedWord, currentRule, chain);
 
         const currentState = getAdaptiveState(GLR_GAME_ID, focus);
-        const trial: TrialResult = { correct: isValid, reactionTimeMs, telemetry: { mode: 'associative', rule: currentRule, word: currentWord } };
+        const trial: TrialResult = { correct: isValid, reactionTimeMs, telemetry: { mode: 'associative', rule: currentRule, prev_word: currentWord, submitted_word: submittedWord } };
         
         logTrial({ sessionId: sessionId.current, gameId: GLR_GAME_ID, seq: trials.length, ...trial} as any);
         setTrials(prev => [...prev, trial]);
@@ -224,11 +218,11 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (result: { sc
         if (isValid) {
             setCurrentWord(submittedWord);
             setChain(prev => [...prev, submittedWord]);
-            setCurrentRule(prngRef.current.shuffle(["ASSOCIATE", "RHYME", "ANTONYM", "FIRST LETTER MATCH"])[0]);
             setUserInput('');
             resetTimer();
         } else {
-             toast({ title: "Invalid Link", variant: "destructive" });
+             toast({ title: "Invalid link in the chain!", variant: "destructive" });
+             handleTimeout();
         }
     };
 
@@ -236,7 +230,7 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (result: { sc
         <div className="w-full flex flex-col items-center gap-4">
             <div className="w-full h-2 rounded-full bg-emerald-900/50 overflow-hidden"><div className="h-full bg-amber-400" style={{ width: `${(timeLeft / 6) * 100}%`, transition: 'width 1s linear' }}></div></div>
             <p className="font-mono text-right w-full">Chain Length: {chain.length}</p>
-            <div className="text-center p-4"><p className="text-lg text-muted-foreground font-semibold">{currentRule}</p><p className="text-5xl font-bold text-amber-400 my-2">{currentWord.toUpperCase()}</p></div>
+            <div className="text-center p-4"><p className="text-lg text-muted-foreground font-semibold">Next word must start with '{currentWord.charAt(currentWord.length - 1).toUpperCase()}'</p><p className="text-5xl font-bold text-amber-400 my-2">{currentWord.toUpperCase()}</p></div>
             <form onSubmit={handleSubmit} className="w-full flex gap-2"><Input value={userInput} onChange={(e) => setUserInput(e.target.value)} placeholder="Type related word..." autoFocus className="text-center text-lg h-12"/><Button type="submit" className="h-12 bg-emerald-600 hover:bg-emerald-500 text-white">Link</Button></form>
             <p className="text-xs text-muted-foreground h-4">{chain.slice(-5).join(' → ')}</p>
         </div>
