@@ -14,7 +14,6 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useTrainingOverride } from '@/hooks/use-training-override';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AuditoryFlanker } from '@/components/training/ga/auditory-flanker';
 import { FOCUS_MODE_META } from '@/lib/mode-constants';
 
 export default function TrainingPage() {
@@ -31,8 +30,8 @@ export default function TrainingPage() {
   const effectiveFocus = override || globalDefaultFocus;
   const ModeIcon = FOCUS_MODE_META[effectiveFocus]?.Icon || Brain;
 
-  const GameComponent = effectiveFocus === 'music' ? AuditoryFlanker : (gameComponents[domainInfo.key] || (() => <p>Game not found</p>));
-  const gameTitle = effectiveFocus === 'music' ? "Auditory Flanker" : (domainInfo.gameTitle || domainInfo.name);
+  const GameComponent = gameComponents[domainInfo.key] || (() => <p>Game not found</p>);
+  const gameTitle = domainInfo.gameTitle || domainInfo.name;
   const PageIcon = domainIcons[domainInfo.key];
 
   const supportedModes: { key: TrainingFocus; Icon: any; label: string; }[] = 
@@ -81,7 +80,7 @@ export default function TrainingPage() {
                   </div>
                 </div>
             </div>
-             {effectiveFocus === 'music' && (
+             {(effectiveFocus === 'music' || effectiveFocus === 'neutral') && (
                 <p className="text-xs text-muted-foreground flex items-center gap-1"><Headphones className="w-3 h-3"/> Wired headphones recommended</p>
             )}
           </div>
