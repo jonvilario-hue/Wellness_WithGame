@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { useAudioEngine } from "@/hooks/useAudioEngine";
-import { Loader2, Brain, Share2 } from "lucide-react";
+import { Loader2, Brain, Share2, Check, X } from "lucide-react";
 import { adjustDifficulty, startSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { TrialResult, GameId } from "@/types";
@@ -25,6 +24,55 @@ type Trial = {
     isAudioMatch: boolean;
 };
 
+const generateFullStream = (level: number, prng: PRNG): Trial[] => {
+    const params = policy.levelMap[level]?.content_config['logic']?.params;
+    if (!params) return [];
+    
+    const { n_back, pool, mode, lures } = params;
+    const tokenPool = logicTokenPools[pool as keyof typeof logicTokenPools];
+    const audioPool = Object.keys(audioTokenGateMap);
+    const stream: Trial[] = [];
+    
+    const totalTrials = 30;
+    const targetMatchCount = Math.floor(totalTrials * 0.3); // ~30% matches
+    let visualMatches = 0;
+    let audioMatches = 0;
+    let nonMatchSinceLastMatch = 0;
+
+    for (let i = 0; i < totalTrials; i++) {
+        let visual: Token, audio: string | undefined, isVisualMatch = false, isAudioMatch = false;
+        const nBackTrial = i >= n_back ? stream[i - n_back] : null;
+
+        // --- Visual Token ---
+        if (nBackTrial && visualMatches < targetMatchCount && prng.nextFloat() < 0.3 && nonMatchSinceLastMatch >= 1) {
+            visual = nBackTrial.visual;
+            isVisualMatch = true;
+            visualMatches++;
+            nonMatchSinceLastMatch = 0;
+        } else if (lures && nBackTrial && prng.nextFloat() < 0.1) {
+            const confusable = confusablePairs[nBackTrial.visual] || Object.keys(confusablePairs).find(k => confusablePairs[k] === nBackTrial.visual);
+            visual = confusable ? (confusablePairs[nBackTrial.visual] ? confusable : Object.keys(confusablePairs).find(k => confusablePairs[k] === nBackTrial.visual)!) : prng.shuffle(tokenPool.filter(t => t !== nBackTrial.visual))[0];
+            nonMatchSinceLastMatch++;
+        } else {
+            visual = prng.shuffle(tokenPool.filter(t => t !== nBackTrial?.visual))[0];
+            nonMatchSinceLastMatch++;
+        }
+
+        // --- Audio Token (for dual mode) ---
+        if (mode === 'dual') {
+            if (nBackTrial?.audio && audioMatches < targetMatchCount && prng.nextFloat() < 0.3) {
+                audio = nBackTrial.audio;
+                isAudioMatch = true;
+                audioMatches++;
+            } else {
+                audio = prng.shuffle(audioPool.filter(a => a !== nBackTrial?.audio))[0];
+            }
+        }
+        stream.push({ visual, audio, isVisualMatch, isAudioMatch });
+    }
+    return stream;
+}
+
 export function TokenNBack() {
     const { getAdaptiveState, updateAdaptiveState, logEvent } = usePerformanceStore();
     const { engine } = useAudioEngine();
@@ -42,104 +90,30 @@ export function TokenNBack() {
     const prngRef = useRef<PRNG>(new PRNG(sessionId.current));
 
     const adaptiveState = getAdaptiveState(GAME_ID, 'logic');
+    const streamRef = useRef<Trial[]>([]);
 
-    const generateStream = useCallback(() => {
-        const params = policy.levelMap[adaptiveState.currentLevel]?.content_config['logic']?.params;
-        if (!params) return [];
-
-        const { n_back, pool, mode, lures } = params;
-        const tokenPool = logicTokenPools[pool as keyof typeof logicTokenPools];
-        const audioPool = Object.keys(audioTokenGateMap);
-        const stream: Trial[] = [];
-        
-        const targetMatchCount = Math.floor(30 * 0.3);
-        let visualMatches = 0;
-        let audioMatches = 0;
-
-        for (let i = 0; i < 30; i++) {
-            let visual: Token;
-            let audio: string | undefined = undefined;
-            let isVisualMatch = false;
-            let isAudioMatch = false;
-
-            const nBackTrial = history.length >= n_back ? history[history.length - n_back] : null;
-
-            // Visual Token
-            if (nBackTrial && visualMatches < targetMatchCount && Math.random() < 0.3) {
-                visual = nBackTrial.visual;
-                isVisualMatch = true;
-                visualMatches++;
-            } else if (lures && nBackTrial && Math.random() < 0.1) {
-                const confusable = confusablePairs[nBackTrial.visual] || Object.keys(confusablePairs).find(k => confusablePairs[k] === nBackTrial.visual);
-                visual = confusable ? (confusablePairs[nBackTrial.visual] ? confusable : Object.keys(confusablePairs).find(k => confusablePairs[k] === nBackTrial.visual)!) : prngRef.current.shuffle(tokenPool.filter(t => t !== nBackTrial.visual))[0];
-            } else {
-                visual = prngRef.current.shuffle(tokenPool.filter(t => t !== nBackTrial?.visual))[0];
-            }
-
-            // Audio Token (for dual mode)
-            if (mode === 'dual') {
-                if (nBackTrial?.audio && audioMatches < targetMatchCount && Math.random() < 0.3) {
-                    audio = nBackTrial.audio;
-                    isAudioMatch = true;
-                    audioMatches++;
-                } else {
-                    audio = prngRef.current.shuffle(audioPool.filter(a => a !== nBackTrial?.audio))[0];
-                }
-            }
-            stream.push({ visual, audio, isVisualMatch, isAudioMatch });
-            setHistory(prev => [...prev, stream[stream.length - 1]]);
-        }
-        return stream;
-    }, [adaptiveState, history]);
-    
     const runTrial = useCallback(() => {
-        if (!engine || history.length >= 30) {
+        if (!engine || trialCount.current >= streamRef.current.length) {
             if(trialTimer.current) clearInterval(trialTimer.current);
             setGameState('finished');
             return;
         }
 
-        const params = policy.levelMap[adaptiveState.currentLevel]?.content_config['logic']?.params;
-        if (!params) return;
+        const newTrial = streamRef.current[trialCount.current];
         
-        const n_back = params.n_back;
-        const tokenPool = logicTokenPools[params.pool as keyof typeof logicTokenPools];
-        const audioPool = Object.keys(audioTokenGateMap);
-
-        let newVisual: Token, newAudio: string | undefined;
-        let isVisualMatch = false, isAudioMatch = false;
-        
-        const nBackTrial = history[history.length - n_back];
-        
-        // Visual
-        if (history.length >= n_back && Math.random() < 0.3) {
-            newVisual = nBackTrial.visual;
-            isVisualMatch = true;
-        } else {
-            newVisual = prngRef.current.shuffle(tokenPool.filter(t => t !== nBackTrial?.visual))[0];
-        }
-
-        // Audio
-        if (params.mode === 'dual') {
-             if (history.length >= n_back && Math.random() < 0.3) {
-                newAudio = nBackTrial.audio;
-                isAudioMatch = true;
-            } else {
-                newAudio = prngRef.current.shuffle(audioPool.filter(a => a !== nBackTrial?.audio))[0];
-            }
-            const audioConfig = audioTokenGateMap[newAudio!];
+        // Play Audio
+        if (newTrial.audio) {
+            const audioConfig = audioTokenGateMap[newTrial.audio];
             engine.playTone({ frequency: audioConfig.freq, type: audioConfig.type, duration: 0.3, volume: 0.4 });
         }
         
-        const newTrial: Trial = { visual: newVisual, audio: newAudio, isVisualMatch, isAudioMatch };
         setHistory(prev => [...prev, newTrial]);
-        
         stimulusOnsetTs.current = engine.getAudioContextTime();
         responseTracker.current = { visual: false, audio: false };
         setFeedback(null);
         trialCount.current++;
         
-    }, [engine, history, adaptiveState, prngRef]);
+    }, [engine, history]);
 
     const startNewSession = useCallback(() => {
         engine?.resumeContext();
@@ -150,8 +124,9 @@ export function TokenNBack() {
         sessionTrials.current = [];
         setHistory([]);
         sessionId.current = crypto.randomUUID();
+        streamRef.current = generateFullStream(sessionState.currentLevel, prngRef.current);
         setGameState('playing');
-    }, [engine, adaptiveState, updateAdaptiveState]);
+    }, [engine, adaptiveState, updateAdaptiveState, startNewTrial]);
 
     useEffect(() => {
         if (gameState === 'playing') {
@@ -182,7 +157,7 @@ export function TokenNBack() {
             responseTracker.current.audio = true;
             correct = currentTrial.isAudioMatch;
         } else {
-            return; // Already responded for this type
+            return;
         }
 
         setFeedback({ type: matchType, correct });

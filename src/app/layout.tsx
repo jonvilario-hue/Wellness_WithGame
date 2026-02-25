@@ -1,4 +1,3 @@
-
 'use client';
 
 import type { Metadata } from 'next';
@@ -64,18 +63,18 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased`} suppressHydrationWarning={true}>
         <StoreHydrator>
-          <ThemeProvider>
-            <AudioEngineProvider>
-              <TrainingFocusProvider>
+          <TrainingFocusProvider>
+            <ThemeProvider>
+              <AudioEngineProvider>
                 <TrainingOverrideProvider>
                   <AppShell>
                     {children}
                   </AppShell>
                   <Toaster />
                 </TrainingOverrideProvider>
-              </TrainingFocusProvider>
-            </AudioEngineProvider>
-          </ThemeProvider>
+              </AudioEngineProvider>
+            </ThemeProvider>
+          </TrainingFocusProvider>
         </StoreHydrator>
       </body>
     </html>

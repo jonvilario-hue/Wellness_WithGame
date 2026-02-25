@@ -1,4 +1,3 @@
-
 'use client';
 
 // This file is the single source of truth for all shared types in the application.

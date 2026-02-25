@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import React, { useState, useMemo, useEffect, useCallback, useRef, lazy, Suspense } from "react";
@@ -269,7 +267,10 @@ export function DynamicSequenceTransformer() {
     sessionLength: policy.sessionLength,
     currentTrialIndex: currentTrialIndex.current,
     focus: currentMode,
-    prng: prngRef.current,
+    prng: prngRef.current ?? undefined,
+    name: 'Dynamic Sequence Transformer',
+    description: 'A test of working memory and mental manipulation.',
+    chcFactor: 'Gwm',
   };
   
   if (currentMode === 'eq' && Renderer === GameStub) {

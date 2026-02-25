@@ -1,8 +1,8 @@
-
 'use client';
 
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
 import { themes, type Theme } from '@/data/themes';
+import { useTrainingFocus } from './use-training-focus';
 
 type ThemeProviderState = {
   theme: Theme;
@@ -28,27 +28,34 @@ export function ThemeProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const [theme, setThemeState] = useState<Theme>(defaultInitialTheme);
+  const [userSelectedTheme, setUserSelectedTheme] = useState<Theme>(defaultInitialTheme);
   const [organicGrowth, setOrganicGrowthState] = useState(true);
+  const { focus: trainingFocus } = useTrainingFocus();
+
+  const effectiveTheme = useMemo(() => {
+    if (trainingFocus === 'logic') {
+      return themes.find(t => t.key === 'challenge') || userSelectedTheme;
+    }
+    return userSelectedTheme;
+  }, [trainingFocus, userSelectedTheme]);
 
   useEffect(() => {
-    // Load settings from localStorage on initial client render
+    // Load user's preferred theme from localStorage on initial client render
     try {
       const savedSettings = window.localStorage.getItem(UI_SETTINGS_KEY);
       if (savedSettings) {
         const { themeKey, growthEnabled } = JSON.parse(savedSettings);
         const foundTheme = themes.find((t) => t.key === themeKey) || defaultInitialTheme;
-        setThemeState(foundTheme);
+        setUserSelectedTheme(foundTheme);
         setOrganicGrowthState(typeof growthEnabled === 'boolean' ? growthEnabled : true);
       }
     } catch (e) {
-      // Local storage not available or error parsing
       console.error("Failed to load UI settings from localStorage", e);
     }
   }, []);
 
   const setTheme = useCallback((newTheme: Theme) => {
-    setThemeState(newTheme);
+    setUserSelectedTheme(newTheme);
     try {
       const currentSettings = JSON.parse(window.localStorage.getItem(UI_SETTINGS_KEY) || '{}');
       const newSettings = { ...currentSettings, themeKey: newTheme.key };
@@ -73,16 +80,16 @@ export function ThemeProvider({
     const root = window.document.documentElement;
 
     root.classList.remove('dark', 'light');
-    root.classList.add(theme.colorScheme.isDark ? 'dark' : 'light');
+    root.classList.add(effectiveTheme.colorScheme.isDark ? 'dark' : 'light');
 
     const themeColors = {
-        '--theme-bg': theme.colorScheme.background,
-        '--theme-panel': theme.colorScheme.panels,
-        '--theme-text-primary': theme.colorScheme.textPrimary,
-        '--theme-text-secondary': theme.colorScheme.textSecondary,
-        '--theme-accent': theme.colorScheme.accent,
-        '--theme-accent-fg': theme.colorScheme.accentForeground,
-        '--theme-success': theme.colorScheme.success,
+        '--theme-bg': effectiveTheme.colorScheme.background,
+        '--theme-panel': effectiveTheme.colorScheme.panels,
+        '--theme-text-primary': effectiveTheme.colorScheme.textPrimary,
+        '--theme-text-secondary': effectiveTheme.colorScheme.textSecondary,
+        '--theme-accent': effectiveTheme.colorScheme.accent,
+        '--theme-accent-fg': effectiveTheme.colorScheme.accentForeground,
+        '--theme-success': effectiveTheme.colorScheme.success,
     };
     
     for (const [key, value] of Object.entries(themeColors)) {
@@ -91,14 +98,14 @@ export function ThemeProvider({
         }
     }
     
-  }, [theme]);
+  }, [effectiveTheme]);
 
   const value = useMemo(() => ({
-    theme,
+    theme: effectiveTheme,
     setTheme,
     organicGrowth,
     setOrganicGrowth,
-  }), [theme, setTheme, organicGrowth, setOrganicGrowth]);
+  }), [effectiveTheme, setTheme, organicGrowth, setOrganicGrowth]);
 
   return (
     <ThemeProviderContext.Provider value={value}>
