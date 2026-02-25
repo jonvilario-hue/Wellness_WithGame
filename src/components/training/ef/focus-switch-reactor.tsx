@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Loader2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Keyboard, Music, Check, X, Ear, Timer } from 'lucide-react';
+import { Loader2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Keyboard, Music, Check, X, Ear, Timer, Smile } from 'lucide-react';
 import { adjustDifficulty, startSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
@@ -43,6 +42,7 @@ const arrowMap: Record<ArrowDir, React.ElementType> = {
 type NeutralRule = 'position' | 'arrow' | 'no_go';
 type MathRule = 'parity' | 'magnitude' | 'no_go';
 type MusicRule = 'pitch' | 'duration';
+type EqRule = 'emotion' | 'gaze';
 
 type Stimulus = {
     // Neutral
@@ -53,6 +53,9 @@ type Stimulus = {
     // Music
     pitch?: number;
     duration?: number;
+    // EQ
+    emotion?: 'happy' | 'sad';
+    gaze?: 'left' | 'right';
 };
 
 export function FocusSwitchReactor() {
@@ -64,7 +67,7 @@ export function FocusSwitchReactor() {
   const [gameState, setGameState] = useState<'loading' | 'start' | 'cueing' | 'running' | 'feedback' | 'finished'>('loading');
   
   const [score, setScore] = useState(0);
-  const [rule, setRule] = useState<NeutralRule | MathRule | MusicRule>('position');
+  const [rule, setRule] = useState<NeutralRule | MathRule | MusicRule | EqRule>('position');
   const [stimulus, setStimulus] = useState<Partial<Stimulus>>({});
   const [inlineFeedback, setInlineFeedback] = useState({ message: '', type: '' });
 
@@ -114,6 +117,12 @@ export function FocusSwitchReactor() {
         const newStimulus = { pitch, duration };
         setStimulus(newStimulus);
         return newStimulus;
+    } else if (currentMode === 'eq') {
+        const newEmotion: 'happy' | 'sad' = Math.random() > 0.5 ? 'happy' : 'sad';
+        const newGaze: 'left' | 'right' = Math.random() > 0.5 ? 'left' : 'right';
+        const newStimulus = { emotion: newEmotion, gaze: newGaze };
+        setStimulus(newStimulus);
+        return newStimulus;
     }
     return {};
   }, [currentMode, getAdaptiveState]);
@@ -129,7 +138,10 @@ export function FocusSwitchReactor() {
     let availableRules: any[] = [];
     if (currentMode === 'music') {
         availableRules = ['pitch', 'duration'];
-    } else {
+    } else if (currentMode === 'eq') {
+        availableRules = contentConfig.params?.rules as any[] || [];
+    }
+    else {
         availableRules = contentConfig.params?.rules as any[] || [];
     }
     
@@ -213,7 +225,15 @@ export function FocusSwitchReactor() {
         telemetry.correct_response = ruleRef.current === 'pitch' 
             ? (stimulus.pitch === params.high_pitch_hz ? 'high' : 'low')
             : (stimulus.duration === params.long_duration_ms ? 'long' : 'short');
+    } else if (currentMode === 'eq') {
+        const isEmotionRule = ruleRef.current === 'emotion';
+        const emotionMapping = stimulus.emotion === 'happy' ? 'left' : 'right';
+        const gazeMapping = stimulus.gaze;
+        
+        telemetry.isCongruent = emotionMapping === gazeMapping;
+        telemetry.correct_response = isEmotionRule ? emotionMapping : gazeMapping;
     }
+
 
     const trialResult: TrialResult = { 
         correct, 
@@ -270,7 +290,17 @@ export function FocusSwitchReactor() {
             const correctDuration = stimulus.duration === params.long_duration_ms ? 'long' : 'short';
             isCorrect = answer === correctDuration;
         }
-    } else {
+    } else if (currentMode === 'eq') {
+        const isEmotionRule = ruleRef.current === 'emotion';
+        // Rule: Happy -> Left button, Sad -> Right button
+        const correctEmotionResponse = stimulus.emotion === 'happy' ? 'left' : 'right';
+        // Rule: Gaze -> a matching button direction
+        const correctGazeResponse = stimulus.gaze;
+        
+        const correctResponse = isEmotionRule ? correctEmotionResponse : correctGazeResponse;
+        isCorrect = (answer === correctResponse);
+    }
+    else {
       // Logic for neutral/math modes...
       let targetSide = 'left';
       if (currentMode === 'neutral') {
@@ -320,12 +350,15 @@ export function FocusSwitchReactor() {
       } else if (currentMode === 'music') {
         if (rule === 'pitch') text = 'Judge the PITCH';
         else if (rule === 'duration') text = 'Judge the DURATION';
+      } else if (currentMode === 'eq') {
+        if (rule === 'emotion') text = 'LEFT for HAPPY, RIGHT for SAD';
+        else if (rule === 'gaze') text = 'Respond to GAZE DIRECTION';
       }
       if (rule === 'no_go') text = "DON'T RESPOND";
       return <span className="font-bold text-primary uppercase">{text}</span>;
   }
   
-  if (currentMode !== 'neutral' && currentMode !== 'math' && currentMode !== 'music') {
+  if (currentMode !== 'neutral' && currentMode !== 'math' && currentMode !== 'music' && currentMode !== 'eq') {
      return <GameStub 
       name="Focus Switch Reactor"
       chcFactor="Executive Function (EF)"
@@ -414,6 +447,44 @@ export function FocusSwitchReactor() {
                     </div>
                 </div>
             );
+          }
+           if (currentMode === 'eq') {
+            const options: ('left' | 'right')[] = ['left', 'right'];
+             return (
+                <div className="flex flex-col items-center gap-4 w-full">
+                    <div className="flex justify-between w-full font-mono text-rose-200">
+                        <span>Trial: {currentTrialIndex.current + 1} / {policy.sessionLength}</span>
+                        <span>Score: {score}</span>
+                    </div>
+                    <div className="relative p-8 bg-card rounded-lg w-full h-48 flex items-center justify-center">
+                         {stimulus.emotion && stimulus.gaze && (
+                            <div className="text-center">
+                                <Smile className="w-24 h-24 text-primary" />
+                                <p className="font-bold text-lg capitalize">{stimulus.emotion}</p>
+                                <p className="text-sm text-muted-foreground">Gazing {stimulus.gaze}</p>
+                            </div>
+                        )}
+                    </div>
+                    <p className="text-xl mb-4 h-12 flex items-center text-center">Rule: {getRuleText()}</p>
+                    <div className="h-6 text-sm font-semibold">
+                        {inlineFeedback.message && (
+                          <p className={cn( "animate-in fade-in", inlineFeedback.type === 'success' ? 'text-green-500' : 'text-amber-500' )}>
+                            {inlineFeedback.message}
+                          </p>
+                        )}
+                    </div>
+                    <div className={cn("grid gap-4 w-full max-w-sm", "grid-cols-2")}>
+                        {options.map((option) => {
+                          const Icon = arrowMap[option as ArrowDir];
+                          return (
+                              <Button key={option} onClick={() => handleAnswer(option, 'click')} disabled={gameState === 'feedback'} variant="secondary" size="lg" className="h-20 bg-rose-900/50 border-rose-500/20 text-white hover:bg-rose-900">
+                                  <Icon className={"w-10 h-10"} />
+                              </Button>
+                          )
+                        })}
+                    </div>
+                </div>
+            )
           }
           // Fallback for neutral/math modes
            const options: ('left' | 'right')[] = ['left', 'right'];
