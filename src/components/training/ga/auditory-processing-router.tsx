@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,7 +15,7 @@ import { domainIcons } from "@/components/icons";
 import { usePreloadAssets } from "@/hooks/usePreloadAssets";
 import CoreMode from './CoreMode';
 import { AuditoryFlanker } from './auditory-flanker';
-import CodeLogicMode from './CodeLogicMode';
+import { CodeLogicMode } from './CodeLogicMode';
 import VerbalMode from './VerbalMode';
 import SpatialMode from './SpatialMode';
 import MathMode from './MathMode';
@@ -25,7 +24,7 @@ import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
 
 
-export function AuditoryProcessingRouter() {
+export default function AuditoryProcessingRouter() {
     const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
     const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
 
