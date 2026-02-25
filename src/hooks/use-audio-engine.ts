@@ -8,6 +8,7 @@ import { getAsset } from '@/lib/asset-preloader'; // Import the new asset getter
 interface ActiveVoice {
   osc: OscillatorNode;
   gain: GainNode;
+  panner?: StereoPannerNode;
   scheduledEnd: number;
 }
 
@@ -84,30 +85,46 @@ export const useAudioEngine = () => {
       };
     }, [context]);
 
-    const scheduleTone = useCallback((frequency: number, startTime: number, duration: number, timbre: OscillatorType = 'sine'): ToneHandle | null => {
+    const scheduleTone = useCallback((
+        frequency: number, 
+        startTime: number, 
+        duration: number, 
+        timbre: OscillatorType = 'sine',
+        pan: number = 0,
+        gain: number = 0.7
+    ): ToneHandle | null => {
         if (!context || !masterGainRef.current) return null;
 
         const safeDuration = Math.max(duration, 0.1);
         const osc = context.createOscillator();
         const gainNode = context.createGain();
+        const panner = context.createStereoPanner();
+        
+        panner.pan.setValueAtTime(pan, startTime);
+
         osc.type = timbre;
         osc.frequency.setValueAtTime(frequency, startTime);
+        
         gainNode.gain.setValueAtTime(0, startTime);
-        gainNode.gain.linearRampToValueAtTime(0.7, startTime + 0.01);
-        gainNode.gain.exponentialRampToValueAtTime(0.1, startTime + safeDuration - 0.05);
+        gainNode.gain.linearRampToValueAtTime(gain, startTime + 0.01);
+        gainNode.gain.exponentialRampToValueAtTime(0.1 * gain, startTime + safeDuration - 0.05);
         gainNode.gain.linearRampToValueAtTime(0, startTime + safeDuration);
+        
         osc.connect(gainNode);
-        gainNode.connect(masterGainRef.current);
+        gainNode.connect(panner);
+        panner.connect(masterGainRef.current);
+        
         osc.start(startTime);
         osc.stop(startTime + safeDuration);
 
-        const voice: ActiveVoice = { osc, gain: gainNode, scheduledEnd: startTime + safeDuration };
+        const voice: ActiveVoice = { osc, gain: gainNode, panner, scheduledEnd: startTime + safeDuration };
         activeVoices.current.push(voice);
         
         osc.onended = () => {
             activeVoices.current = activeVoices.current.filter(v => v !== voice);
             osc.disconnect();
             gainNode.disconnect();
+            panner.disconnect();
         };
 
         return { scheduledOnset: startTime, scheduledEnd: startTime + safeDuration, voice };
@@ -137,7 +154,7 @@ export const useAudioEngine = () => {
             osc.start(now);
             osc.stop(now + durationSec);
 
-            const voice: ActiveVoice = { osc, gain: gainNode, scheduledEnd: now + durationSec };
+            const voice: ActiveVoice = { osc, gain: gainNode, panner, scheduledEnd: now + durationSec };
             activeVoices.current.push(voice);
             
             osc.onended = () => {

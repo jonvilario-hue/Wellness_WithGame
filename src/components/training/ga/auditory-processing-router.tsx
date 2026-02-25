@@ -20,6 +20,8 @@ import { useAudioEngine, midiToFreq } from "@/hooks/use-audio-engine";
 import { capabilities } from "@/lib/capabilities";
 import { generatePhonemeDiscriminationProblem } from "@/lib/verbal-stimulus-factory";
 import { PRNG } from "@/lib/rng";
+import { GaSpatialAudioGame } from "./GaSpatialAudioGame";
+
 
 const GAME_ID: GameId = 'ga_auditory_lab';
 const policy = difficultyPolicies[GAME_ID];
@@ -350,6 +352,9 @@ export function AuditoryProcessingRouter() {
             break;
         case 'music':
             GameComponent = <PitchDiscriminationModule focus={currentMode} prng={prngRef.current} />;
+            break;
+        case 'spatial':
+            GameComponent = <GaSpatialAudioGame />;
             break;
         default:
              GameComponent = <GameStub 
