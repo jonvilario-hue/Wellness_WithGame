@@ -11,6 +11,11 @@ export interface PlaybackHandle {
   scheduledOnset: number;
 }
 
+export interface TonePlaybackHandle extends PlaybackHandle {
+    oscillator: OscillatorNode;
+    gainNode: GainNode;
+}
+
 export type PlaybackConfig = {
     volume?: number;
     pan?: number;
@@ -144,7 +149,7 @@ export class AudioEngine {
     return handle;
   }
 
-  public playTone(config: ToneConfig): PlaybackHandle | null {
+  public playTone(config: ToneConfig): TonePlaybackHandle | null {
     if (!this.isReady || !this.audioContext || !this.masterGain) return null;
     this.resumeContext();
     
@@ -156,8 +161,8 @@ export class AudioEngine {
 
     const gainNode = this.audioContext.createGain();
     gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
-    gainNode.gain.linearRampToValueAtTime(volume, this.audioContext.currentTime + 0.01); // Quick fade in
-    gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + duration - 0.01); // Quick fade out
+    gainNode.gain.linearRampToValueAtTime(volume, this.audioContext.currentTime + (delay ?? 0) + 0.01); // Quick fade in
+    gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + (delay ?? 0) + duration - 0.01); // Quick fade out
 
     const panner = this.audioContext.createStereoPanner();
     panner.pan.setValueAtTime(pan, this.audioContext.currentTime);
@@ -172,10 +177,12 @@ export class AudioEngine {
 
     this.activeSources.add(osc);
 
-    const handle: PlaybackHandle = {
+    const handle: TonePlaybackHandle = {
         stop: () => { try { osc.stop(); } catch(e) {} },
         sourceNode: osc,
-        scheduledOnset
+        scheduledOnset,
+        oscillator: osc,
+        gainNode: gainNode
     };
 
     osc.onended = () => {

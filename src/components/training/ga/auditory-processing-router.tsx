@@ -23,6 +23,9 @@ import CoreMode from './CoreMode';
 import { AuditoryFlanker } from './auditory-flanker';
 import { CodeLogicMode } from './CodeLogicMode';
 import VerbalMode from './VerbalMode';
+import { GameStub as AuditoryDebugger } from './auditory-debugger';
+import { GameStub as PhonemeDiscriminationModule } from './phoneme-discrimination';
+import SpatialMode from './SpatialMode';
 
 
 export function AuditoryProcessingRouter() {
@@ -41,7 +44,7 @@ export function AuditoryProcessingRouter() {
         case 'music':
             return <AuditoryFlanker />;
         case 'spatial':
-            return <GaSpatialAudioGame />;
+            return <SpatialMode />;
         case 'logic':
             return <CodeLogicMode />;
         case 'verbal':
