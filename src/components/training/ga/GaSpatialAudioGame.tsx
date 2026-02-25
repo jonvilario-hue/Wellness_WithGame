@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { usePerformanceStore } from '@/hooks/use-performance-store';
-import { useAudioEngine } from '@/hooks/use-audio-engine';
+import { useAudioEngine } from '@/hooks/useAudioEngine';
 import { adjustDifficulty, startSession as startAdaptiveSession, endSession } from '@/lib/adaptive-engine';
 import { difficultyPolicies } from '@/data/difficulty-policies';
 import { generateSpatialAudioTrial, type SpatialAudioTrial } from '@/lib/ga-spatial-stimulus-factory';
@@ -126,7 +126,7 @@ export function GaSpatialAudioGame() {
     logEvent({
         type: 'trial_complete',
         sessionId: activeSession.sessionId,
-        seq: trialCount.current + 1,
+        seq: (activeSession.trialCount || 0) + 1,
         payload: {
             gameId: GAME_ID,
             focus: FOCUS_MODE,
