@@ -89,19 +89,17 @@ const policies: Partial<Record<GameId, DifficultyPolicy>> = {
   },
   glr_fluency_storm: {
     gameId: "glr_fluency_storm",
-    sessionLength: 1, 
+    sessionLength: 10,
     windowSize: 1,
     targetAccuracyHigh: 0.85,
     targetAccuracyLow: 0.60,
     levelMap: {
-      1: { mechanic_config: { timeSec: 45, minTarget: 5 }, content_config: { math: { sub_variant: 'spaced_retrieval', params: { pairs: 4, distractorDuration: 10 } }, neutral: { params: { category: "broad_concrete" } }, music: { sub_variant: 'auditory_scene_subtraction', params: { layer_count: 2, timbres: ['sine', 'square'] } }, verbal: { sub_variant: 'category_sprint', params: { category: 'Animals' } }, spatial: { sub_variant: 'route_retrieval', params: { map_complexity: 1 } } } },
-      2: { mechanic_config: {}, content_config: { math: { sub_variant: 'spaced_retrieval', params: { pairs: 4, distractorDuration: 15 } }, music: { sub_variant: 'auditory_scene_subtraction', params: { layer_count: 2, timbres: ['sine', 'triangle'] } } } },
-      3: { mechanic_config: {}, content_config: { math: { sub_variant: 'spaced_retrieval', params: { pairs: 5, distractorDuration: 15 } }, music: { sub_variant: 'auditory_scene_subtraction', params: { layer_count: 3, timbres: ['sine', 'square', 'triangle'] } } } },
-      4: { mechanic_config: {}, content_config: { math: { sub_variant: 'spaced_retrieval', params: { pairs: 5, distractorDuration: 20 } }, music: { sub_variant: 'auditory_scene_subtraction', params: { layer_count: 3, timbres: ['sine', 'triangle', 'sawtooth'] } } } },
-      5: { mechanic_config: {}, content_config: { math: { sub_variant: 'spaced_retrieval', params: { pairs: 6, distractorDuration: 20 } }, music: { sub_variant: 'auditory_scene_subtraction', params: { layer_count: 4, timbres: ['sine', 'square', 'triangle', 'sawtooth'] } } } },
-      6: { mechanic_config: {}, content_config: { math: { sub_variant: 'spaced_retrieval', params: { pairs: 6, distractorDuration: 25 } }, music: { sub_variant: 'auditory_scene_subtraction', params: { layer_count: 4, timbres: ['sine', 'triangle', 'square', 'sawtooth'] } } } },
-      7: { mechanic_config: {}, content_config: { math: { sub_variant: 'spaced_retrieval', params: { pairs: 7, distractorDuration: 25 } }, music: { sub_variant: 'auditory_scene_subtraction', params: { layer_count: 5, timbres: ['sine', 'square', 'triangle', 'sawtooth', 'sine'] } } } },
-      8: { mechanic_config: {}, content_config: { math: { sub_variant: 'spaced_retrieval', params: { pairs: 7, distractorDuration: 30 } }, music: { sub_variant: 'auditory_scene_subtraction', params: { layer_count: 5, timbres: ['sine', 'triangle', 'square', 'sawtooth', 'sine'] } } } },
+      1: { mechanic_config: {}, content_config: { spatial: { sub_variant: 'memory_palace', params: { landmarkCount: 4, objectCount: 4, encodingDurationMs: 30000, delayDurationMs: 10000, distractorCount: 2 } } } },
+      2: { mechanic_config: {}, content_config: { spatial: { sub_variant: 'memory_palace', params: { landmarkCount: 4, objectCount: 4, encodingDurationMs: 30000, delayDurationMs: 15000, distractorCount: 2 } } } },
+      3: { mechanic_config: {}, content_config: { spatial: { sub_variant: 'memory_palace', params: { landmarkCount: 6, objectCount: 6, encodingDurationMs: 25000, delayDurationMs: 20000, distractorCount: 3 } } } },
+      4: { mechanic_config: {}, content_config: { spatial: { sub_variant: 'memory_palace', params: { landmarkCount: 6, objectCount: 6, encodingDurationMs: 25000, delayDurationMs: 20000, distractorCount: 3 } } } },
+      5: { mechanic_config: {}, content_config: { spatial: { sub_variant: 'memory_palace', params: { landmarkCount: 8, objectCount: 8, encodingDurationMs: 20000, delayDurationMs: 30000, distractorCount: 4 } } } },
+      6: { mechanic_config: {}, content_config: { spatial: { sub_variant: 'memory_palace', params: { landmarkCount: 8, objectCount: 8, encodingDurationMs: 20000, delayDurationMs: 30000, distractorCount: 4 } } } },
     }
   },
   gc_verbal_inference: {

@@ -3,7 +3,6 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { useToast } from "@/hooks/use-toast";
@@ -21,6 +20,7 @@ import { difficultyPolicies } from "@/data/difficulty-policies";
 import { domainIcons } from "@/components/icons";
 import { usePageVisibility } from "@/hooks/use-page-visibility";
 import { PRNG } from "@/lib/rng";
+import { GlrMemoryPalace } from "./GlrMemoryPalace";
 
 const GLR_GAME_ID: GameId = 'glr_fluency_storm';
 const glrPolicy = difficultyPolicies[GLR_GAME_ID];
@@ -64,7 +64,7 @@ const isAssociativelyRelated = (prevWord: string, currentWord: string, rule: str
 
 export function SemanticFluencyStorm() {
     const [gameState, setGameState] = useState<'idle' | 'running' | 'finished'>('idle');
-    const [currentMode, setCurrentMode] = useState<'associative' | 'spaced' | 'category' | null>(null);
+    const [currentMode, setCurrentMode] = useState<'associative' | 'spaced' | 'category' | 'spatial' | null>(null);
     const [lastScore, setLastScore] = useState(0);
     const { getNextMode } = useGlrStore();
     const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
@@ -93,10 +93,6 @@ export function SemanticFluencyStorm() {
         
         setGameState('finished');
     };
-
-    if (currentTrainingFocus === 'spatial') {
-        return <GameStub name="Route Retrieval" description="A complex 3D 'memory palace' or city map is shown briefly. The map disappears. User must answer prompts like 'Which room was next to the library?' or 'Describe the path from the fountain to the tower.'" chcFactor="Long-Term Retrieval (Glr) / Spatial Orientation" techStack={['CSS 3D Transforms', 'SVG']} complexity="High" fallbackPlan="Use a 2D SVG subway-style map." />;
-    }
 
     if (currentTrainingFocus === 'logic') {
         return <AlgorithmFluency />;
@@ -132,6 +128,8 @@ export function SemanticFluencyStorm() {
                     return <SpacedRetrievalMode onComplete={handleGameComplete as any} focus={currentTrainingFocus} />;
                 case 'category':
                     return <CategorySwitchingMode onComplete={handleGameComplete as any} focus={currentTrainingFocus} />;
+                case 'spatial':
+                    return <GlrMemoryPalace onComplete={handleGameComplete as any} focus={currentTrainingFocus} />;
                 default:
                     return <Loader2 className="animate-spin" />;
             }
