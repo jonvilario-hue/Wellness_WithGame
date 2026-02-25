@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import type { BaseRendererProps } from '@/types';
 import type { GwmGameState, GwmGameEvent } from './dynamic-sequence-transformer';
 import type { CorsiBlock } from '@/lib/gwm-spatial-stimulus-factory';
+import { FOCUS_MODE_META } from '@/lib/mode-constants';
 
 const Block = ({ block, onBlockClick, isHighlighted, sequenceNumber, disabled }: { block: CorsiBlock, onBlockClick: (id: string) => void, isHighlighted: boolean, sequenceNumber?: number, disabled: boolean }) => {
     return (
@@ -44,7 +45,8 @@ export const GwmSpatialRenderer: React.FC<BaseRendererProps<GwmGameState, GwmGam
   feedback,
   adaptiveState,
   currentTrialIndex,
-  sessionLength
+  sessionLength,
+  focus
 }) => {
     const [highlightedBlock, setHighlightedBlock] = React.useState<string | null>(null);
 
@@ -70,12 +72,17 @@ export const GwmSpatialRenderer: React.FC<BaseRendererProps<GwmGameState, GwmGam
     }
     
     if (gameState === 'start') {
-      return (
-        <div className="flex flex-col items-center gap-4">
-          <div className="font-mono text-lg text-cyan-300">Level: {adaptiveState.currentLevel}</div>
-          <Button onClick={() => onEvent({type: 'START_SESSION'})} size="lg" className="bg-cyan-600 hover:bg-cyan-500 text-white">Start 3D Corsi Task</Button>
-        </div>
-      );
+        const { Icon, label } = FOCUS_MODE_META[focus];
+        return (
+            <div className="flex flex-col items-center gap-4">
+                <div className="flex flex-col items-center gap-2 text-cyan-300">
+                    <Icon className="w-10 h-10" />
+                    <span className="font-semibold">{label} Mode</span>
+                </div>
+                <div className="font-mono text-lg text-cyan-300">Level: {adaptiveState.currentLevel}</div>
+                <Button onClick={() => onEvent({type: 'START_SESSION'})} size="lg" className="bg-cyan-600 hover:bg-cyan-500 text-white">Start 3D Corsi Task</Button>
+            </div>
+        );
     }
     
     if (gameState === 'finished') {

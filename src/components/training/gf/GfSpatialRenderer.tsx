@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import type { BaseRendererProps } from "@/types";
 import { domainIcons } from '@/components/icons';
 import type { PatternMatrixState, PatternMatrixEvent, SpatialObject } from "./pattern-matrix";
+import { FOCUS_MODE_META } from '@/lib/mode-constants';
 
 // --- 3D Shape Components ---
 const Shape: React.FC<{ object: SpatialObject }> = ({ object }) => {
@@ -40,7 +41,8 @@ const GfSpatialRenderer: React.FC<BaseRendererProps<PatternMatrixState, PatternM
   onEvent,
   adaptiveState,
   currentTrialIndex,
-  sessionLength
+  sessionLength,
+  focus
 }) => {
 
   const renderContent = () => {
@@ -49,8 +51,13 @@ const GfSpatialRenderer: React.FC<BaseRendererProps<PatternMatrixState, PatternM
     }
     
     if (gameState === 'start') {
+      const { Icon, label } = FOCUS_MODE_META[focus];
       return (
         <div className="flex flex-col items-center gap-4">
+            <div className="flex flex-col items-center gap-2 text-blue-300">
+                <Icon className="w-10 h-10" />
+                <span className="font-semibold">{label} Mode</span>
+            </div>
           <div className="font-mono text-lg text-blue-300">Level: {adaptiveState.currentLevel}</div>
           <Button onClick={() => onEvent({type: 'START_SESSION'})} size="lg" className="bg-blue-600 hover:bg-blue-500 text-white">Start Spatial Matrix</Button>
         </div>

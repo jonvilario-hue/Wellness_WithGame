@@ -1,7 +1,8 @@
 
+
 'use client';
 
-import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef, lazy, Suspense } from "react";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
@@ -19,7 +20,8 @@ import { PRNG } from "@/lib/rng";
 import { usePageVisibility } from "@/hooks/use-page-visibility";
 import { Loader2 } from "lucide-react";
 import { DynamicSequenceRenderer } from './DynamicSequenceRenderer';
-import { GwmSpatialRenderer } from "./GwmSpatialRenderer";
+
+const GwmSpatialRenderer = lazy(() => import('./GwmSpatialRenderer'));
 
 
 const GAME_ID: GameId = 'gwm_dynamic_sequence';
@@ -271,5 +273,9 @@ export function DynamicSequenceTransformer() {
       rendererProps.chcFactor = "Working Memory (Gwm) / Emotion Recognition";
   }
 
-  return <Renderer {...rendererProps} />;
+  return (
+    <Suspense fallback={<div className="w-full max-w-2xl min-h-[400px] flex items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>}>
+        <Renderer {...rendererProps} />
+    </Suspense>
+  )
 }

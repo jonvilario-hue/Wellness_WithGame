@@ -376,6 +376,7 @@ export function PatternMatrix() {
                     adaptiveState={adaptiveState}
                     currentTrialIndex={currentTrialIndex.current}
                     sessionLength={policy.sessionLength}
+                    focus={currentMode}
                 />
             </Suspense>
         );
@@ -396,5 +397,6 @@ export function PatternMatrix() {
         adaptiveState={adaptiveState}
         currentTrialIndex={currentTrialIndex.current}
         sessionLength={policy.sessionLength}
+        focus={currentMode}
     />;
 }

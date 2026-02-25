@@ -10,6 +10,7 @@ import type { AdaptiveState, BaseRendererProps } from "@/types";
 import { domainIcons } from '@/components/icons';
 import type { PatternMatrixState, PatternMatrixEvent } from "./pattern-matrix";
 import { useAudioEngine } from '@/hooks/use-audio-engine';
+import { FOCUS_MODE_META } from '@/lib/mode-constants';
 
 const ElementComponent = ({ element }: { element: any }) => {
     if (!element) return null;
@@ -62,7 +63,8 @@ export const PatternMatrixRenderer: React.FC<BaseRendererProps<PatternMatrixStat
   onEvent,
   adaptiveState,
   currentTrialIndex,
-  sessionLength
+  sessionLength,
+  focus
 }) => {
   if (!adaptiveState) {
     return (
@@ -79,8 +81,13 @@ export const PatternMatrixRenderer: React.FC<BaseRendererProps<PatternMatrixStat
         case 'loading':
           return <Loader2 className="h-12 w-12 animate-spin text-blue-400" />;
         case 'start':
+          const { Icon, label } = FOCUS_MODE_META[focus];
           return (
             <div className="flex flex-col items-center gap-4">
+               <div className="flex flex-col items-center gap-2 text-blue-300">
+                <Icon className="w-10 h-10" />
+                <span className="font-semibold">{label} Mode</span>
+              </div>
               <div className="font-mono text-lg text-blue-300">Level: {adaptiveState.currentLevel}</div>
               <Button onClick={() => onEvent({type: 'START_SESSION'})} size="lg" className="bg-blue-600 hover:bg-blue-500 text-white">Start Pattern Matrix</Button>
             </div>

@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { domainIcons } from "@/components/icons";
 import type { BaseRendererProps } from '@/types';
 import type { DynamicSequenceGameState, DynamicSequenceGameEvent } from './dynamic-sequence-transformer';
+import { FOCUS_MODE_META } from '@/lib/mode-constants';
 
 export const DynamicSequenceRenderer: React.FC<BaseRendererProps<DynamicSequenceGameState, DynamicSequenceGameEvent>> = ({
     gameState,
@@ -18,6 +19,7 @@ export const DynamicSequenceRenderer: React.FC<BaseRendererProps<DynamicSequence
     adaptiveState,
     currentTrialIndex,
     sessionLength,
+    focus,
 }) => {
     const { gameState: phase, puzzle, userAnswer } = gameState;
     const answerInputRef = useRef<HTMLInputElement>(null);
@@ -31,7 +33,6 @@ export const DynamicSequenceRenderer: React.FC<BaseRendererProps<DynamicSequence
     const handleAnswerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       // This would require changing the main state. For now, let's assume the logic component handles it.
       // This highlights the complexity of separating controlled components.
-      // A better pattern would be for the logic component to pass down a 'setUserAnswer' dispatcher.
       // For this refactor, we'll keep it simple.
     };
 
@@ -47,8 +48,13 @@ export const DynamicSequenceRenderer: React.FC<BaseRendererProps<DynamicSequence
         
         switch (phase) {
           case 'start':
+            const { Icon, label } = FOCUS_MODE_META[focus];
             return (
               <div className="flex flex-col items-center gap-4">
+                 <div className="flex flex-col items-center gap-2 text-cyan-300">
+                    <Icon className="w-10 h-10" />
+                    <span className="font-semibold">{label} Mode</span>
+                </div>
                 <div className="font-mono text-lg text-cyan-300">Level: {adaptiveState.currentLevel}</div>
                 <Button onClick={() => onEvent({ type: 'START_SESSION' })} size="lg" className="bg-cyan-600 hover:bg-cyan-500 text-white">Dynamic Sequence</Button>
               </div>

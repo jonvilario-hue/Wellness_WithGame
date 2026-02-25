@@ -105,4 +105,5 @@ export interface BaseRendererProps<TGameState, TGameEvent> {
   adaptiveState: AdaptiveState;
   currentTrialIndex: number;
   sessionLength: number;
+  focus: TrainingFocus;
 }

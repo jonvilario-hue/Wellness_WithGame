@@ -21,6 +21,7 @@ import { domainIcons } from "@/components/icons";
 import { usePageVisibility } from "@/hooks/use-page-visibility";
 import { PRNG } from "@/lib/rng";
 import { GlrMemoryPalace } from "./GlrMemoryPalace";
+import { FOCUS_MODE_META } from "@/lib/mode-constants";
 
 const GLR_GAME_ID: GameId = 'glr_fluency_storm';
 const glrPolicy = difficultyPolicies[GLR_GAME_ID];
@@ -104,9 +105,14 @@ export function SemanticFluencyStorm() {
 
     const renderContent = () => {
         if (gameState === 'idle') {
+            const { Icon, label } = FOCUS_MODE_META[currentTrainingFocus];
             return (
-                <div className="flex flex-col items-center gap-4">
-                    <p className="text-center text-muted-foreground">This game trains your ability to store and retrieve information efficiently. It rotates through different modes each time you play.</p>
+                <div className="flex flex-col items-center gap-4 text-center">
+                    <div className="flex flex-col items-center gap-2 text-emerald-300">
+                        <Icon className="w-10 h-10" />
+                        <span className="font-semibold">{label} Mode</span>
+                    </div>
+                    <p className="text-muted-foreground">This game trains your ability to store and retrieve information efficiently. It rotates through different modes each time you play.</p>
                     <Button onClick={handleStart} size="lg" className="bg-emerald-600 hover:bg-emerald-500 text-white">Retrieval Trainer</Button>
                 </div>
             );

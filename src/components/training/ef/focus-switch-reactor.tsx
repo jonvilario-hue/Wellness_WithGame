@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +17,7 @@ import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
 import { domainIcons } from "@/components/icons";
 import { useAudioEngine } from "@/hooks/use-audio-engine";
+import { FOCUS_MODE_META } from "@/lib/mode-constants";
 
 
 const GAME_ID: GameId = 'ef_focus_switch';
@@ -343,10 +345,15 @@ export function FocusSwitchReactor() {
                     </div>
                 )
             }
+            const { Icon, label } = FOCUS_MODE_META[currentMode];
           return (
             <div className="flex flex-col items-center gap-4 text-center">
+                <div className="flex flex-col items-center gap-2 text-rose-300">
+                    <Icon className="w-10 h-10" />
+                    <span className="font-semibold">{label} Mode</span>
+                </div>
               <div className="font-mono text-lg text-rose-300">Level: {state?.currentLevel}</div>
-              <Button onClick={startNewSession} size="lg" className="bg-rose-600 hover:bg-rose-500 text-white" disabled={!state}>Focus Switch Reactor</Button>
+              <Button onClick={startNewSession} size="lg" className="bg-rose-600 hover:bg-rose-500 text-white">Focus Switch Reactor</Button>
                <div className="flex items-center gap-2 text-muted-foreground mt-4">
                   <Keyboard className="w-5 h-5"/>
                   <p>Controls: Use (A / ←) and (L / →) keys for non-music modes.</p>
