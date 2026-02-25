@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from "react";
@@ -25,8 +24,8 @@ export function HolisticView() {
             <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as ViewMode)} className="w-full">
                 <div className="flex justify-center mb-4">
                     <TabsList>
-                        <TabsTrigger value="domain">Cognitive Domain</TabsTrigger>
                         <TabsTrigger value="focus">By Training Focus</TabsTrigger>
+                        <TabsTrigger value="domain">Cognitive Domain</TabsTrigger>
                     </TabsList>
                 </div>
 
