@@ -1,18 +1,28 @@
+
 'use client';
 import type { AssetId, PlaybackConfig } from '@/types';
 import { AudioSampleManager } from './AudioSampleManager';
+import type { AssetUrlResolver } from './types';
 
 // Define a handle to control playback
 export interface PlaybackHandle {
   stop: () => void;
-  sourceNode: AudioBufferSourceNode;
+  sourceNode: AudioScheduledSourceNode; // Can be BufferSource or Oscillator
+  scheduledOnset: number;
 }
 
+// Default resolver for local assets. This can be swapped out for a cloud resolver.
+const defaultLocalAssetResolver: AssetUrlResolver = (assetId, assetPath) => {
+  return `/audio-assets/${assetPath}`;
+};
+
+
 export class AudioEngine {
-  private audioContext: AudioContext | null = null;
-  private sampleManager: AudioSampleManager | null = null;
+  public audioContext: AudioContext | null = null;
+  public sampleManager: AudioSampleManager | null = null;
   private masterGain: GainNode | null = null;
-  private activeSources: Set<AudioBufferSourceNode> = new Set();
+  private activeSources: Set<AudioScheduledSourceNode> = new Set();
+  public isReady: boolean = false;
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -25,15 +35,12 @@ export class AudioEngine {
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       this.masterGain = this.audioContext.createGain();
       this.masterGain.connect(this.audioContext.destination);
-      this.sampleManager = new AudioSampleManager(this.audioContext);
+      this.sampleManager = new AudioSampleManager(this.audioContext, defaultLocalAssetResolver);
+      this.isReady = true;
       console.log('[AudioEngine] Initialized successfully.');
     } catch (e) {
       console.error('[AudioEngine] Web Audio API is not supported in this browser.', e);
     }
-  }
-
-  public get isReady(): boolean {
-    return !!this.audioContext && !!this.sampleManager;
   }
 
   public async resumeContext(): Promise<void> {
@@ -44,7 +51,7 @@ export class AudioEngine {
   }
 
   public async playSample(assetId: AssetId, config: PlaybackConfig = {}): Promise<PlaybackHandle | null> {
-    if (!this.isReady || !this.sampleManager) return null;
+    if (!this.isReady || !this.sampleManager || !this.audioContext) return null;
     await this.resumeContext();
 
     const buffer = await this.sampleManager.getAsset(assetId);
@@ -53,24 +60,25 @@ export class AudioEngine {
         return null;
     }
 
-    const source = this.audioContext!.createBufferSource();
+    const source = this.audioContext.createBufferSource();
     source.buffer = buffer;
 
-    // Apply configurations (e.g., gain, pan)
     const gainNode = this.audioContext!.createGain();
     gainNode.gain.value = config.volume ?? 1;
     
     source.connect(gainNode);
     gainNode.connect(this.masterGain!);
 
-    source.start(0, config.startOffset ?? 0);
+    const scheduledOnset = this.audioContext.currentTime + (config.delay ?? 0);
+    source.start(scheduledOnset, config.startOffset ?? 0);
     this.activeSources.add(source);
 
     const handle: PlaybackHandle = {
         stop: () => {
-            source.stop();
+            try { source.stop(); } catch(e) {}
         },
         sourceNode: source,
+        scheduledOnset: scheduledOnset
     };
 
     source.onended = () => {
@@ -86,20 +94,20 @@ export class AudioEngine {
       if (!this.isReady || !this.audioContext) return;
       await this.resumeContext();
 
-      let time = this.audioContext!.currentTime;
+      let time = this.audioContext.currentTime;
       for (const assetId of assetIds) {
           const buffer = await this.sampleManager!.getAsset(assetId);
           if (buffer) {
-              const source = this.audioContext!.createBufferSource();
+              const source = this.audioContext.createBufferSource();
               source.buffer = buffer;
               source.connect(this.masterGain!);
               source.start(time);
-              time += buffer.duration + (intervalMs / 1000);
+              time += (intervalMs / 1000);
           }
       }
-      // Simple onEnd timeout
+      
       if(onEnd) {
-          const duration = (time - this.audioContext!.currentTime) * 1000;
+          const duration = (time - this.audioContext.currentTime) * 1000;
           if (duration > 0) {
             setTimeout(onEnd, duration);
           } else {
@@ -107,6 +115,50 @@ export class AudioEngine {
           }
       }
   }
+  
+    public async scheduleTone(frequency: number, startTime: number, duration: number, type: OscillatorType = 'sine', pan?: number, gain?: number): Promise<PlaybackHandle | null> {
+        if (!this.isReady || !this.audioContext) return null;
+
+        const oscillator = this.audioContext.createOscillator();
+        const gainNode = this.audioContext.createGain();
+
+        oscillator.type = type;
+        oscillator.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
+
+        const scheduledOnset = startTime;
+        gainNode.gain.setValueAtTime(0, scheduledOnset);
+        gainNode.gain.linearRampToValueAtTime(gain ?? 0.8, scheduledOnset + 0.02);
+        gainNode.gain.linearRampToValueAtTime(0, scheduledOnset + duration);
+
+        oscillator.connect(gainNode);
+        
+        if (pan !== undefined) {
+            const panner = this.audioContext.createStereoPanner();
+            panner.pan.setValueAtTime(pan, this.audioContext.currentTime);
+            gainNode.connect(panner);
+            panner.connect(this.masterGain!);
+        } else {
+            gainNode.connect(this.masterGain!);
+        }
+
+        oscillator.start(scheduledOnset);
+        oscillator.stop(scheduledOnset + duration + 0.1);
+        this.activeSources.add(oscillator);
+
+        const handle = {
+            stop: () => { try { oscillator.stop(); } catch(e) {} },
+            sourceNode: oscillator,
+            scheduledOnset
+        };
+        
+        oscillator.onended = () => {
+            gainNode.disconnect();
+            this.activeSources.delete(oscillator);
+        };
+
+        return handle;
+    }
+
 
   public stopAll() {
     this.activeSources.forEach(source => {
@@ -125,43 +177,18 @@ export class AudioEngine {
           this.audioContext.close().then(() => console.log('[AudioEngine] Context closed.'));
       }
   }
-
-  // --- Fallback Synthesis Methods (from original plan) ---
-
-  public playTone(config: { frequency: number, duration: number, type?: OscillatorType, onended?: () => void }) {
-    if (!this.audioContext || !this.masterGain) return null;
-    this.resumeContext();
-    const { frequency, duration, type = 'sine', onended } = config;
-
-    const oscillator = this.audioContext.createOscillator();
-    const gainNode = this.audioContext.createGain();
-
-    oscillator.type = type;
-    oscillator.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
-
-    // ADSR Envelope
-    const now = this.audioContext.currentTime;
-    gainNode.gain.setValueAtTime(0, now);
-    gainNode.gain.linearRampToValueAtTime(1, now + 0.02); // Attack
-    gainNode.gain.linearRampToValueAtTime(0.5, now + 0.1); // Decay
-    gainNode.gain.setValueAtTime(0.5, now + duration / 1000 - 0.1); // Sustain
-    gainNode.gain.linearRampToValueAtTime(0, now + duration / 1000); // Release
-
-    oscillator.connect(gainNode);
-    gainNode.connect(this.masterGain);
-
-    oscillator.start(now);
-    oscillator.stop(now + duration / 1000);
-    
-    this.activeSources.add(oscillator as any); // Track for cleanup
-
-    oscillator.onended = () => {
-        gainNode.disconnect();
-        this.activeSources.delete(oscillator as any);
-        onended?.();
-    };
-
-    return { stop: () => oscillator.stop() };
+  
+  public getAudioContextTime(): number {
+    return this.audioContext?.currentTime ?? 0;
+  }
+  
+  public getLatencyInfo() {
+      if(!this.audioContext) return { baseLatency: 0, outputLatency: 0, sampleRate: 44100 };
+      return {
+          baseLatency: (this.audioContext as any).baseLatency || 0,
+          outputLatency: this.audioContext.outputLatency || 0,
+          sampleRate: this.audioContext.sampleRate,
+      }
   }
 
   public speak(text: string, onEnd?: () => void) {

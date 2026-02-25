@@ -1,6 +1,8 @@
+
 'use client';
 import type { AssetId } from '@/types';
 import * as idbStore from '@/lib/idb-store';
+import type { AssetUrlResolver } from './types';
 
 interface AssetManifest {
     assets: {
@@ -13,10 +15,11 @@ export class AudioSampleManager {
     private audioContext: AudioContext;
     private manifest: AssetManifest | null = null;
     private inMemoryCache: Map<AssetId, AudioBuffer> = new Map();
-    private assetUrlResolver = (path: string) => `/audio-assets/${path}`;
+    private assetUrlResolver: AssetUrlResolver;
 
-    constructor(audioContext: AudioContext) {
+    constructor(audioContext: AudioContext, resolver: AssetUrlResolver) {
         this.audioContext = audioContext;
+        this.assetUrlResolver = resolver;
         this.loadManifest();
     }
 
@@ -46,7 +49,7 @@ export class AudioSampleManager {
             return this.generatePlaceholder(assetId);
         }
 
-        const url = this.assetUrlResolver(path);
+        const url = this.assetUrlResolver(assetId, path);
 
         try {
             const cachedBlob = await idbStore.getCachedAsset(url);
