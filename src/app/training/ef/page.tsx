@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -17,6 +16,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AuditoryStroop } from '@/components/training/ef/auditory-stroop';
 import { AuditoryGoNoGo } from '@/components/training/ef/auditory-go-no-go';
 import { FOCUS_MODE_META } from '@/lib/mode-constants';
+import { useState, useEffect } from 'react';
 
 
 export default function TrainingPage() {
@@ -25,6 +25,10 @@ export default function TrainingPage() {
   
   const { override, setOverride } = useTrainingOverride();
   const { focus: globalDefaultFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
+  
+  const [GameComponent, setGameComponent] = useState<React.ComponentType | null>(null);
+  const [gameTitle, setGameTitle] = useState<string>(domainInfo?.gameTitle || domainInfo?.name || '');
+
 
   if (!domainInfo) {
     notFound();
@@ -33,17 +37,24 @@ export default function TrainingPage() {
   const effectiveFocus = override || globalDefaultFocus;
   const ModeIcon = FOCUS_MODE_META[effectiveFocus]?.Icon || Brain;
 
-  // This router now selects between two different EF music games based on a simple logic
-  // A more robust implementation might use the difficulty policy to choose.
-  const isGoNoGoDay = new Date().getDate() % 2 === 0;
+  useEffect(() => {
+    // This logic is now inside useEffect to prevent hydration errors.
+    // It runs only on the client-side.
+    const isGoNoGoDay = new Date().getDate() % 2 === 0;
 
-  const GameComponent = effectiveFocus === 'music' 
-    ? (isGoNoGoDay ? AuditoryGoNoGo : AuditoryStroop) 
-    : (gameComponents[domainInfo.key] || (() => <p>Game not found</p>));
-  
-  const gameTitle = effectiveFocus === 'music' 
-    ? (isGoNoGoDay ? "Auditory Go/No-Go" : "Auditory Stroop")
-    : (domainInfo.gameTitle || domainInfo.name);
+    const selectedGame = effectiveFocus === 'music' 
+      ? (isGoNoGoDay ? AuditoryGoNoGo : AuditoryStroop) 
+      : (gameComponents[domainInfo.key] || (() => <p>Game not found</p>));
+    
+    const selectedTitle = effectiveFocus === 'music' 
+      ? (isGoNoGoDay ? "Auditory Go/No-Go" : "Auditory Stroop")
+      : (domainInfo.gameTitle || domainInfo.name);
+    
+    setGameComponent(() => selectedGame);
+    setGameTitle(selectedTitle);
+
+  }, [effectiveFocus, domainInfo]);
+
 
   const PageIcon = domainIcons[domainInfo.key];
 
@@ -121,7 +132,7 @@ export default function TrainingPage() {
        </div>
 
       <main className="flex-1 p-4 sm:p-6 md:p-8 flex items-center justify-center">
-        {isGlobalFocusLoaded ? <GameComponent /> : <Skeleton className="h-96 w-full max-w-2xl" />}
+        {isGlobalFocusLoaded && GameComponent ? <GameComponent /> : <Skeleton className="h-96 w-full max-w-2xl" />}
       </main>
     </div>
   );
