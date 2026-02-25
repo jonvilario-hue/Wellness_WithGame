@@ -1,8 +1,9 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from "react";
 import { cn } from "@/lib/utils";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { useTrainingFocus } from "@/hooks/use-training-focus";
@@ -17,6 +18,10 @@ import { GateSpeed } from '../logic/gate-speed';
 import { domainIcons } from "@/components/icons";
 import { useAudioEngine } from "@/hooks/use-audio-engine";
 import { generateLexicalDecisionProblem } from '@/lib/verbal-stimulus-factory';
+import { generateSpatialGvRotationTrial, type Polycube } from "@/lib/polycube-generator";
+import { PRNG } from "@/lib/rng";
+
+const GsSpatialRenderer = lazy(() => import('./GsSpatialRenderer'));
 
 const GAME_ID: GameId = 'gs_rapid_code';
 const policy = difficultyPolicies[GAME_ID];
@@ -27,12 +32,14 @@ const musicSymbolKeyPool = ['♩', '♪', '♫', '♭', '♯', '♮', '𝄞', '�
 const digits = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 type Problem = {
-    type: 'lexical' | 'symbol' | 'rhythm';
+    type: 'lexical' | 'symbol' | 'rhythm' | 'spatial_compare';
     stimulus: any;
     isReal?: boolean;
     keyMap?: { [key: string]: number };
     classificationRule?: string;
     isSame?: boolean;
+    objectA?: Polycube;
+    objectB?: Polycube;
 };
 
 export function RapidCodeMatch() {
@@ -50,6 +57,8 @@ export function RapidCodeMatch() {
   const currentTrialIndex = useRef(0);
   const keyChangeCounter = useRef(0);
   const mistakes = useRef(0);
+  const spatialTrialBatch = useRef<Problem[]>([]);
+  const prngRef = useRef<PRNG | null>(null);
 
   const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
   const currentMode = isComponentLoaded ? (override || globalFocus) : 'neutral';
@@ -62,22 +71,22 @@ export function RapidCodeMatch() {
     }
   }, [currentMode]);
   
-  const generateProblem = useCallback((level: number): Problem => {
+  const generateProblem = useCallback((level: number, prng: PRNG): Problem => {
     const levelDef = policy.levelMap[level] || policy.levelMap[1];
     const { mechanic_config } = levelDef;
     
     if (currentMode === 'verbal') {
-        return generateLexicalDecisionProblem(level);
+        return generateLexicalDecisionProblem(level, prng);
     }
     
     if (currentMode === 'music') {
-        const isSame = Math.random() > 0.5;
+        const isSame = prng.nextFloat() > 0.5;
         return { type: 'rhythm', stimulus: null, isSame };
     }
 
     // Default Symbol matching
     const numSymbols = mechanic_config.distractorCount + 1;
-    const shuffledSymbols = [...symbolPool].sort(() => Math.random() - 0.5);
+    const shuffledSymbols = prng.shuffle([...symbolPool]);
     const map: { [key: string]: number } = {};
     shuffledSymbols.slice(0, numSymbols).forEach((symbol, index) => {
       map[symbol] = digits[index];
@@ -91,7 +100,7 @@ export function RapidCodeMatch() {
         setTimeout(() => setInlineFeedback({ message: '', type: '' }), 1500);
     }
     const symbolsInKey = Object.keys(currentKeyMap);
-    const stimulus = symbolsInKey[Math.floor(Math.random() * symbolsInKey.length)];
+    const stimulus = symbolsInKey[prng.nextIntRange(0, symbolsInKey.length)];
     
     return { type: 'symbol', keyMap: currentKeyMap, stimulus, classificationRule: 'symbol_digit' };
   }, [symbolPool, problem, currentMode]);
@@ -99,32 +108,60 @@ export function RapidCodeMatch() {
 
   const startNewTrial = useCallback(() => {
       const state = getAdaptiveState(GAME_ID, currentMode);
+      if (!state || !prngRef.current) return;
+      
       const onRamp = state.uncertainty > 0.7;
       const loadedLevel = onRamp
           ? Math.max(state.levelFloor, state.currentLevel - 2)
           : state.currentLevel;
       
-      const newProblem = generateProblem(loadedLevel);
+      let newProblem;
+      if (currentMode === 'spatial') {
+        newProblem = spatialTrialBatch.current[currentTrialIndex.current];
+      } else {
+        newProblem = generateProblem(loadedLevel, prngRef.current);
+      }
+      
       setProblem(newProblem);
       if(newProblem.type === 'rhythm') {
-          const baseRhythm = [60, 0, 60, 0]; // quarter, rest, quarter, rest
-          const secondRhythm = newProblem.isSame ? baseRhythm : [60, 60, 0, 0]; // two eighths, rest
+          const baseRhythm = [60, 0, 60, 0];
+          const secondRhythm = newProblem.isSame ? baseRhythm : [60, 60, 0, 0];
           playSequence(baseRhythm, 0.25, () => {
               setTimeout(() => playSequence(secondRhythm, 0.25), 500);
           });
       }
       
       setGameState('running');
-      trialStartTime.current = Date.now();
+      trialStartTime.current = performance.now();
   }, [currentMode, generateProblem, getAdaptiveState, playSequence]);
 
   const startNewSession = useCallback(() => {
+    prngRef.current = new PRNG(crypto.randomUUID());
     resumeContext();
     const sessionState = startSession(getAdaptiveState(GAME_ID, currentMode));
     updateAdaptiveState(GAME_ID, currentMode, sessionState);
     currentTrialIndex.current = 0;
     keyChangeCounter.current = 0;
     mistakes.current = 0;
+
+    if (currentMode === 'spatial') {
+        const level = sessionState.currentLevel;
+        const levelDef = policy.levelMap[level] || policy.levelMap[1];
+        const params = levelDef.content_config['spatial']?.params;
+        spatialTrialBatch.current = Array.from({ length: 60 }).map(() => {
+            const isSame = prngRef.current!.nextFloat() > 0.5;
+            const target = generateSpatialGvRotationTrial(level, prngRef.current!);
+            const objectA = target.target;
+            let objectB: Polycube;
+            if (isSame) {
+                objectB = target.options.find(opt => opt.index === target.correctIndex)!.polycube;
+            } else {
+                objectB = prngRef.current!.shuffle(target.options.filter(opt => opt.index !== target.correctIndex))[0].polycube;
+            }
+            return { type: 'spatial_compare', objectA, objectB, isSame };
+        });
+    }
+
     startNewTrial();
   }, [startNewTrial, resumeContext, updateAdaptiveState, currentMode, getAdaptiveState]);
 
@@ -139,7 +176,7 @@ export function RapidCodeMatch() {
     if (gameState !== 'running' || !currentState || !problem) return;
     
     setGameState('feedback');
-    const reactionTimeMs = Date.now() - trialStartTime.current;
+    const reactionTimeMs = performance.now() - trialStartTime.current;
     const levelPlayed = currentState.currentLevel;
 
     const levelDef = policy.levelMap[levelPlayed] || policy.levelMap[1];
@@ -157,8 +194,11 @@ export function RapidCodeMatch() {
     } else if (problem.type === 'rhythm') {
         isCorrect = problem.isSame === answer;
         telemetry = { classificationRule: 'rhythm_comparison' };
+    } else if (problem.type === 'spatial_compare') {
+        isCorrect = problem.isSame === answer;
+        telemetry = { classificationRule: 'spatial_comparison' };
     }
-    isCorrect = isCorrect && reactionTimeMs < mechanic_config.responseWindowMs;
+    isCorrect = isCorrect && reactionTimeMs < (mechanic_config.responseWindowMs || 5000);
 
     if (!isCorrect) {
         mistakes.current++;
@@ -171,17 +211,17 @@ export function RapidCodeMatch() {
             ...telemetry,
             itemsAttempted: currentTrialIndex.current + 1,
             itemsCorrect: (currentTrialIndex.current + 1) - mistakes.current,
-            timeLimit_ms: mechanic_config.responseWindowMs,
+            timeLimit_ms: mechanic_config.responseWindowMs || 5000,
         }
     };
     logTrial({
-      module_id: GAME_ID,
-      mode: currentMode,
-      levelPlayed,
-      isCorrect: trialResult.correct,
-      responseTime_ms: trialResult.reactionTimeMs,
+      gameId: GAME_ID,
+      focus: currentMode,
+      difficultyLevel: levelPlayed,
+      correct: trialResult.correct,
+      rtMs: trialResult.reactionTimeMs,
       meta: trialResult.telemetry
-    });
+    } as any);
     
     const newState = adjustDifficulty(trialResult, currentState, policy);
     updateAdaptiveState(GAME_ID, currentMode, newState);
@@ -200,37 +240,8 @@ export function RapidCodeMatch() {
         } else {
             startNewTrial();
         }
-    }, 500);
+    }, 200); // Fast transition for a Gs task
   }, [gameState, problem, startNewTrial, updateAdaptiveState, currentMode, logTrial, getAdaptiveState]);
-
-  if (currentMode === 'spatial') {
-    return <GameStub 
-        name="Rapid Rotation" 
-        description="A simple 3D object (like an 'L' shape) is shown. Two other versions appear next to it. User must rapidly decide which of the two options is a valid rotation of the target and which is an impossible mirror image."
-        chcFactor="Processing Speed (Gs) / Mental Rotation"
-        techStack={['CSS 3D Transforms']}
-        complexity="High"
-        fallbackPlan="Use 2D character sprites (e.g. 'F') and their rotated/mirrored versions. The cognitive task is nearly identical and avoids 3D rendering overhead."
-    />;
-  }
-
-  if (currentMode === 'logic') {
-    return <GateSpeed />;
-  }
-
-  if (currentMode === 'eq') {
-      return <GameStub 
-        name="Flash Recognition"
-        description="A fixation cross, followed by a masked facial expression (e.g., surprise) flashed for 150-500ms. Rapidly classify the flashed universal emotion from a multiple-choice response array before the next trial begins."
-        chcFactor="Processing Speed (Gs) / Micro-Expression Recognition"
-        techStack={['Framer Motion', 'Face Asset Library']}
-        complexity="Medium"
-        fallbackPlan="If face assets fail, use abstract 'emoticon' style SVGs. This preserves the speeded classification mechanic but loses the micro-expression subtlety."
-        difficultyExamples={{
-        level1: "Evaluate '[T] OR [F]' with a 2000ms time limit.",
-        level8: "Evaluate 'NOT ([T] XOR [F])' with a 700ms time limit, requiring knowledge of operator precedence."
-      }}/>
-  }
 
   const renderContent = () => {
     if (!isComponentLoaded) {
@@ -255,7 +266,6 @@ export function RapidCodeMatch() {
           );
     }
     if (gameState === 'finished') {
-      const finalState = getAdaptiveState(GAME_ID, currentMode);
       const accuracy = currentTrialIndex.current > 0 ? ((currentTrialIndex.current - mistakes.current) / currentTrialIndex.current) : 0;
       const score = (currentTrialIndex.current - mistakes.current);
       return (
@@ -270,6 +280,26 @@ export function RapidCodeMatch() {
     if (!problem) return <Loader2 className="animate-spin"/>;
     
     const score = (currentTrialIndex.current - mistakes.current);
+
+    if (currentMode === 'spatial') {
+        return (
+            <Suspense fallback={<Loader2 className="w-12 h-12 animate-spin"/>}>
+                <GsSpatialRenderer
+                    trial={problem}
+                    onResponse={handleAnswer}
+                    timeLeft={60} // Placeholder, a real timer would be implemented
+                    score={score}
+                />
+            </Suspense>
+        );
+    }
+    if (currentMode === 'logic') {
+        return <GateSpeed />;
+    }
+
+    if (currentMode === 'eq') {
+      return <GameStub name="Flash Recognition" description="A fixation cross, followed by a masked facial expression (e.g., surprise) flashed for 150-500ms. Rapidly classify the flashed universal emotion from a multiple-choice response array before the next trial begins." chcFactor="Processing Speed (Gs) / Micro-Expression Recognition" techStack={['Framer Motion', 'Face Asset Library']} complexity="Medium" fallbackPlan="If face assets fail, use abstract 'emoticon' style SVGs. This preserves the speeded classification mechanic but loses the micro-expression subtlety." difficultyExamples={{ level1: "Evaluate '[T] OR [F]' with a 2000ms time limit.", level8: "Evaluate 'NOT ([T] XOR [F])' with a 700ms time limit, requiring knowledge of operator precedence." }}/>
+    }
 
     if (problem.type === 'lexical') {
         return (
