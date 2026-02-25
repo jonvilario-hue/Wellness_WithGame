@@ -1,4 +1,6 @@
 
+'use client';
+
 import type { AdaptiveState, DifficultyPolicy, GameId, Tier, TrialResult, TrainingFocus, TierSelection } from "@/types";
 
 export const TIER_CONFIG: Record<Tier, { name: string, range: [number, number] }> = {
@@ -42,85 +44,79 @@ export const adjustDifficulty = (
     currentState: AdaptiveState,
     policy: DifficultyPolicy
 ): AdaptiveState => {
-    // By creating a shallow copy of the recentTrials array, we avoid mutating the frozen state object.
-    const state: AdaptiveState = { ...currentState, recentTrials: [...currentState.recentTrials] };
-
-    // 1. Record Trial with Telemetry
-    state.recentTrials.push({
+    // 1. Record Trial with Telemetry by creating a new array
+    const newRecentTrials = [...currentState.recentTrials, {
         timestamp: Date.now(),
-        level: state.currentLevel,
+        level: currentState.currentLevel,
         correct: trialResult.correct,
         reactionTimeMs: trialResult.reactionTimeMs,
         telemetry: trialResult.telemetry || {},
-    });
-    if (state.recentTrials.length > policy.windowSize) {
-        state.recentTrials.shift();
+    }];
+    if (newRecentTrials.length > policy.windowSize) {
+        newRecentTrials.shift();
     }
-    
-    if(trialResult.correct) {
-        state.consecutiveCorrect++;
-        state.consecutiveWrong = 0;
-    } else {
-        state.consecutiveCorrect = 0;
-        state.consecutiveWrong++;
-    }
+
+    const consecutiveCorrect = trialResult.correct ? currentState.consecutiveCorrect + 1 : 0;
+    const consecutiveWrong = trialResult.correct ? 0 : currentState.consecutiveWrong + 1;
 
     // 2. Update Smoothed Accuracy (Exponentially Weighted Moving Average)
     const accuracyAlpha = 0.15;
-    state.smoothedAccuracy = accuracyAlpha * (trialResult.correct ? 1 : 0) + (1 - accuracyAlpha) * state.smoothedAccuracy;
+    const smoothedAccuracy = accuracyAlpha * (trialResult.correct ? 1 : 0) + (1 - accuracyAlpha) * currentState.smoothedAccuracy;
 
+    let smoothedRT = currentState.smoothedRT;
     if (trialResult.correct && trialResult.reactionTimeMs > 50) { // Ignore accidental clicks
         const rtAlpha = 0.1;
-        if (state.smoothedRT === null) {
-            state.smoothedRT = trialResult.reactionTimeMs;
+        if (currentState.smoothedRT === null) {
+            smoothedRT = trialResult.reactionTimeMs;
         } else {
-            state.smoothedRT = rtAlpha * trialResult.reactionTimeMs + (1 - rtAlpha) * state.smoothedRT;
+            smoothedRT = rtAlpha * trialResult.reactionTimeMs + (1 - rtAlpha) * currentState.smoothedRT;
         }
     }
     
-    let levelChanged = false;
-    const originalLevel = state.currentLevel;
+    let currentLevel = currentState.currentLevel;
+    const { targetAccuracyHigh, targetAccuracyLow } = policy;
 
     // --- UNCERTAINTY-AWARE STEP SIZING (Rule 5) ---
-    // The step size is larger when the system is less certain about the user's level.
-    const step = Math.max(1, Math.round(1 * (1 + state.uncertainty)));
+    const step = Math.max(1, Math.round(1 * (1 + currentState.uncertainty)));
 
     // 3. Safety Rule (Rapid Drop on repeated failures)
-    if (state.consecutiveWrong >= 3) {
-        state.currentLevel = Math.max(state.levelFloor, state.currentLevel - step);
-        state.consecutiveWrong = 0;
-        state.consecutiveCorrect = 0; // Reset both streaks to prevent immediate bounce-back
+    if (consecutiveWrong >= 3) {
+        currentLevel = Math.max(currentState.levelFloor, currentState.currentLevel - step);
     } 
     // 4. Target Band Logic (Primary adjustment mechanism)
     else {
-        const { targetAccuracyHigh, targetAccuracyLow } = policy;
-        // Level Up: High accuracy and a small streak
-        if (state.smoothedAccuracy > targetAccuracyHigh && state.consecutiveCorrect >= 2) {
-             state.currentLevel = Math.min(state.levelCeiling, state.currentLevel + step);
-             state.consecutiveCorrect = 0; // Reset streak after level up
+        if (smoothedAccuracy > targetAccuracyHigh && consecutiveCorrect >= 2) {
+             currentLevel = Math.min(currentState.levelCeiling, currentState.currentLevel + step);
         } 
-        // Level Down: Low accuracy
-        else if (state.smoothedAccuracy < targetAccuracyLow) {
-             state.currentLevel = Math.max(state.levelFloor, state.currentLevel - 1); // Use a smaller step for single errors
+        else if (smoothedAccuracy < targetAccuracyLow) {
+             currentLevel = Math.max(currentState.levelFloor, currentState.currentLevel - 1);
         }
     }
 
     // Clamp level to its tier boundaries
-    state.currentLevel = Math.max(state.levelFloor, Math.min(state.levelCeiling, state.currentLevel));
+    currentLevel = Math.max(currentState.levelFloor, Math.min(currentState.levelCeiling, currentLevel));
 
-    if(state.currentLevel !== originalLevel) {
-        levelChanged = true;
-    }
+    const levelChanged = currentLevel !== currentState.currentLevel;
     
     // 5. DECAY UNCERTAINTY
-    // If the level changed, we are less certain. If it holds, we become more certain.
+    let uncertainty = currentState.uncertainty;
     if (levelChanged) {
-         state.uncertainty = Math.min(1.0, state.uncertainty * 1.05 + 0.05); // Increase uncertainty on change
+         uncertainty = Math.min(1.0, currentState.uncertainty * 1.05 + 0.05); // Increase uncertainty on change
     } else {
-        state.uncertainty = Math.max(0.1, state.uncertainty * 0.98); // Decay towards baseline
+        uncertainty = Math.max(0.1, currentState.uncertainty * 0.98); // Decay towards baseline
     }
 
-    return state;
+    // Return a completely new state object, respecting immutability.
+    return {
+        ...currentState,
+        recentTrials: newRecentTrials,
+        consecutiveCorrect: consecutiveWrong >= 3 || (smoothedAccuracy > targetAccuracyHigh && consecutiveCorrect >= 2) ? 0 : consecutiveCorrect,
+        consecutiveWrong: consecutiveWrong >= 3 ? 0 : consecutiveWrong,
+        smoothedAccuracy,
+        smoothedRT,
+        currentLevel,
+        uncertainty,
+    };
 };
 
 export const startSession = (state: AdaptiveState): AdaptiveState => {

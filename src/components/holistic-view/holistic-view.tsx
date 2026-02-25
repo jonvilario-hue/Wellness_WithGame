@@ -16,7 +16,6 @@ import { FocusProfileRadar } from './focus-profile-radar';
 export type ViewMode = 'domain' | 'focus';
 
 export function HolisticView() {
-    const [selectedFocus, setSelectedFocus] = useState<TrainingFocus>('neutral');
     const [viewMode, setViewMode] = useState<ViewMode>('domain');
     const { organicGrowth } = useTheme();
 
@@ -47,8 +46,8 @@ export function HolisticView() {
                             {organicGrowth && <GrowthDecoration />}
                             <FocusProfileRadar />
                         </Card>
-                        <StrengthsWeaknesses subject={selectedFocus} viewMode="focus" />
-                        <SubjectInsightCard subject={selectedFocus} viewMode="focus" />
+                        <StrengthsWeaknesses subject={'neutral'} viewMode="focus" />
+                        <SubjectInsightCard subject={'neutral'} viewMode="focus" />
                     </div>
                 </TabsContent>
             </Tabs>
