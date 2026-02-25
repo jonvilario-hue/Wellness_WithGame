@@ -94,7 +94,7 @@ export function FocusSwitchReactor() {
   }, [rule]);
 
   const generateStimulus = useCallback((): Partial<Stimulus> => {
-    if (currentMode === 'neutral') {
+    if (currentMode === 'neutral' || currentMode === 'spatial' || currentMode === 'verbal') { // MODIFIED: Allow spatial and verbal to use neutral stimulus
         const positions: Position[] = ['top', 'bottom', 'left', 'right'];
         const arrows: ArrowDir[] = ['up', 'down', 'left', 'right'];
         const newPosition = positions[Math.floor(Math.random() * positions.length)];
@@ -227,7 +227,9 @@ export function FocusSwitchReactor() {
             : (stimulus.duration === params.long_duration_ms ? 'long' : 'short');
     } else if (currentMode === 'eq') {
         const isEmotionRule = ruleRef.current === 'emotion';
+        // Rule: Happy -> Left button, Sad -> Right button
         const emotionMapping = stimulus.emotion === 'happy' ? 'left' : 'right';
+        // Rule: Gaze -> a matching button direction
         const gazeMapping = stimulus.gaze;
         
         telemetry.isCongruent = emotionMapping === gazeMapping;
@@ -301,9 +303,9 @@ export function FocusSwitchReactor() {
         isCorrect = (answer === correctResponse);
     }
     else {
-      // Logic for neutral/math modes...
+      // Logic for neutral/math/spatial/verbal modes...
       let targetSide = 'left';
-      if (currentMode === 'neutral') {
+      if (currentMode === 'neutral' || currentMode === 'spatial' || currentMode === 'verbal') {
           const correctDir: Record<Position, ArrowDir> = { top: 'up', bottom: 'down', left: 'left', right: 'right' };
           if (ruleRef.current === 'position') targetSide = correctDir[stimulus.position!] === 'up' || correctDir[stimulus.position!] === 'left' ? 'left' : 'right';
           else targetSide = stimulus.arrow === 'up' || stimulus.arrow === 'left' ? 'left' : 'right';
@@ -341,7 +343,7 @@ export function FocusSwitchReactor() {
 
   const getRuleText = () => {
       let text = '';
-      if (currentMode === 'neutral') {
+      if (currentMode === 'neutral' || currentMode === 'spatial' || currentMode === 'verbal') {
         if (rule === 'position') text = 'Respond to the SHAPE\'S LOCATION';
         else if (rule === 'arrow') text = 'Respond to the ARROW\'S DIRECTION';
       } else if (currentMode === 'math') {
@@ -358,7 +360,7 @@ export function FocusSwitchReactor() {
       return <span className="font-bold text-primary uppercase">{text}</span>;
   }
   
-  if (currentMode !== 'neutral' && currentMode !== 'math' && currentMode !== 'music' && currentMode !== 'eq') {
+  if (currentMode === 'logic') {
      return <GameStub 
       name="Focus Switch Reactor"
       chcFactor="Executive Function (EF)"
@@ -486,7 +488,7 @@ export function FocusSwitchReactor() {
                 </div>
             )
           }
-          // Fallback for neutral/math modes
+          // Fallback for neutral/math/spatial/verbal modes
            const options: ('left' | 'right')[] = ['left', 'right'];
            return (
             <div className="flex flex-col items-center gap-4 w-full">
@@ -496,7 +498,7 @@ export function FocusSwitchReactor() {
               </div>
               <div className="relative p-8 bg-card rounded-lg w-full h-48 flex items-center justify-center">
                   <div className={cn("absolute inset-0 flex", stimulus.position ? positionClasses[stimulus.position] : 'items-center justify-center')}>
-                    {currentMode === 'neutral' && stimulus.arrow && (
+                    {(currentMode === 'neutral' || currentMode === 'spatial' || currentMode === 'verbal') && stimulus.arrow && (
                         <div className="w-20 h-20 bg-background rounded-md flex items-center justify-center">
                             {React.createElement(arrowMap[stimulus.arrow], { className: "w-16 h-16 text-primary" })}
                         </div>
