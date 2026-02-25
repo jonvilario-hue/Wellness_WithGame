@@ -3,7 +3,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { useToast } from "@/hooks/use-toast";
 import { useGlrStore, type SpacedPair } from "@/hooks/use-glr-store";
@@ -24,6 +24,7 @@ import { GlrMemoryPalace } from "./GlrMemoryPalace";
 import { FOCUS_MODE_META } from "@/lib/mode-constants";
 import { Input } from "@/components/ui/input";
 import { emotionLexicon, type EmotionCluster } from '@/data/emotion-lexicon';
+import { OperatorRecallMode } from "./OperatorRecallMode";
 
 
 const GLR_GAME_ID: GameId = 'glr_fluency_storm';
@@ -68,7 +69,7 @@ const isAssociativelyRelated = (prevWord: string, currentWord: string, rule: str
 
 export function SemanticFluencyStorm() {
     const [gameState, setGameState] = useState<'idle' | 'running' | 'finished'>('idle');
-    const [currentMode, setCurrentMode] = useState<'associative' | 'spaced' | 'category' | 'spatial' | null>(null);
+    const [currentMode, setCurrentMode] = useState<ReturnType<typeof useGlrStore.getState().getNextMode> | null>(null);
     const [lastScore, setLastScore] = useState(0);
     const [lastClusterBreadth, setLastClusterBreadth] = useState(0);
     const { getNextMode } = useGlrStore();
@@ -99,10 +100,6 @@ export function SemanticFluencyStorm() {
         
         setGameState('finished');
     };
-
-    if (currentTrainingFocus === 'logic') {
-        return <AlgorithmFluency />;
-    }
 
     const renderContent = () => {
         if (gameState === 'idle') {
@@ -136,6 +133,8 @@ export function SemanticFluencyStorm() {
                     return <AssociativeChainMode onComplete={handleGameComplete as any} focus={currentTrainingFocus} />;
                 case 'spaced':
                     return <SpacedRetrievalMode onComplete={handleGameComplete as any} focus={currentTrainingFocus} />;
+                 case 'operator_recall':
+                    return <OperatorRecallMode onComplete={handleGameComplete as any} focus={currentTrainingFocus} />;
                 case 'category':
                     return <CategorySwitchingMode onComplete={handleGameComplete} focus={currentTrainingFocus} />;
                 case 'spatial':
