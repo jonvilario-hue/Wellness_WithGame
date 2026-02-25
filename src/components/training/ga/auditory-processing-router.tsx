@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +20,7 @@ import { useTrainingOverride } from "@/hooks/use-training-override";
 import { FOCUS_MODE_META } from '@/lib/mode-constants';
 import CoreMode from './CoreMode';
 import { AuditoryFlanker } from './auditory-flanker';
+import { CodeLogicMode } from './CodeLogicMode';
 
 
 export function AuditoryProcessingRouter() {
@@ -40,6 +40,8 @@ export function AuditoryProcessingRouter() {
             return <AuditoryFlanker />;
         case 'spatial':
             return <GaSpatialAudioGame />;
+        case 'logic':
+            return <CodeLogicMode />;
         default:
             return <GameStub name="Auditory Processing" description={`This mode (${effectiveFocus}) is not yet implemented for the Auditory Processing domain.`} chcFactor="Auditory Processing (Ga)" techStack={[]} complexity="Medium" fallbackPlan="N/A" />;
     }
