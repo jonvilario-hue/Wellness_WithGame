@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -71,7 +72,7 @@ export function GameCard({ domain, onSelect }: { domain: (typeof import('@/lib/d
         </div>
         <div className="flex-1">
           <CardTitle className="font-headline text-base">{domain.name}</CardTitle>
-          <CardDescription className="text-sm">{domain.gameTitle}</CardDescription>
+          <CardDescription className="text-sm">{domain.friendlyLabel}</CardDescription>
         </div>
         <div className={cn("flex items-center font-bold text-sm", trendColor)}>
             <TrendIcon className="w-4 h-4" />
@@ -89,7 +90,7 @@ export function GameCard({ domain, onSelect }: { domain: (typeof import('@/lib/d
       </CardContent>
        <CardFooter className="p-4">
         <Button onClick={handlePlayClick} className="w-full">
-            <Play className="mr-2 h-4 w-4" /> Play {domain.friendlyLabel}
+            <Play className="mr-2 h-4 w-4" /> Play {domain.gameTitle}
         </Button>
       </CardFooter>
     </Card>
