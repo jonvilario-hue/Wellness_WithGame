@@ -139,6 +139,12 @@ export default function EQMode({ onComplete }: { onComplete: () => void }) {
             }
         }
     }, [isLoading, progress, state.phase]);
+    
+    useEffect(() => {
+        return () => {
+            engine?.stopAll();
+        }
+    }, [engine]);
 
     const startNextTrial = useCallback(() => {
         dispatch({ type: 'NEXT_TRIAL' });
@@ -237,3 +243,5 @@ export default function EQMode({ onComplete }: { onComplete: () => void }) {
         </Card>
     )
 }
+
+    

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -205,6 +206,13 @@ export function CodeLogicMode() {
       startNextTrial();
     }, 2500);
   };
+  
+  useEffect(() => {
+    return () => {
+        engine?.stopAll();
+    }
+  }, [engine]);
+
 
   return (
     <Card className="w-full max-w-2xl text-center bg-gray-900 border-gray-500/30 text-gray-100">
@@ -289,3 +297,5 @@ export function CodeLogicMode() {
     </Card>
   );
 }
+
+    

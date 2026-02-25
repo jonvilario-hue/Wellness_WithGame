@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -181,6 +182,12 @@ export default function MathMode({ onComplete }: { onComplete: () => void }) {
     }, 2500);
   };
   
+  useEffect(() => {
+    return () => {
+        engine?.stopAll();
+    }
+  }, [engine]);
+  
   return (
     <Card className="w-full max-w-2xl text-center bg-blue-900 border-blue-500/30 text-blue-100">
       <CardHeader>
@@ -245,3 +252,5 @@ export default function MathMode({ onComplete }: { onComplete: () => void }) {
     </Card>
   );
 }
+
+    
