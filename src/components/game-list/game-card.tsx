@@ -70,8 +70,8 @@ export function GameCard({ domain, onSelect }: { domain: (typeof import('@/lib/d
           <domain.icon className="w-6 h-6" />
         </div>
         <div className="flex-1">
-          <CardTitle className="font-headline text-base">({domain.key}) {domain.gameTitle}</CardTitle>
-          <CardDescription className="text-sm">{domain.friendlyLabel}</CardDescription>
+          <CardTitle className="font-headline text-base">{domain.name}</CardTitle>
+          <CardDescription className="text-sm">{domain.gameTitle}</CardDescription>
         </div>
         <div className={cn("flex items-center font-bold text-sm", trendColor)}>
             <TrendIcon className="w-4 h-4" />
