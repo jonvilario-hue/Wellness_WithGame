@@ -32,9 +32,9 @@ const PositionNode = ({ position, onClick, isActive, sequenceNumber }: { positio
         onPointerOut={(e) => (e.eventObject.parent.scale.set(1, 1, 1))}
       >
         <meshStandardMaterial
-          color={isActive ? '#34d399' : (isUserSelection ? '#60a5fa' : '#4b5563')}
-          emissive={isActive ? '#34d399' : (isUserSelection ? '#60a5fa' : '#4b5563')}
-          emissiveIntensity={isActive || isUserSelection ? 0.8 : 0.2}
+          color={isActive ? '#34d399' : (isUserSelection ? '#60a5fa' : '#9ca3af')}
+          emissive={isActive ? '#34d399' : (isUserSelection ? '#60a5fa' : '#9ca3af')}
+          emissiveIntensity={isActive || isUserSelection ? 0.8 : 0.4}
           roughness={0.4}
         />
       </Sphere>
@@ -83,7 +83,7 @@ const GaSpatialRenderer: React.FC<RendererProps> = ({
             <Suspense fallback={null}>
               <ambientLight intensity={0.3} />
               <pointLight position={[10, 10, 10]} intensity={0.8} />
-              {trial.positions.filter(p => p).map(pos => (
+              {Array.isArray(trial.positions) && trial.positions.filter(p => p).map(pos => (
                 <PositionNode 
                     key={pos.id} 
                     position={pos} 
@@ -94,8 +94,8 @@ const GaSpatialRenderer: React.FC<RendererProps> = ({
               ))}
               {userSequence.length > 1 && userSequence.map((id, i) => {
                   if (i === 0) return null;
-                  const from = trial.positions.find(p => p && p.id === userSequence[i-1]);
-                  const to = trial.positions.find(p => p && p.id === id);
+                  const from = Array.isArray(trial.positions) && trial.positions.find(p => p && p.id === userSequence[i-1]);
+                  const to = Array.isArray(trial.positions) && trial.positions.find(p => p && p.id === id);
                   if (!from || !to) return null;
                   return <Line key={i} points={[[from.x, from.y, from.z], [to.x, to.y, to.z]]} color="white" lineWidth={2} dashed dashScale={10} />
               })}
