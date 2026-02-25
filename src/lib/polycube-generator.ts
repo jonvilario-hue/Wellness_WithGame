@@ -5,9 +5,6 @@ import { PRNG } from './rng';
 import type { GameId } from '@/types';
 import { difficultyPolicies } from '@/data/difficulty-policies';
 
-const GAME_ID: GameId = 'gv_visual_lab'; // Gv is the primary user of this
-const policy = difficultyPolicies[GAME_ID];
-
 export type Cube = { x: number; y: number; z: number };
 export type Polycube = Cube[];
 
@@ -69,10 +66,7 @@ const arePolycubesEqual = (p1: Polycube, p2: Polycube): boolean => {
 }
 
 // --- Main Trial Generator ---
-export const generateSpatialGvRotationTrial = (level: number, prng: PRNG): PolycubePuzzle => {
-  const params = policy.levelMap[level]?.content_config['spatial']?.params || policy.levelMap[1].content_config['spatial']!.params;
-  const { pieceCount } = params;
-
+export const generateSpatialGvRotationTrial = (level: number, pieceCount: number, prng: PRNG): PolycubePuzzle => {
   // 1. Generate base shape
   const baseShape = createPolycube(pieceCount, prng);
 
@@ -99,15 +93,20 @@ export const generateSpatialGvRotationTrial = (level: number, prng: PRNG): Polyc
   }
 
   // Distractor 2: Near-miss (one cube moved)
-  let nearMiss = [...baseShape];
-  const cubeToRemoveIndex = prng.nextIntRange(0, nearMiss.length);
-  nearMiss.splice(cubeToRemoveIndex, 1)[0];
-  const neighbors = getNeighbors(nearMiss[prng.nextIntRange(0, nearMiss.length)]).filter(n => !nearMiss.some(c => arePolycubesEqual([n], [c])));
-  if(neighbors.length > 0) {
-      const newPos = neighbors[prng.nextIntRange(0, neighbors.length)];
-      nearMiss.push(newPos);
-      options.push(nearMiss);
+  if (baseShape.length > 1) { // Guard against single-cube shapes
+    let nearMiss = [...baseShape];
+    const cubeToRemoveIndex = prng.nextIntRange(0, nearMiss.length);
+    nearMiss.splice(cubeToRemoveIndex, 1);
+    if(nearMiss.length > 0) { // Ensure there's a cube left to find neighbors for
+        const neighbors = getNeighbors(nearMiss[prng.nextIntRange(0, nearMiss.length)]).filter(n => !nearMiss.some(c => arePolycubesEqual([n], [c])));
+        if(neighbors.length > 0) {
+            const newPos = neighbors[prng.nextIntRange(0, neighbors.length)];
+            nearMiss.push(newPos);
+            options.push(nearMiss);
+        }
+    }
   }
+
 
   // Fill remaining options with other random shapes
   while(options.length < 4) {

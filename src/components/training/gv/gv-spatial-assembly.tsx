@@ -11,7 +11,8 @@ import { useTrainingOverride } from "@/hooks/use-training-override";
 import { generateSpatialGvRotationTrial, type PolycubePuzzle } from '@/lib/polycube-generator';
 import { PRNG } from '@/lib/rng';
 import { Loader2 } from "lucide-react";
-import { GvSpatialAssemblyRenderer } from "./GvSpatialAssemblyRenderer";
+
+const GvSpatialAssemblyRenderer = lazy(() => import('./GvSpatialAssemblyRenderer'));
 
 const GAME_ID: GameId = 'gv_visual_lab';
 const policy = difficultyPolicies[GAME_ID];
@@ -55,7 +56,10 @@ export function GvSpatialAssembly() {
       ? Math.max(state.levelFloor, state.currentLevel - 2)
       : state.currentLevel;
     
-    const newPuzzle = generateSpatialGvRotationTrial(loadedLevel, prngRef.current);
+    const params = policy.levelMap[loadedLevel]?.content_config[currentMode]?.params || policy.levelMap[1].content_config[currentMode]!.params;
+    const { pieceCount } = params;
+
+    const newPuzzle = generateSpatialGvRotationTrial(loadedLevel, pieceCount, prngRef.current);
     
     setComponentState({
       gameState: 'playing',

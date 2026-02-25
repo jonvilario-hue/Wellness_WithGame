@@ -148,9 +148,10 @@ export function RapidCodeMatch() {
         const level = sessionState.currentLevel;
         const levelDef = policy.levelMap[level] || policy.levelMap[1];
         const params = levelDef.content_config['spatial']?.params;
+        const polycubeSize = params?.polycubeSize || 3;
         spatialTrialBatch.current = Array.from({ length: 60 }).map(() => {
             const isSame = prngRef.current!.nextFloat() > 0.5;
-            const target = generateSpatialGvRotationTrial(level, prngRef.current!);
+            const target = generateSpatialGvRotationTrial(level, polycubeSize, prngRef.current!);
             const objectA = target.target;
             let objectB: Polycube;
             if (isSame) {
