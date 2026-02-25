@@ -3,6 +3,8 @@
 
 // This file is the single source of truth for all shared types in the application.
 
+import type { PRNG } from '@/lib/rng';
+
 // --- Core Cognitive & Domain Types ---
 export type TrainingFocus = 'neutral' | 'math' | 'music' | 'verbal' | 'spatial' | 'eq' | 'logic';
 export type CHCDomain = 'Gf' | 'Gc' | 'Gwm' | 'Gs' | 'Gv' | 'Ga' | 'Glr' | 'EF';
@@ -106,6 +108,7 @@ export interface BaseRendererProps<TGameState, TGameEvent> {
   currentTrialIndex: number;
   sessionLength: number;
   focus: TrainingFocus;
+  prng?: PRNG;
   name?: string;
   description?: string;
   chcFactor?: string;

@@ -269,6 +269,7 @@ export function DynamicSequenceTransformer() {
     sessionLength: policy.sessionLength,
     currentTrialIndex: currentTrialIndex.current,
     focus: currentMode,
+    prng: prngRef.current,
   };
   
   if (currentMode === 'eq' && Renderer === GameStub) {
