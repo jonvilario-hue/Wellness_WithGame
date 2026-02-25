@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Loader2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Keyboard, Music, Check, X, Ear, Timer, Smile } from 'lucide-react';
+import { Loader2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Keyboard, Music, Check, X, Ear, Timer, Smile, Share2 } from 'lucide-react';
 import { adjustDifficulty, startSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
@@ -17,6 +18,7 @@ import { useTrainingOverride } from "@/hooks/use-training-override.tsx";
 import { domainIcons } from "@/components/icons";
 import { useAudioEngine } from "@/hooks/use-audio-engine";
 import { FOCUS_MODE_META } from "@/lib/mode-constants";
+import { logicTokenPools } from "@/data/logic-content";
 
 
 const GAME_ID: GameId = 'ef_focus_switch';
@@ -43,13 +45,15 @@ type NeutralRule = 'position' | 'arrow' | 'no_go';
 type MathRule = 'parity' | 'magnitude' | 'no_go';
 type MusicRule = 'pitch' | 'duration';
 type EqRule = 'emotion' | 'gaze';
+type LogicRule = 'is_keyword' | 'is_operator';
+
 
 type Stimulus = {
     // Neutral
     position?: Position;
     arrow?: ArrowDir;
-    // Math
-    value?: number;
+    // Math, Logic
+    value?: number | string;
     // Music
     pitch?: number;
     duration?: number;
@@ -57,6 +61,10 @@ type Stimulus = {
     emotion?: 'happy' | 'sad';
     gaze?: 'left' | 'right';
 };
+
+const logicKeywords = new Set(['if', 'else', 'for', 'while', 'return', 'function', 'let', 'const', 'switch', 'class']);
+const logicOperators = new Set(['==', '!=', '===', '!==', '&&', '||', '=>', '>=', '<=', '+', '-', '*', '/', '%', '**', '&', '|', '^', '~', '>>', '<<']);
+const logicTokenPool = logicTokenPools.tier2;
 
 export function FocusSwitchReactor() {
   const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
@@ -67,7 +75,7 @@ export function FocusSwitchReactor() {
   const [gameState, setGameState] = useState<'loading' | 'start' | 'cueing' | 'running' | 'feedback' | 'finished'>('loading');
   
   const [score, setScore] = useState(0);
-  const [rule, setRule] = useState<NeutralRule | MathRule | MusicRule | EqRule>('position');
+  const [rule, setRule] = useState<NeutralRule | MathRule | MusicRule | EqRule | LogicRule>('position');
   const [stimulus, setStimulus] = useState<Partial<Stimulus>>({});
   const [inlineFeedback, setInlineFeedback] = useState({ message: '', type: '' });
 
@@ -94,7 +102,7 @@ export function FocusSwitchReactor() {
   }, [rule]);
 
   const generateStimulus = useCallback((): Partial<Stimulus> => {
-    if (currentMode === 'neutral' || currentMode === 'spatial' || currentMode === 'verbal') { // MODIFIED: Allow spatial and verbal to use neutral stimulus
+    if (currentMode === 'neutral' || currentMode === 'spatial' || currentMode === 'verbal') {
         const positions: Position[] = ['top', 'bottom', 'left', 'right'];
         const arrows: ArrowDir[] = ['up', 'down', 'left', 'right'];
         const newPosition = positions[Math.floor(Math.random() * positions.length)];
@@ -123,6 +131,11 @@ export function FocusSwitchReactor() {
         const newStimulus = { emotion: newEmotion, gaze: newGaze };
         setStimulus(newStimulus);
         return newStimulus;
+    } else if (currentMode === 'logic') {
+        const token = logicTokenPool[Math.floor(Math.random() * logicTokenPool.length)];
+        const newStimulus = { value: token };
+        setStimulus(newStimulus);
+        return newStimulus;
     }
     return {};
   }, [currentMode, getAdaptiveState]);
@@ -138,7 +151,7 @@ export function FocusSwitchReactor() {
     let availableRules: any[] = [];
     if (currentMode === 'music') {
         availableRules = ['pitch', 'duration'];
-    } else if (currentMode === 'eq') {
+    } else if (currentMode === 'eq' || currentMode === 'logic') {
         availableRules = contentConfig.params?.rules as any[] || [];
     }
     else {
@@ -301,6 +314,14 @@ export function FocusSwitchReactor() {
         
         const correctResponse = isEmotionRule ? correctEmotionResponse : correctGazeResponse;
         isCorrect = (answer === correctResponse);
+    } else if (currentMode === 'logic') {
+        let targetSide = 'right'; // Default to "No" (Not a keyword/operator)
+        if (ruleRef.current === 'is_keyword' && logicKeywords.has(stimulus.value as string)) {
+            targetSide = 'left'; // It IS a keyword
+        } else if (ruleRef.current === 'is_operator' && logicOperators.has(stimulus.value as string)) {
+            targetSide = 'left'; // It IS an operator
+        }
+        isCorrect = (answer === targetSide);
     }
     else {
       // Logic for neutral/math/spatial/verbal modes...
@@ -310,8 +331,8 @@ export function FocusSwitchReactor() {
           if (ruleRef.current === 'position') targetSide = correctDir[stimulus.position!] === 'up' || correctDir[stimulus.position!] === 'left' ? 'left' : 'right';
           else targetSide = stimulus.arrow === 'up' || stimulus.arrow === 'left' ? 'left' : 'right';
       } else if (currentMode === 'math') {
-          if (ruleRef.current === 'parity') targetSide = stimulus.value! % 2 === 0 ? 'left' : 'right';
-          else targetSide = stimulus.value! > 50 ? 'left' : 'right';
+          if (ruleRef.current === 'parity') targetSide = (stimulus.value as number) % 2 === 0 ? 'left' : 'right';
+          else targetSide = (stimulus.value as number) > 50 ? 'left' : 'right';
       }
       isCorrect = (answer === targetSide);
     }
@@ -355,20 +376,12 @@ export function FocusSwitchReactor() {
       } else if (currentMode === 'eq') {
         if (rule === 'emotion') text = 'LEFT for HAPPY, RIGHT for SAD';
         else if (rule === 'gaze') text = 'Respond to GAZE DIRECTION';
+      } else if (currentMode === 'logic') {
+        if (rule === 'is_keyword') text = 'KEYWORD: Yes (LEFT) or No (RIGHT)?';
+        else if (rule === 'is_operator') text = 'OPERATOR: Yes (LEFT) or No (RIGHT)?';
       }
       if (rule === 'no_go') text = "DON'T RESPOND";
       return <span className="font-bold text-primary uppercase">{text}</span>;
-  }
-  
-  if (currentMode === 'logic') {
-     return <GameStub 
-      name="Focus Switch Reactor"
-      chcFactor="Executive Function (EF)"
-      description="This game has different variants for Music, Verbal, Spatial, EQ and Logic modes."
-      techStack={['DOM']}
-      complexity="Medium"
-      fallbackPlan="N/A"
-    />;
   }
 
   const renderContent = () => {
@@ -488,7 +501,7 @@ export function FocusSwitchReactor() {
                 </div>
             )
           }
-          // Fallback for neutral/math/spatial/verbal modes
+          // Fallback for neutral/math/spatial/verbal/logic modes
            const options: ('left' | 'right')[] = ['left', 'right'];
            return (
             <div className="flex flex-col items-center gap-4 w-full">
@@ -505,6 +518,11 @@ export function FocusSwitchReactor() {
                     )}
                     {currentMode === 'math' && stimulus.value !== undefined && (
                         <div className="text-7xl font-bold text-primary">
+                            {stimulus.value}
+                        </div>
+                    )}
+                     {currentMode === 'logic' && stimulus.value !== undefined && (
+                        <div className="text-5xl font-mono font-bold text-primary">
                             {stimulus.value}
                         </div>
                     )}
@@ -548,3 +566,5 @@ export function FocusSwitchReactor() {
     </Card>
   );
 }
+
+  
