@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useCallback, useEffect, useRef, lazy, Suspense } from "react";
@@ -194,17 +193,17 @@ export function VerbalInferenceBuilder() {
       return <div className="w-full max-w-2xl min-h-[400px] flex items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
   }
   
-  const renderMap: Partial<Record<TrainingFocus, React.ComponentType<any>>> = {
+  const rendererMap: Partial<Record<TrainingFocus, React.ComponentType<any>>> = {
     neutral: GcNovelConceptLearner,
     math: GcMathConcepts,
     music: GcMusicKnowledge,
     verbal: GcVerbalRenderer,
     spatial: GcSpatialRenderer,
-    eq: RegulationArchitect,
+    eq: GcNovelConceptLearner, // Use the learner for EQ mode
     logic: LogicLibrary,
   };
 
-  const Renderer = renderMap[currentMode] || GameStub;
+  const Renderer = rendererMap[currentMode] || GameStub;
   const rendererProps = {
     gameState: componentState,
     onEvent: handleEvent,
