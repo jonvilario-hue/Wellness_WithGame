@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect, useRef, lazy, Suspense } from "react";
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
@@ -11,7 +11,6 @@ import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus, BaseRendererProps } from "@/types";
 import { clozeSentences, morphologyWordPairs, spatialConcepts } from "@/data/verbal-content";
 import { GameStub } from "../game-stub";
-import { GcSpatialLexicon } from "./gc-spatial-lexicon";
 import { RegulationArchitect } from "./regulation-architect";
 import { LogicLibrary } from '../logic/logic-library';
 import { GcNovelConceptLearner } from "./gc-novel-concept-learner";
@@ -19,6 +18,10 @@ import GcMathConcepts from "./gc-math-concepts";
 import { GcMusicKnowledge } from "./gc-music-knowledge";
 import { Loader2 } from "lucide-react";
 import { GcVerbalRenderer } from "./GcVerbalRenderer";
+import { generateSpatialConceptMapPuzzle, type GcSpatialPuzzle } from "@/lib/gc-spatial-stimulus-factory";
+
+const GcSpatialRenderer = lazy(() => import('./GcSpatialRenderer'));
+
 
 const GAME_ID: GameId = 'gc_verbal_inference';
 const policy = difficultyPolicies[GAME_ID];
@@ -32,37 +35,31 @@ export type GcVerbalPuzzle = {
   explanation: string;
 };
 
+export type GcCombinedPuzzle = GcVerbalPuzzle | GcSpatialPuzzle;
+
 export type GcVerbalGameState = {
   gameState: 'loading' | 'start' | 'playing' | 'feedback' | 'finished';
-  puzzle: GcVerbalPuzzle | null;
-  selectedAnswer: string | null;
+  puzzle: GcCombinedPuzzle | null;
+  selectedAnswer: any | null;
 }
 
 export type GcVerbalGameEvent = 
   | { type: 'START_SESSION' }
-  | { type: 'SUBMIT_ANSWER', answer: string | null };
+  | { type: 'SUBMIT_ANSWER', answer: any | null };
 
 
 // --- Puzzle Generation ---
-const generatePuzzleForLevel = (level: number, focus: TrainingFocus): GcVerbalPuzzle => {
+const generatePuzzleForLevel = (level: number, focus: TrainingFocus): GcCombinedPuzzle => {
+    if (focus === 'spatial') {
+        return generateSpatialConceptMapPuzzle(level);
+    }
+
     const levelDef = policy.levelMap[level] || policy.levelMap[Object.keys(policy.levelMap).pop() as any];
     const contentConfig = levelDef.content_config[focus];
     if (!contentConfig || !contentConfig.params) { // Fallback to verbal if focus not implemented for Gc
       return generatePuzzleForLevel(level, 'verbal');
     }
     const { sub_variant, params } = contentConfig;
-    
-    if (sub_variant === 'spatial_lexicon') {
-        const concept = spatialConcepts[Math.floor(Math.random() * spatialConcepts.length)];
-        const options = [...concept.distractors, concept.answer].sort(() => Math.random() - 0.5);
-        return {
-            type: 'spatial_lexicon',
-            question: concept.question,
-            options,
-            answer: concept.answer,
-            explanation: concept.explanation
-        }
-    }
     
     let puzzleTemplate;
     if (sub_variant === 'cloze_deletion') {
@@ -127,7 +124,13 @@ export function VerbalInferenceBuilder() {
       if (timerRef.current) clearTimeout(timerRef.current);
       
       const reactionTimeMs = Date.now() - trialStartTime.current;
-      const isCorrect = event.answer === componentState.puzzle.answer;
+      
+      let isCorrect = false;
+      if (componentState.puzzle.type === 'spatial_concept_map') {
+        isCorrect = event.answer?.isCorrect || false;
+      } else {
+        isCorrect = event.answer === (componentState.puzzle as GcVerbalPuzzle).answer;
+      }
 
       const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs, telemetry: { timedOut: event.answer === null } };
       logTrial({
@@ -191,25 +194,30 @@ export function VerbalInferenceBuilder() {
       return <div className="w-full max-w-2xl min-h-[400px] flex items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
   }
   
-  const renderMap: Record<TrainingFocus, React.ComponentType<any>> = {
+  const renderMap: Partial<Record<TrainingFocus, React.ComponentType<any>>> = {
     neutral: GcNovelConceptLearner,
     math: GcMathConcepts,
     music: GcMusicKnowledge,
     verbal: GcVerbalRenderer,
-    spatial: GcSpatialLexicon,
+    spatial: GcSpatialRenderer,
     eq: RegulationArchitect,
     logic: LogicLibrary,
   };
 
   const Renderer = renderMap[currentMode] || GameStub;
+  const rendererProps = {
+    gameState: componentState,
+    onEvent: handleEvent,
+    feedback: feedback,
+    adaptiveState: adaptiveState,
+    sessionLength: policy.sessionLength,
+    currentTrialIndex: currentTrialIndex.current,
+    focus: currentMode,
+  };
 
-  return <Renderer 
-    gameState={componentState}
-    onEvent={handleEvent}
-    feedback={feedback}
-    adaptiveState={adaptiveState}
-    sessionLength={policy.sessionLength}
-    currentTrialIndex={currentTrialIndex.current}
-    focus={currentMode}
-  />;
+  return (
+      <Suspense fallback={<div className="w-full max-w-2xl min-h-[500px] flex items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>}>
+        <Renderer {...rendererProps} />
+      </Suspense>
+  )
 }
