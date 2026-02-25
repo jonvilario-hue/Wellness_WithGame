@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
@@ -8,7 +7,7 @@ import { adjustDifficulty, startSession as startAdaptiveSession, endSession } fr
 import { difficultyPolicies } from '@/data/difficulty-policies';
 import { generateSpatialAudioTrial, type SpatialAudioTrial } from '@/lib/ga-spatial-stimulus-factory';
 import { PRNG } from '@/lib/rng';
-import type { GameId, TrialResult, AdaptiveState } from '@/types';
+import type { GameId, TrialResult, AdaptiveState, TelemetryEvent } from '@/types';
 import { Loader2 } from 'lucide-react';
 
 const GaSpatialRenderer = lazy(() => import('./GaSpatialRenderer'));
@@ -98,9 +97,9 @@ export function GaSpatialAudioGame() {
     sessionTrials.current = [];
     setState(prev => ({ ...prev, score: 0 }));
     startNewTrial();
-  }, [engine, getAdaptiveState, startNewGameSession, startNewTrial, updateAdaptiveState]);
+  }, [engine, getAdaptiveState, startNewGameSession, updateAdaptiveState, startNewTrial]);
 
-  const handleSubmit = () => {
+  const handleSubmit = useCallback(() => {
     if (state.phase !== 'response' || !state.trial || !activeSession) return;
 
     const reactionTimeMs = performance.now() - trialStartTime.current;
@@ -156,7 +155,7 @@ export function GaSpatialAudioGame() {
             startNewTrial();
         }
     }, 2000);
-  };
+  }, [state.phase, state.trial, state.userSequence, activeSession, getAdaptiveState, updateAdaptiveState, logEvent, startNewTrial, completeCurrentGameSession]);
 
   const handlePositionClick = (positionId: string) => {
     if (state.phase !== 'response') return;
