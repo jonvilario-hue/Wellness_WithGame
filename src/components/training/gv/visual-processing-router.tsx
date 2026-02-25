@@ -7,7 +7,7 @@ import { MentalRotationLab } from './mental-rotation-lab';
 import { Skeleton } from '@/components/ui/skeleton';
 import { VisualMusicMatch } from './visual-music-match';
 import { TypographicSearch } from './typographic-search';
-import { GameStub } from '../game-stub';
+import { GameStub } from "../game-stub";
 import { FlowchartTracer } from '../logic/flowchart-tracer';
 import { EmotionalCrowdSearch } from './emotional-crowd-search';
 import { GvSpatialAssembly } from './gv-spatial-assembly';
@@ -34,7 +34,7 @@ export function VisualProcessingRouter() {
     case 'verbal':
         return <TypographicSearch focus={effectiveFocus} />;
     case 'spatial':
-        return <GvSpatialAssembly focus={effectiveFocus} />;
+        return <GvSpatialAssembly />;
     case 'logic':
         return <FlowchartTracer />;
     case 'eq':

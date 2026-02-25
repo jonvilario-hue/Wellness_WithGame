@@ -59,11 +59,14 @@ const BlockShapeRenderer = ({ grid }: { grid: Grid }) => (
 
 
 const generatePuzzleForLevel = (level: number): Puzzle => {
-  const params = policy.levelMap[level] || policy.levelMap[20];
+  const params = policy.levelMap[level]?.content_config['neutral']?.params;
+  const rotationAngles = params?.angles || [90, 180, 270];
+  const useReflection = params?.reflection || false;
+  
   const baseShape = shapes[Math.floor(Math.random() * shapes.length)];
   
   let targetShape = baseShape;
-  const rotations = Array.isArray(params.angles) ? params.angles[Math.floor(Math.random() * params.angles.length)] / 90 : Math.floor(Math.random() * 4);
+  const rotations = Array.isArray(rotationAngles) ? rotationAngles[Math.floor(Math.random() * rotationAngles.length)] / 90 : Math.floor(Math.random() * 4);
   for (let i = 0; i < rotations; i++) {
     targetShape = rotateGrid(targetShape);
   }
@@ -75,7 +78,7 @@ const generatePuzzleForLevel = (level: number): Puzzle => {
   for (let i = 0; i < mirrorRotations; i++) {
     mirrorImage = rotateGrid(mirrorImage);
   }
-  if (!areGridsEqual(targetShape, mirrorImage)) {
+  if (!areGridsEqual(targetShape, mirrorImage) && useReflection) {
     options.push(mirrorImage);
   }
 
@@ -150,7 +153,7 @@ export function MentalRotationLab({ focus }: { focus: TrainingFocus }) {
         rotationDegrees: 0, // Placeholder
         errorMarginPx: 0, // Placeholder
       }
-    });
+    } as any);
 
     setSessionTrials(prev => [...prev, trialResult]);
     
@@ -173,7 +176,7 @@ export function MentalRotationLab({ focus }: { focus: TrainingFocus }) {
   };
 
   const renderContent = () => {
-    if (gameState === 'loading') return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
+    if (gameState === 'loading' || !adaptiveState) return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
     if (gameState === 'start') {
       return (
         <div className="flex flex-col items-center gap-4">
