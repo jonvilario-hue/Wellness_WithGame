@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,6 +21,7 @@ import { generateLexicalDecisionProblem } from '@/lib/verbal-stimulus-factory';
 import { generateSpatialGvRotationTrial, type Polycube } from "@/lib/polycube-generator";
 import { PRNG } from "@/lib/rng";
 import { FOCUS_MODE_META } from "@/lib/mode-constants";
+import { GsEQFlashRecognition } from "./GsEQFlashRecognition";
 
 const GsSpatialRenderer = lazy(() => import('./GsSpatialRenderer'));
 
@@ -309,7 +311,7 @@ export function RapidCodeMatch() {
     }
 
     if (currentMode === 'eq') {
-      return <GameStub name="Flash Recognition" description="A fixation cross, followed by a masked facial expression (e.g., 'surprise') flashed for 150-500ms. Rapidly classify the flashed universal emotion from a multiple-choice response array before the next trial begins." chcFactor="Processing Speed (Gs) / Micro-Expression Recognition" techStack={['Framer Motion', 'Face Asset Library']} complexity="Medium" fallbackPlan="If face assets fail, use abstract 'emoticon' style SVGs. This preserves the speeded classification mechanic but loses the micro-expression subtlety." difficultyExamples={{ level1: "Evaluate '[T] OR [F]' with a 2000ms time limit.", level8: "Evaluate 'NOT ([T] XOR [F])' with a 700ms time limit, requiring knowledge of operator precedence." }}/>
+        return <GsEQFlashRecognition />;
     }
 
     if (problem.type === 'lexical') {
