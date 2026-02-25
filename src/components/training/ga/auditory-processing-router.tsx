@@ -13,7 +13,6 @@ import { useAudioEngine } from "@/hooks/useAudioEngine";
 import { PRNG } from "@/lib/rng";
 import { domainIcons } from "@/components/icons";
 import { usePreloadAssets } from "@/hooks/usePreloadAssets";
-import { GameStub } from "../game-stub";
 import CoreMode from './CoreMode';
 import { AuditoryFlanker } from './auditory-flanker';
 import { CodeLogicMode } from './CodeLogicMode';
@@ -21,8 +20,6 @@ import VerbalMode from './VerbalMode';
 import SpatialMode from './SpatialMode';
 import MathMode from './MathMode';
 import EQMode from './EQMode';
-import { AuditoryDebugger } from '../logic/auditory-debugger';
-import { PhonemeDiscriminationModule } from './phoneme-discrimination';
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
 
@@ -53,6 +50,6 @@ export function AuditoryProcessingRouter() {
         case 'eq':
             return <EQMode onComplete={() => {}} />;
         default:
-            return <GameStub name="Auditory Processing" description={`This mode (${effectiveFocus}) is not yet implemented for the Auditory Processing domain.`} chcFactor="Auditory Processing (Ga)" techStack={[]} complexity="Medium" fallbackPlan="N/A" />;
+            return <CoreMode />;
     }
 }
