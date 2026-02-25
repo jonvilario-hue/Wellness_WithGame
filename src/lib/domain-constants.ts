@@ -95,20 +95,24 @@ export const DOMAIN_META: Record<
 export const chcDomains = Object.entries(DOMAIN_META).map(([key, value]) => ({
   key: key as CHCDomain,
   ...value,
-  supportsMath: ['Gf', 'Gwm', 'Gs', 'Gv', 'Gc', 'Ga', 'Glr', 'EF'].includes(key),
-  supportsMusic: ['Gf', 'Gwm', 'Gs', 'Gv', 'Gc', 'Ga', 'Glr', 'EF'].includes(key),
-  supportsVerbal: ['Gf', 'Gwm', 'Gs', 'Gv', 'Gc', 'Ga', 'Glr', 'EF'].includes(key),
-  supportsSpatial: ['Gf', 'Gwm', 'Gs', 'Gv', 'Gc', 'Glr', 'EF'].includes(key),
-  supportsEq: ['Gf', 'Gwm', 'Gs', 'Gv', 'Gc', 'Glr', 'EF'].includes(key),
-  supportsLogic: ['Gf', 'Gwm', 'Gs', 'Gv', 'Gc', 'Glr', 'EF'].includes(key),
+  // This logic now explicitly enables all modes by default,
+  // only disabling specific ones where there's a true incompatibility.
+  supportsMath: true,
+  supportsMusic: true,
+  supportsVerbal: true,
+  supportsSpatial: !['ga_auditory_lab', 'glr_fluency_storm'].includes(value.id),
+  supportsEq: true,
+  supportsLogic: true,
 }));
 
 
 // Centralized map of incompatibilities between training modes and CHC domains.
 // This is the single source of truth for the locking mechanism.
-// As per the latest requirement, all games must be playable in all modes, so this map is now empty.
 export const MODE_INCOMPATIBILITY_MAP: Partial<
   Record<TrainingFocus, Partial<Record<CHCDomain, string>>>
-> = {};
-
-    
+> = {
+    spatial: {
+        Ga: "Auditory tasks do not have a spatial reasoning equivalent.",
+        Glr: "Fluency tasks do not have a spatial reasoning equivalent.",
+    }
+};
