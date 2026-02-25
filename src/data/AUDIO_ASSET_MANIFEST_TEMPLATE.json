@@ -1,5 +1,5 @@
 {
-  "manifestVersion": "1.0.0",
+  "manifestVersion": "1.0.1",
   "assets": [
     {
       "id": "piano-c3",
@@ -171,6 +171,22 @@
     { "id": "phoneme-sha", "path": "verbal/phoneme-sha.mp3", "duration": 400, "category": ["Ga"], "tags": [], "format": "mp3", "sampleRate": 44100, "fileSize": 15000 },
     { "id": "phoneme-fa", "path": "verbal/phoneme-fa.mp3", "duration": 400, "category": ["Ga"], "tags": [], "format": "mp3", "sampleRate": 44100, "fileSize": 15000 },
     { "id": "phoneme-tha", "path": "verbal/phoneme-tha.mp3", "duration": 400, "category": ["Ga"], "tags": [], "format": "mp3", "sampleRate": 44100, "fileSize": 15000 },
+    { "id": "phrase-happy-1", "path": "ga-game/eq/phrase-happy-1.mp3", "duration": 2000, "category": ["Ga", "EF"], "tags": ["prosody", "happy", "low_intensity"], "format": "mp3", "sampleRate": 44100, "fileSize": 48000 },
+    { "id": "phrase-happy-2", "path": "ga-game/eq/phrase-happy-2.mp3", "duration": 2000, "category": ["Ga", "EF"], "tags": ["prosody", "happy", "med_intensity"], "format": "mp3", "sampleRate": 44100, "fileSize": 48000 },
+    { "id": "phrase-happy-3", "path": "ga-game/eq/phrase-happy-3.mp3", "duration": 2000, "category": ["Ga", "EF"], "tags": ["prosody", "happy", "high_intensity"], "format": "mp3", "sampleRate": 44100, "fileSize": 48000 },
+    { "id": "phrase-sad-1", "path": "ga-game/eq/phrase-sad-1.mp3", "duration": 2200, "category": ["Ga", "EF"], "tags": ["prosody", "sad", "low_intensity"], "format": "mp3", "sampleRate": 44100, "fileSize": 52000 },
+    { "id": "phrase-sad-2", "path": "ga-game/eq/phrase-sad-2.mp3", "duration": 2200, "category": ["Ga", "EF"], "tags": ["prosody", "sad", "med_intensity"], "format": "mp3", "sampleRate": 44100, "fileSize": 52000 },
+    { "id": "phrase-sad-3", "path": "ga-game/eq/phrase-sad-3.mp3", "duration": 2200, "category": ["Ga", "EF"], "tags": ["prosody", "sad", "high_intensity"], "format": "mp3", "sampleRate": 44100, "fileSize": 52000 },
+    { "id": "phrase-angry-1", "path": "ga-game/eq/phrase-angry-1.mp3", "duration": 1800, "category": ["Ga", "EF"], "tags": ["prosody", "angry", "low_intensity"], "format": "mp3", "sampleRate": 44100, "fileSize": 44000 },
+    { "id": "phrase-angry-2", "path": "ga-game/eq/phrase-angry-2.mp3", "duration": 1800, "category": ["Ga", "EF"], "tags": ["prosody", "angry", "med_intensity"], "format": "mp3", "sampleRate": 44100, "fileSize": 44000 },
+    { "id": "phrase-angry-3", "path": "ga-game/eq/phrase-angry-3.mp3", "duration": 1800, "category": ["Ga", "EF"], "tags": ["prosody", "angry", "high_intensity"], "format": "mp3", "sampleRate": 44100, "fileSize": 44000 },
+    { "id": "phrase-calm-1", "path": "ga-game/eq/phrase-calm-1.mp3", "duration": 2100, "category": ["Ga", "EF"], "tags": ["prosody", "calm", "low_intensity"], "format": "mp3", "sampleRate": 44100, "fileSize": 50000 },
+    { "id": "phrase-calm-2", "path": "ga-game/eq/phrase-calm-2.mp3", "duration": 2100, "category": ["Ga", "EF"], "tags": ["prosody", "calm", "med_intensity"], "format": "mp3", "sampleRate": 44100, "fileSize": 50000 },
+    { "id": "phrase-calm-3", "path": "ga-game/eq/phrase-calm-3.mp3", "duration": 2100, "category": ["Ga", "EF"], "tags": ["prosody", "calm", "high_intensity"], "format": "mp3", "sampleRate": 44100, "fileSize": 50000 },
+    { "id": "phrase-surprised-1", "path": "ga-game/eq/phrase-surprised-1.mp3", "duration": 1500, "category": ["Ga", "EF"], "tags": ["prosody", "surprised", "low_intensity"], "format": "mp3", "sampleRate": 44100, "fileSize": 38000 },
+    { "id": "phrase-surprised-2", "path": "ga-game/eq/phrase-surprised-2.mp3", "duration": 1500, "category": ["Ga", "EF"], "tags": ["prosody", "surprised", "high_intensity"], "format": "mp3", "sampleRate": 44100, "fileSize": 38000 },
+    { "id": "phrase-sarcastic-1", "path": "ga-game/eq/phrase-sarcastic-1.mp3", "duration": 2300, "category": ["Ga", "EF"], "tags": ["prosody", "sarcastic", "low_intensity"], "format": "mp3", "sampleRate": 44100, "fileSize": 54000 },
+    { "id": "phrase-sarcastic-2", "path": "ga-game/eq/phrase-sarcastic-2.mp3", "duration": 2300, "category": ["Ga", "EF"], "tags": ["prosody", "sarcastic", "high_intensity"], "format": "mp3", "sampleRate": 44100, "fileSize": 54000 },
     {
       "id": "word-en-apple",
       "path": "speech/words/en/apple.mp3",
@@ -190,26 +206,6 @@
       "format": "mp3",
       "sampleRate": 44100,
       "fileSize": 18000
-    },
-    {
-      "id": "sentence-01-happy-f1",
-      "path": "speech/sentences/happy/s01_happy_f1.mp3",
-      "duration": 2500,
-      "category": ["EF"],
-      "tags": ["speech", "sentence", "emotion", "happy", "female-1"],
-      "format": "mp3",
-      "sampleRate": 44100,
-      "fileSize": 64000
-    },
-    {
-      "id": "vocalization-laugh-01",
-      "path": "emotions/vocalizations/laugh-01.mp3",
-      "duration": 3000,
-      "category": ["EF"],
-      "tags": ["emotion", "vocalization", "happy", "laugh"],
-      "format": "mp3",
-      "sampleRate": 44100,
-      "fileSize": 72000
     },
     {
       "id": "noise-babble-01",

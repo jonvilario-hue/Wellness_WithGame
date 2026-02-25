@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
-import { Headphones, Loader2, Check, X, Music, Waves, Ear, Locate, Brain, Bot } from "lucide-react";
+import { Headphones, Loader2, Check, X, Music, Waves, Ear, Locate, Brain, Bot, Smile } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus, AssetId } from "@/types";
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
@@ -20,6 +20,7 @@ import { CodeLogicMode } from './CodeLogicMode';
 import VerbalMode from './VerbalMode';
 import SpatialMode from './SpatialMode';
 import MathMode from './MathMode';
+import EQMode from './EQMode';
 import { AuditoryDebugger } from '../logic/auditory-debugger';
 import { PhonemeDiscriminationModule } from './phoneme-discrimination';
 import { useTrainingFocus } from "@/hooks/use-training-focus";
@@ -49,6 +50,8 @@ export function AuditoryProcessingRouter() {
             return <VerbalMode onComplete={() => {}} />;
         case 'math':
             return <MathMode onComplete={() => {}} />;
+        case 'eq':
+            return <EQMode onComplete={() => {}} />;
         default:
             return <GameStub name="Auditory Processing" description={`This mode (${effectiveFocus}) is not yet implemented for the Auditory Processing domain.`} chcFactor="Auditory Processing (Ga)" techStack={[]} complexity="Medium" fallbackPlan="N/A" />;
     }
