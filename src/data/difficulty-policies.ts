@@ -77,14 +77,14 @@ const policies: Partial<Record<GameId, DifficultyPolicy>> = {
     targetAccuracyHigh: 0.85,
     targetAccuracyLow: 0.65,
     levelMap: {
-        1: { mechanic_config: {}, content_config: { music: { sub_variant: 'auditory_flanker', params: { flanker_detune_cents: 200, flanker_gain_relative: 0.6, incongruent_ratio: 0.5 } } } },
-        2: { mechanic_config: {}, content_config: { music: { sub_variant: 'auditory_flanker', params: { flanker_detune_cents: 150, flanker_gain_relative: 0.65, incongruent_ratio: 0.5 } } } },
-        3: { mechanic_config: {}, content_config: { music: { sub_variant: 'auditory_flanker', params: { flanker_detune_cents: 100, flanker_gain_relative: 0.7, incongruent_ratio: 0.5 } } } },
-        4: { mechanic_config: {}, content_config: { music: { sub_variant: 'auditory_flanker', params: { flanker_detune_cents: 75, flanker_gain_relative: 0.75, incongruent_ratio: 0.5 } } } },
-        5: { mechanic_config: {}, content_config: { music: { sub_variant: 'auditory_flanker', params: { flanker_detune_cents: 50, flanker_gain_relative: 0.8, incongruent_ratio: 0.5 } } } },
-        6: { mechanic_config: {}, content_config: { music: { sub_variant: 'auditory_flanker', params: { flanker_detune_cents: 40, flanker_gain_relative: 0.85, incongruent_ratio: 0.5 } } } },
-        7: { mechanic_config: {}, content_config: { music: { sub_variant: 'auditory_flanker', params: { flanker_detune_cents: 30, flanker_gain_relative: 0.9, incongruent_ratio: 0.5 } } } },
-        8: { mechanic_config: {}, content_config: { music: { sub_variant: 'auditory_flanker', params: { flanker_detune_cents: 20, flanker_gain_relative: 0.95, incongruent_ratio: 0.5 } } } },
+        1: { mechanic_config: {}, content_config: { music: { sub_variant: 'pitch_discrimination', params: { pitchDelta: 200 } }, verbal: { sub_variant: 'phoneme_discrimination' }, math: { sub_variant: "magnitude_comparison", params: { digits: 2 } } } },
+        2: { mechanic_config: {}, content_config: { music: { sub_variant: 'pitch_discrimination', params: { pitchDelta: 150 } }, verbal: { sub_variant: 'phoneme_discrimination' }, math: { sub_variant: "magnitude_comparison", params: { digits: 2 } } } },
+        3: { mechanic_config: {}, content_config: { music: { sub_variant: 'pitch_discrimination', params: { pitchDelta: 100 } }, verbal: { sub_variant: 'phoneme_discrimination' }, math: { sub_variant: "magnitude_comparison", params: { digits: 3 } } } },
+        4: { mechanic_config: {}, content_config: { music: { sub_variant: 'pitch_discrimination', params: { pitchDelta: 75 } }, verbal: { sub_variant: 'phoneme_discrimination' }, math: { sub_variant: "magnitude_comparison", params: { digits: 3 } } } },
+        5: { mechanic_config: {}, content_config: { music: { sub_variant: 'pitch_discrimination', params: { pitchDelta: 50 } }, verbal: { sub_variant: 'phoneme_discrimination' }, math: { sub_variant: "magnitude_comparison", params: { digits: 4 } } } },
+        6: { mechanic_config: {}, content_config: { music: { sub_variant: 'pitch_discrimination', params: { pitchDelta: 40 } }, verbal: { sub_variant: 'phoneme_discrimination' }, math: { sub_variant: "magnitude_comparison", params: { digits: 4 } } } },
+        7: { mechanic_config: {}, content_config: { music: { sub_variant: 'pitch_discrimination', params: { pitchDelta: 30 } }, verbal: { sub_variant: 'phoneme_discrimination' }, math: { sub_variant: "magnitude_comparison", params: { digits: 5 } } } },
+        8: { mechanic_config: {}, content_config: { music: { sub_variant: 'pitch_discrimination', params: { pitchDelta: 20 } }, verbal: { sub_variant: 'phoneme_discrimination' }, math: { sub_variant: "magnitude_comparison", params: { digits: 5 } } } },
     }
   },
   glr_fluency_storm: {
