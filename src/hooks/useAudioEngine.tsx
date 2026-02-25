@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useMemo } from 'react';
+import React, { createContext, useContext, useMemo, useEffect } from 'react';
 import { AudioEngine } from '@/lib/audio/AudioEngine';
 
 type AudioEngineContextType = {
@@ -18,9 +18,17 @@ export function AudioEngineProvider({ children }: { children: React.ReactNode })
     return null;
   }, []);
 
-  const isReady = !!engine;
+  useEffect(() => {
+    // Cleanup on unmount
+    return () => {
+      engine?.cleanup();
+    };
+  }, [engine]);
 
-  const value = useMemo(() => ({ engine, isReady }), [engine, isReady]);
+  const value = useMemo(() => ({
+    engine,
+    isReady: !!engine?.isReady,
+  }), [engine]);
 
   return (
     <AudioEngineContext.Provider value={value}>

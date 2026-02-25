@@ -1,79 +1,182 @@
-import { Howl, Howler } from 'howler';
-import type { AssetId } from '@/types';
+'use client';
+import type { AssetId, PlaybackConfig } from '@/types';
+import { AudioSampleManager } from './AudioSampleManager';
 
-// Wrapper around Howler.js to provide a consistent API and handle our specific needs
+// Define a handle to control playback
+export interface PlaybackHandle {
+  stop: () => void;
+  sourceNode: AudioBufferSourceNode;
+}
+
 export class AudioEngine {
-  private sounds: Map<string, Howl> = new Map();
-  private manifest: any | null = null;
-  public isReady = false;
+  private audioContext: AudioContext | null = null;
+  private sampleManager: AudioSampleManager | null = null;
+  private masterGain: GainNode | null = null;
+  private activeSources: Set<AudioBufferSourceNode> = new Set();
 
   constructor() {
-    this.init();
+    if (typeof window !== 'undefined') {
+      this.init();
+    }
   }
 
-  private async init() {
+  private init() {
     try {
-      const response = await fetch('/audio-assets/manifest.json');
-      this.manifest = await response.json();
-      Howler.autoUnlock = true; // Unlock on first user interaction
-      this.isReady = true;
-      console.log('[AudioEngine] Initialized and manifest loaded.');
+      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      this.masterGain = this.audioContext.createGain();
+      this.masterGain.connect(this.audioContext.destination);
+      this.sampleManager = new AudioSampleManager(this.audioContext);
+      console.log('[AudioEngine] Initialized successfully.');
     } catch (e) {
-      console.error('[AudioEngine] Failed to load manifest.json. Engine will be limited.', e);
+      console.error('[AudioEngine] Web Audio API is not supported in this browser.', e);
     }
   }
 
-  private getAssetPath(assetId: AssetId): string | null {
-    const asset = this.manifest?.assets.find((a: any) => a.id === assetId);
-    return asset ? `/audio-assets/${asset.path}` : null;
+  public get isReady(): boolean {
+    return !!this.audioContext && !!this.sampleManager;
   }
 
-  public playSample(assetId: AssetId): number | null {
-    const path = this.getAssetPath(assetId);
-    if (!path) {
-      console.warn(`[AudioEngine] WARN: Asset '${assetId}' not found in manifest. Using fallback.`);
-      // Fallback logic (e.g., play a synthesized tone) could go here
-      return null;
+  public async resumeContext(): Promise<void> {
+    if (this.audioContext && this.audioContext.state === 'suspended') {
+      await this.audioContext.resume();
+      console.log('[AudioEngine] AudioContext resumed.');
+    }
+  }
+
+  public async playSample(assetId: AssetId, config: PlaybackConfig = {}): Promise<PlaybackHandle | null> {
+    if (!this.isReady || !this.sampleManager) return null;
+    await this.resumeContext();
+
+    const buffer = await this.sampleManager.getAsset(assetId);
+    if (!buffer) {
+        console.error(`[AudioEngine] Could not load or generate asset for ${assetId}`);
+        return null;
     }
 
-    let sound = this.sounds.get(path);
-    if (!sound) {
-      sound = new Howl({
-        src: [path]
-      });
-      this.sounds.set(path, sound);
-    }
+    const source = this.audioContext!.createBufferSource();
+    source.buffer = buffer;
+
+    // Apply configurations (e.g., gain, pan)
+    const gainNode = this.audioContext!.createGain();
+    gainNode.gain.value = config.volume ?? 1;
     
-    console.log(`[AudioEngine] Playing sample: ${assetId}`);
-    return sound.play();
-  }
+    source.connect(gainNode);
+    gainNode.connect(this.masterGain!);
 
-   public playSequence(assetIds: AssetId[], intervalMs: number, onEnd?: () => void) {
-        let currentIndex = 0;
-        const playNext = () => {
-            if (currentIndex < assetIds.length) {
-                const soundId = this.playSample(assetIds[currentIndex]);
-                if (soundId !== null) {
-                    const sound = this.sounds.get(this.getAssetPath(assetIds[currentIndex])!);
-                    if (sound) {
-                        sound.once('end', () => {
-                            setTimeout(playNext, intervalMs);
-                        }, soundId);
-                    }
-                }
-                currentIndex++;
-            } else {
-                onEnd?.();
-            }
-        };
-        playNext();
-    }
+    source.start(0, config.startOffset ?? 0);
+    this.activeSources.add(source);
+
+    const handle: PlaybackHandle = {
+        stop: () => {
+            source.stop();
+        },
+        sourceNode: source,
+    };
+
+    source.onended = () => {
+        source.disconnect();
+        gainNode.disconnect();
+        this.activeSources.delete(source);
+    };
+    
+    return handle;
+  }
   
-  public getAudioContext(): AudioContext | null {
-      return Howler.ctx;
+  public async playSequence(assetIds: AssetId[], intervalMs: number, onEnd?: () => void) {
+      if (!this.isReady || !this.audioContext) return;
+      await this.resumeContext();
+
+      let time = this.audioContext!.currentTime;
+      for (const assetId of assetIds) {
+          const buffer = await this.sampleManager!.getAsset(assetId);
+          if (buffer) {
+              const source = this.audioContext!.createBufferSource();
+              source.buffer = buffer;
+              source.connect(this.masterGain!);
+              source.start(time);
+              time += buffer.duration + (intervalMs / 1000);
+          }
+      }
+      // Simple onEnd timeout
+      if(onEnd) {
+          const duration = (time - this.audioContext!.currentTime) * 1000;
+          if (duration > 0) {
+            setTimeout(onEnd, duration);
+          } else {
+            onEnd();
+          }
+      }
   }
 
-  public resumeContext(): Promise<void> {
-      return Howler.ctx.resume();
+  public stopAll() {
+    this.activeSources.forEach(source => {
+      try {
+        source.stop();
+      } catch (e) {
+        // Source may have already stopped
+      }
+    });
+    this.activeSources.clear();
+  }
+
+  public cleanup() {
+      if (this.audioContext) {
+          this.stopAll();
+          this.audioContext.close().then(() => console.log('[AudioEngine] Context closed.'));
+      }
+  }
+
+  // --- Fallback Synthesis Methods (from original plan) ---
+
+  public playTone(config: { frequency: number, duration: number, type?: OscillatorType, onended?: () => void }) {
+    if (!this.audioContext || !this.masterGain) return null;
+    this.resumeContext();
+    const { frequency, duration, type = 'sine', onended } = config;
+
+    const oscillator = this.audioContext.createOscillator();
+    const gainNode = this.audioContext.createGain();
+
+    oscillator.type = type;
+    oscillator.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
+
+    // ADSR Envelope
+    const now = this.audioContext.currentTime;
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(1, now + 0.02); // Attack
+    gainNode.gain.linearRampToValueAtTime(0.5, now + 0.1); // Decay
+    gainNode.gain.setValueAtTime(0.5, now + duration / 1000 - 0.1); // Sustain
+    gainNode.gain.linearRampToValueAtTime(0, now + duration / 1000); // Release
+
+    oscillator.connect(gainNode);
+    gainNode.connect(this.masterGain);
+
+    oscillator.start(now);
+    oscillator.stop(now + duration / 1000);
+    
+    this.activeSources.add(oscillator as any); // Track for cleanup
+
+    oscillator.onended = () => {
+        gainNode.disconnect();
+        this.activeSources.delete(oscillator as any);
+        onended?.();
+    };
+
+    return { stop: () => oscillator.stop() };
+  }
+
+  public speak(text: string, onEnd?: () => void) {
+      console.warn('[AudioEngine] Using synthetic speech fallback.');
+      if ('speechSynthesis' in window) {
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.onend = () => onEnd?.();
+          window.speechSynthesis.speak(utterance);
+      } else {
+          console.error('[AudioEngine] Speech Synthesis not supported.');
+          onEnd?.();
+      }
+  }
+
+  public get isSpeechSupported(): boolean {
+      return typeof window !== 'undefined' && 'speechSynthesis' in window;
   }
 }

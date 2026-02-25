@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +6,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { Headphones, Loader2, Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
+import type { AdaptiveState, TrialResult, GameId, TrainingFocus, AssetId } from "@/types";
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import { useTrainingFocus } from "@/hooks/use-training-focus";
@@ -50,9 +48,8 @@ const PitchDiscriminationModule = ({ focus, prng }: { focus: TrainingFocus, prng
         const isHigher = prng.nextFloat() > 0.5;
         answerRef.current = isHigher ? 'higher' : 'lower';
         
-        // This task uses two distinct piano samples for comparison
-        const baseAssetId = 'piano-g3' as any;
-        const comparisonAssetId = isHigher ? 'piano-a3' : 'piano-f3' as any;
+        const baseAssetId = 'piano-g3' as AssetId;
+        const comparisonAssetId = (isHigher ? 'piano-a3' : 'piano-f3') as AssetId;
 
         engine.playSample(baseAssetId);
         trialStartTime.current = Date.now();
@@ -71,10 +68,10 @@ const PitchDiscriminationModule = ({ focus, prng }: { focus: TrainingFocus, prng
     }, [getAdaptiveState, updateAdaptiveState, focus, startNewTrial, prng]);
     
     useEffect(() => {
-        if(isAudioReady) {
+        if(isAudioReady && engine) {
            startNewSession();
         }
-    }, [isAudioReady, startNewSession]);
+    }, [isAudioReady, engine, startNewSession]);
 
     const handleAnswer = (userChoice: 'higher' | 'lower') => {
         const state = getAdaptiveState(GAME_ID, focus);
@@ -127,7 +124,7 @@ const PitchDiscriminationModule = ({ focus, prng }: { focus: TrainingFocus, prng
                 setGameState('finished');
                 endSession(newState, []);
             } else {
-                startNewTrial();
+                startNewTrial(newState);
             }
         }, 1500);
     };
@@ -144,7 +141,7 @@ const PitchDiscriminationModule = ({ focus, prng }: { focus: TrainingFocus, prng
 
     const state = getAdaptiveState(GAME_ID, focus);
     if (gameState === 'loading' || !state || !isAudioReady) {
-        return <p>Loading audio engine...</p>;
+        return <Button onClick={() => engine?.resumeContext()}>Enable Audio</Button>;
     }
 
     return (
@@ -189,10 +186,7 @@ const PhonemeDiscriminationModule = ({ focus, prng }: { focus: TrainingFocus, pr
 
 
     useEffect(() => {
-        // Speech synthesis is not part of the new sample-first engine for this pass.
-        // This game would need to be re-implemented with pre-recorded speech assets.
         setGameState('loading');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
      if (gameState === 'loading') {
@@ -230,7 +224,6 @@ export function AuditoryProcessingRouter() {
             GameComponent = <PitchDiscriminationModule focus={currentMode} prng={prngRef.current} />;
             break;
         case 'spatial':
-            // The synth-based spatial game is deprecated in favor of a sample-based approach
              GameComponent = <GameStub 
                 name="Spatial Audio Challenge"
                 description="This game is being upgraded to use the new sample-first audio engine. The previous synth-based version is deprecated."
