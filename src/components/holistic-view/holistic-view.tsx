@@ -25,20 +25,19 @@ export function HolisticView() {
             <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as ViewMode)} className="w-full">
                 <div className="flex justify-center mb-4">
                     <TabsList>
-                        <TabsTrigger value="focus">Cognitive Domain</TabsTrigger>
-                        <TabsTrigger value="domain">Training Focus</TabsTrigger>
+                        <TabsTrigger value="domain">Cognitive Domain</TabsTrigger>
+                        <TabsTrigger value="focus">By Training Focus</TabsTrigger>
                     </TabsList>
                 </div>
 
                 <TabsContent value="domain">
                     <div className="space-y-6">
-                        <SubjectSelector selectedSubject={selectedFocus} onSelectSubject={setSelectedFocus} />
                         <Card className="hover:shadow-lg transition-shadow duration-300 relative overflow-hidden">
                              {organicGrowth && <GrowthDecoration />}
-                            <StrengthProfileRadar focus={selectedFocus} />
+                            <StrengthProfileRadar focus="neutral" />
                         </Card>
-                        <StrengthsWeaknesses subject={selectedFocus} viewMode="domain" />
-                        <SubjectInsightCard subject={selectedFocus} viewMode="domain" />
+                        <StrengthsWeaknesses subject="neutral" viewMode="domain" />
+                        <SubjectInsightCard subject="neutral" viewMode="domain" />
                     </div>
                 </TabsContent>
 
