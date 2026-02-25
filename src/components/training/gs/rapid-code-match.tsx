@@ -38,7 +38,7 @@ type Problem = {
 };
 
 export function RapidCodeMatch() {
-  const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
+  const { getAdaptiveState, updateAdaptiveState, logEvent } = usePerformanceStore();
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
   const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
   const { playSequence, resumeContext, isAudioReady } = useAudioEngine();
@@ -101,6 +101,19 @@ export function RapidCodeMatch() {
   }, [symbolPool, problem, currentMode]);
 
 
+  useEffect(() => {
+    if (isComponentLoaded) {
+      // On initial load or mode change, reset the game to its start screen.
+      // This prevents rendering with stale state (e.g., a 'spatial' problem
+      // when the mode has switched to 'neutral').
+      setGameState('start');
+      setProblem(null);
+      currentTrialIndex.current = 0;
+      mistakes.current = 0;
+      setInlineFeedback({ message: '', type: '' });
+    }
+  }, [isComponentLoaded, currentMode]);
+  
   const startNewTrial = useCallback(() => {
       const state = getAdaptiveState(GAME_ID, currentMode);
       if (!state || !prngRef.current) return;
@@ -161,12 +174,6 @@ export function RapidCodeMatch() {
     startNewTrial();
   }, [startNewTrial, resumeContext, updateAdaptiveState, currentMode, getAdaptiveState]);
 
-  useEffect(() => {
-    if (isComponentLoaded) {
-      setGameState('start');
-    }
-  }, [isComponentLoaded]);
-
   const handleAnswer = useCallback((answer: number | string | boolean) => {
     const currentState = getAdaptiveState(GAME_ID, currentMode);
     if (gameState !== 'running' || !currentState || !problem) return;
@@ -210,13 +217,16 @@ export function RapidCodeMatch() {
             timeLimit_ms: mechanic_config.responseWindowMs || 5000,
         }
     };
-    logTrial({
-      gameId: GAME_ID,
-      focus: currentMode,
-      difficultyLevel: levelPlayed,
-      correct: trialResult.correct,
-      rtMs: trialResult.reactionTimeMs,
-      meta: trialResult.telemetry
+    logEvent({
+      type: 'trial_complete',
+      payload: {
+          gameId: GAME_ID,
+          focus: currentMode,
+          difficultyLevel: levelPlayed,
+          correct: trialResult.correct,
+          rtMs: trialResult.reactionTimeMs,
+          meta: trialResult.telemetry
+      }
     } as any);
     
     const newState = adjustDifficulty(trialResult, currentState, policy);
@@ -237,7 +247,7 @@ export function RapidCodeMatch() {
             startNewTrial();
         }
     }, 200); // Fast transition for a Gs task
-  }, [gameState, problem, startNewTrial, updateAdaptiveState, currentMode, logTrial, getAdaptiveState]);
+  }, [gameState, problem, startNewTrial, updateAdaptiveState, currentMode, logEvent, getAdaptiveState]);
 
   const renderContent = () => {
     if (!isComponentLoaded) {
@@ -281,7 +291,7 @@ export function RapidCodeMatch() {
         return (
             <Suspense fallback={<Loader2 className="w-12 h-12 animate-spin"/>}>
                 <GsSpatialRenderer
-                    trial={problem}
+                    trial={problem as any}
                     onResponse={handleAnswer}
                     timeLeft={60} // Placeholder, a real timer would be implemented
                     score={score}
