@@ -19,15 +19,17 @@ import { PRNG } from '@/lib/rng';
 import { Loader2 } from 'lucide-react';
 import type { Color } from '@react-three/fiber';
 import { generateEQMatrixPuzzle } from '@/lib/gf-stimulus-factory';
+import { generateGfLogicTrial } from '@/lib/gf-logic-stimulus-factory';
 
 const GfSpatialRenderer = lazy(() => import('./GfSpatialRenderer'));
 const GfEQRenderer = lazy(() => import('./GfEQRenderer'));
+const GfLogicRenderer = lazy(() => import('./GfLogicRenderer'));
 
 
 const GAME_ID: GameId = 'gf_pattern_matrix';
 const policy = difficultyPolicies[GAME_ID];
 
-type GameVariant = 'neutral' | 'math' | 'probability' | 'verbal' | 'music' | 'spatial' | 'eq';
+type GameVariant = 'neutral' | 'math' | 'probability' | 'verbal' | 'music' | 'spatial' | 'eq' | 'logic';
 
 // --- STIMULUS GENERATION LOGIC ---
 const neutralShapes = ['circle', 'square', 'triangle', 'diamond'];
@@ -134,6 +136,9 @@ const generatePuzzleForLevel = (level: number, focus: GameVariant, prng: PRNG) =
     }
      if (focus === 'eq') {
         return generateEQMatrixPuzzle(level, prng);
+    }
+    if (focus === 'logic') {
+        return generateGfLogicTrial(level, prng);
     }
 
     const focusConfig = content_config[focus];
@@ -391,7 +396,19 @@ export function PatternMatrix() {
     }
     
     if (currentMode === 'logic') {
-        return <RuleInductionEngine />;
+        return (
+            <Suspense fallback={renderLoading()}>
+                <GfLogicRenderer
+                    gameState={componentState}
+                    feedback={feedback}
+                    onEvent={handleEvent}
+                    adaptiveState={adaptiveState}
+                    currentTrialIndex={currentTrialIndex.current}
+                    sessionLength={policy.sessionLength}
+                    focus={currentMode}
+                />
+            </Suspense>
+        );
     }
 
     if (currentMode === 'eq') {
