@@ -106,4 +106,19 @@ export interface BaseRendererProps<TGameState, TGameEvent> {
   currentTrialIndex: number;
   sessionLength: number;
   focus: TrainingFocus;
+  name?: string;
+  description?: string;
+  chcFactor?: string;
 }
+
+// --- Audio Types ---
+export type AssetId = string & { __brand: 'AssetId' };
+
+export type PlaybackConfig = {
+    volume?: number;
+    pan?: number;
+    playbackRate?: number;
+    loop?: boolean;
+    startOffset?: number;
+    duration?: number;
+};

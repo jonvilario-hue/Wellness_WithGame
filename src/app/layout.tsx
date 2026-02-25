@@ -10,6 +10,7 @@ import { TrainingFocusProvider } from '@/hooks/use-training-focus';
 import { TrainingOverrideProvider } from '@/hooks/use-training-override.tsx';
 import { useEffect } from 'react';
 import { usePerformanceStore } from '@/hooks/use-performance-store';
+import { AudioEngineProvider } from '@/hooks/useAudioEngine';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -63,12 +64,14 @@ export default function RootLayout({
       <body className={`${inter.variable} font-sans antialiased`} suppressHydrationWarning={true}>
         <StoreHydrator>
           <ThemeProvider>
-            <TrainingFocusProvider>
-              <TrainingOverrideProvider>
-                {children}
-                <Toaster />
-              </TrainingOverrideProvider>
-            </TrainingFocusProvider>
+            <AudioEngineProvider>
+              <TrainingFocusProvider>
+                <TrainingOverrideProvider>
+                  {children}
+                  <Toaster />
+                </TrainingOverrideProvider>
+              </TrainingFocusProvider>
+            </AudioEngineProvider>
           </ThemeProvider>
         </StoreHydrator>
       </body>
