@@ -113,7 +113,7 @@ export function TokenNBack() {
         setFeedback(null);
         trialCount.current++;
         
-    }, [engine, history]);
+    }, [engine]);
 
     const startNewSession = useCallback(() => {
         engine?.resumeContext();
@@ -126,7 +126,7 @@ export function TokenNBack() {
         sessionId.current = crypto.randomUUID();
         streamRef.current = generateFullStream(sessionState.currentLevel, prngRef.current);
         setGameState('playing');
-    }, [engine, adaptiveState, updateAdaptiveState, startNewTrial]);
+    }, [engine, adaptiveState, updateAdaptiveState]);
 
     useEffect(() => {
         if (gameState === 'playing') {
