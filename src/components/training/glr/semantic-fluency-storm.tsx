@@ -22,6 +22,7 @@ import { usePageVisibility } from "@/hooks/use-page-visibility";
 import { PRNG } from "@/lib/rng";
 import { GlrMemoryPalace } from "./GlrMemoryPalace";
 import { FOCUS_MODE_META } from "@/lib/mode-constants";
+import { Input } from "@/components/ui/input";
 
 const GLR_GAME_ID: GameId = 'glr_fluency_storm';
 const glrPolicy = difficultyPolicies[GLR_GAME_ID];
