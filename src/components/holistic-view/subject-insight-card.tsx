@@ -1,16 +1,18 @@
-
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Lightbulb, Info } from 'lucide-react';
-import type { Subject } from './holistic-view';
 import { GrowthDecoration } from '../ui/growth-decoration';
 import { useTheme } from '@/hooks/use-theme';
+import type { TrainingFocus } from '@/types';
 
-export function SubjectInsightCard({ subject }: { subject: Subject }) {
+export function SubjectInsightCard({ subject, viewMode = 'domain' }: { subject: TrainingFocus, viewMode?: 'domain' | 'focus' }) {
     const { organicGrowth } = useTheme();
 
   const getInsight = () => {
+    if (viewMode === 'focus') {
+      return "Your scores are highest in Logic-based tasks, but lowest in modes requiring musical processing.";
+    }
     if (subject === 'eq') {
       return "Your emotional speed is strong, but you sometimes confuse contempt and disgust.";
     }
@@ -18,7 +20,7 @@ export function SubjectInsightCard({ subject }: { subject: Subject }) {
   };
   
   const renderSubjectSpecificContent = () => {
-      if (subject === 'eq') {
+      if (viewMode === 'domain' && subject === 'eq') {
           return (
               <div className="space-y-4 mt-4">
                   <h4 className="font-semibold">EQ-Specific Breakdown</h4>

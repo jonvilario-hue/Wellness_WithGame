@@ -1,33 +1,32 @@
 'use client';
-
 import { useState, useEffect } from 'react';
-import {
-  Radar,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  ResponsiveContainer,
-  Tooltip,
-} from 'recharts';
+import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { CardHeader, CardTitle, CardDescription, CardContent } from '../ui/card';
 import { Skeleton } from '../ui/skeleton';
-import { DOMAIN_META, chcDomains } from '@/lib/domain-constants';
 import { usePerformanceStore } from '@/hooks/use-performance-store';
-import type { TrainingFocus } from '@/types';
 import { useTheme } from '@/hooks/use-theme';
 import { FOCUS_MODE_META } from '@/lib/mode-constants';
+import { chcDomains } from '@/lib/domain-constants';
+import type { TrainingFocus } from '@/types';
 
-const getFilteredScore = (gameStates: any, domainKey: keyof typeof DOMAIN_META, focus: TrainingFocus) => {
-    const domainId = DOMAIN_META[domainKey].id;
-    
-    const state = gameStates[`${domainId}/${focus}`];
-    if (!state || state.sessionCount === 0) return 40; // Baseline for no data
+const getScoreForFocus = (gameStates: any, focus: TrainingFocus): number => {
+    let totalScore = 0;
+    let count = 0;
 
-    return Math.round((state.currentLevel / state.levelCeiling) * 100);
-}
+    chcDomains.forEach(domain => {
+        const key = `${domain.id}/${focus}`;
+        const state = gameStates[key];
+        if (state && state.sessionCount > 0) {
+            totalScore += (state.currentLevel / state.levelCeiling) * 100;
+            count++;
+        }
+    });
 
-export function StrengthProfileRadar({ focus }: { focus: TrainingFocus }) {
+    if (count === 0) return 40; // Baseline for no data
+    return Math.round(totalScore / count);
+};
+
+export function FocusProfileRadar() {
   const [isClient, setIsClient] = useState(false);
   const { gameStates } = usePerformanceStore();
   const { theme } = useTheme();
@@ -36,14 +35,12 @@ export function StrengthProfileRadar({ focus }: { focus: TrainingFocus }) {
     setIsClient(true);
   }, []);
 
-  const chartData = chcDomains.map(domain => ({
-    subject: domain.friendlyLabel,
-    score: getFilteredScore(gameStates, domain.key, focus),
+  const chartData = Object.entries(FOCUS_MODE_META).map(([key, { label }]) => ({
+    subject: label,
+    score: getScoreForFocus(gameStates, key as TrainingFocus),
     fullMark: 100,
   }));
   
-  const title = focus === 'neutral' ? 'My Full Strength' : `My ${FOCUS_MODE_META[focus].label} Profile`;
-
   if (!isClient) {
     return (
         <>
@@ -58,13 +55,13 @@ export function StrengthProfileRadar({ focus }: { focus: TrainingFocus }) {
     );
   }
 
-  const radarColor = focus === 'eq' ? 'hsl(173 58% 50%)' : `hsl(${theme.colorScheme.accent})`;
+  const radarColor = `hsl(${theme.colorScheme.accent})`;
 
   return (
     <>
       <CardHeader>
-        <CardTitle className="font-headline">{title}</CardTitle>
-        <CardDescription>A holistic overview of your domain strengths.</CardDescription>
+        <CardTitle className="font-headline">My Performance by Training Focus</CardTitle>
+        <CardDescription>A holistic overview of your strengths across different training modes.</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="w-full h-96">

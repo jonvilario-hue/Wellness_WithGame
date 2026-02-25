@@ -1,33 +1,38 @@
-
 'use client';
 
 import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';
-import type { Subject } from './holistic-view';
+import type { TrainingFocus } from '@/types';
+import { FOCUS_MODE_META } from '@/lib/mode-constants';
 
-const subjects: { key: Subject, label: string }[] = [
-    { key: 'all', label: 'All' },
-    { key: 'eq', label: 'EQ' },
-];
-
-export function SubjectSelector({ selectedSubject, onSelectSubject }: { selectedSubject: Subject, onSelectSubject: (subject: Subject) => void }) {
+export function SubjectSelector({ selectedSubject, onSelectSubject }: { selectedSubject: TrainingFocus, onSelectSubject: (subject: TrainingFocus) => void }) {
   return (
-    <div className="p-1 bg-muted rounded-full flex items-center">
-      {subjects.map(subject => (
-        <Button
-          key={subject.key}
-          onClick={() => onSelectSubject(subject.key)}
-          variant={selectedSubject === subject.key ? 'default' : 'ghost'}
-          className={cn(
-            "flex-1 rounded-full transition-all",
-            selectedSubject === subject.key && 'shadow-sm'
-          )}
-        >
-          {subject.label}
-        </Button>
-      ))}
-       <Button variant="ghost" className="flex-1 rounded-full" disabled>Music</Button>
-       <Button variant="ghost" className="flex-1 rounded-full" disabled>Academic</Button>
+    <div className="relative">
+      <div className="p-1 bg-muted rounded-full flex items-center overflow-x-auto no-scrollbar">
+        {Object.entries(FOCUS_MODE_META).map(([key, { label, Icon }]) => (
+          <Button
+            key={key}
+            onClick={() => onSelectSubject(key as TrainingFocus)}
+            variant={selectedSubject === key ? 'default' : 'ghost'}
+            className={cn(
+              "flex-1 rounded-full transition-all flex-shrink-0 flex items-center gap-2 px-4 py-2",
+              selectedSubject === key && 'shadow-sm'
+            )}
+          >
+            <Icon className="w-4 h-4" />
+            {label}
+          </Button>
+        ))}
+      </div>
+      <style jsx>{`
+        .no-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+        .no-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+      `}</style>
     </div>
   );
 }
