@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
@@ -52,7 +53,7 @@ export function GaSpatialAudioGame() {
 
     let time = 0;
     newTrial.sequence.forEach((posId, index) => {
-      const position = newTrial.positions.find(p => p.id === posId);
+      const position = newTrial.positions.find(p => p && p.id === posId);
       if (position) {
         const delay = index * (policy.levelMap[adaptiveStateRef.current.currentLevel]?.mechanic_config.playback_speed_ms || 600) / 1000;
         const pan = position.x / 5;
@@ -76,8 +77,8 @@ export function GaSpatialAudioGame() {
   }, [engine]);
   
   const handleStartSession = useCallback(() => {
-    engine?.resumeContext();
     if (!engine) return;
+    engine.resumeContext();
     
     const seed = crypto.randomUUID();
     prng.current = new PRNG(seed);
@@ -165,7 +166,7 @@ export function GaSpatialAudioGame() {
   const handleReplay = () => {
       if (state.phase !== 'response' || !state.trial || !engine) return;
        state.trial.sequence.forEach((posId, index) => {
-        const position = state.trial.positions.find(p => p.id === posId);
+        const position = state.trial!.positions.find(p => p && p.id === posId);
         if (position) {
             const delay = index * (policy.levelMap[adaptiveStateRef.current.currentLevel]?.mechanic_config.playback_speed_ms || 600) / 1000;
             const pan = position.x / 5;
