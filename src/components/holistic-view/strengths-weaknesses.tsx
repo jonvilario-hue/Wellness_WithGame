@@ -11,6 +11,17 @@ import { cn } from '@/lib/utils';
 import { GrowthDecoration } from '../ui/growth-decoration';
 import { useTheme } from '@/hooks/use-theme';
 
+const domainHslColors: Record<CHCDomain, string> = {
+    Gf: 'hsl(217, 91.2%, 59.8%)', // blue-400
+    Gc: 'hsl(43.3, 95.5%, 53.1%)', // amber-400
+    Gwm: 'hsl(190.1, 95.1%, 46.9%)',// cyan-400
+    Gs: 'hsl(28.1, 96.5%, 52.9%)', // orange-400
+    Gv: 'hsl(75.5, 83.5%, 50.8%)', // lime-400
+    Ga: 'hsl(263.4, 90.9%, 60.8%)', // violet-400
+    Glr: 'hsl(150.8, 79.8%, 43.1%)', // emerald-400
+    EF: 'hsl(340.5, 94.3%, 65.5%)', // rose-400
+};
+
 const getAggregatedDomainScore = (gameStates: any, domainKey: CHCDomain): number => {
     const domainId = DOMAIN_META[domainKey].id;
     const allStatesForDomain = Object.keys(gameStates)
@@ -69,7 +80,7 @@ export function StrengthsWeaknesses({ subject }: { subject?: TrainingFocus }) {
                 <span className="text-sm font-medium">{domain.friendlyLabel}</span>
                 <span className={cn("text-sm font-bold", domain.color)}>{domain.score}</span>
               </div>
-              <Progress value={domain.score} className="h-2 [&>div]:bg-green-500" />
+              <Progress value={domain.score} className="h-2" indicatorColor={domainHslColors[domain.key]} />
             </div>
           ))}
         </CardContent>
@@ -86,7 +97,7 @@ export function StrengthsWeaknesses({ subject }: { subject?: TrainingFocus }) {
                     <span className="text-sm font-medium">{domain.friendlyLabel}</span>
                     <span className={cn("text-sm font-bold", domain.color)}>{domain.score}</span>
                 </div>
-              <Progress value={domain.score} className="h-2 [&>div]:bg-amber-500" />
+              <Progress value={domain.score} className="h-2" indicatorColor={domainHslColors[domain.key]} />
             </div>
           ))}
         </CardContent>

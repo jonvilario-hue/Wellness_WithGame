@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -18,6 +17,15 @@ import { usePerformanceStore } from '@/hooks/use-performance-store';
 import type { TrainingFocus, AdaptiveState } from '@/types';
 import { useTheme } from '@/hooks/use-theme';
 import { FOCUS_MODE_META } from '@/lib/mode-constants';
+
+const focusColors: Partial<Record<TrainingFocus, string>> = {
+    math: 'hsl(28.1, 96.5%, 52.9%)', // orange-400 from Gs
+    music: 'hsl(263.4, 90.9%, 60.8%)', // violet-400 from Ga
+    verbal: 'hsl(43.3, 95.5%, 53.1%)', // amber-400 from Gc
+    spatial: 'hsl(75.5, 83.5%, 50.8%)', // lime-400 from Gv
+    eq: 'hsl(340.5, 94.3%, 65.5%)', // rose-400 from EF
+    logic: 'hsl(217, 91.2%, 59.8%)' // blue-400 from Gf
+};
 
 const getAggregatedScore = (gameStates: any, domainKey: keyof typeof DOMAIN_META): number => {
     const domainId = DOMAIN_META[domainKey].id;
@@ -74,7 +82,9 @@ export function StrengthProfileRadar({ focus }: { focus?: TrainingFocus }) {
     );
   }
 
-  const radarColor = focus === 'eq' ? 'hsl(173 58% 50%)' : `hsl(${theme.colorScheme.accent})`;
+  const radarColor = (focus && focusColors[focus])
+    ? focusColors[focus]
+    : `hsl(${theme.colorScheme.accent})`;
 
   return (
     <>
