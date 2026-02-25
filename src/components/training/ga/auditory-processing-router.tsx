@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,17 +14,16 @@ import { PRNG } from "@/lib/rng";
 import { domainIcons } from "@/components/icons";
 import { usePreloadAssets } from "@/hooks/usePreloadAssets";
 import { GameStub } from "../game-stub";
-import { GaSpatialAudioGame } from "./GaSpatialAudioGame";
-import { useTrainingFocus } from "@/hooks/use-training-focus";
-import { useTrainingOverride } from "@/hooks/use-training-override";
-import { FOCUS_MODE_META } from '@/lib/mode-constants';
 import CoreMode from './CoreMode';
 import { AuditoryFlanker } from './auditory-flanker';
 import { CodeLogicMode } from './CodeLogicMode';
 import VerbalMode from './VerbalMode';
-import { GameStub as AuditoryDebugger } from './auditory-debugger';
-import { GameStub as PhonemeDiscriminationModule } from './phoneme-discrimination';
 import SpatialMode from './SpatialMode';
+import MathMode from './MathMode';
+import { AuditoryDebugger } from '../logic/auditory-debugger';
+import { PhonemeDiscriminationModule } from './phoneme-discrimination';
+import { useTrainingFocus } from "@/hooks/use-training-focus";
+import { useTrainingOverride } from "@/hooks/use-training-override";
 
 
 export function AuditoryProcessingRouter() {
@@ -49,6 +47,8 @@ export function AuditoryProcessingRouter() {
             return <CodeLogicMode />;
         case 'verbal':
             return <VerbalMode onComplete={() => {}} />;
+        case 'math':
+            return <MathMode onComplete={() => {}} />;
         default:
             return <GameStub name="Auditory Processing" description={`This mode (${effectiveFocus}) is not yet implemented for the Auditory Processing domain.`} chcFactor="Auditory Processing (Ga)" techStack={[]} complexity="Medium" fallbackPlan="N/A" />;
     }
