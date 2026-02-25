@@ -4,16 +4,17 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { usePerformanceStore } from '@/hooks/use-performance-store';
 import { useAudioEngine } from '@/hooks/use-audio-engine';
-import { adjustDifficulty, startSession, endSession } from '@/lib/adaptive-engine';
+import { adjustDifficulty, startSession as startAdaptiveSession, endSession } from '@/lib/adaptive-engine';
 import { difficultyPolicies } from '@/data/difficulty-policies';
 import { generateSpatialAudioTrial, type SpatialAudioTrial } from '@/lib/ga-spatial-stimulus-factory';
 import { PRNG } from '@/lib/rng';
-import type { GameId, TrialResult } from '@/types';
+import type { GameId, TrialResult, AdaptiveState } from '@/types';
 import { Loader2 } from 'lucide-react';
 
 const GaSpatialRenderer = lazy(() => import('./GaSpatialRenderer'));
 
 const GAME_ID: GameId = 'ga_auditory_lab';
+const FOCUS_MODE = 'spatial';
 const policy = difficultyPolicies[GAME_ID];
 
 export type GaSpatialGameState = {
@@ -21,10 +22,11 @@ export type GaSpatialGameState = {
   trial: SpatialAudioTrial | null;
   userSequence: string[];
   feedbackMessage: string;
+  score: number;
 };
 
 export function GaSpatialAudioGame() {
-  const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
+  const { getAdaptiveState, updateAdaptiveState, logEvent, startNewGameSession, completeCurrentGameSession, activeSession } = usePerformanceStore();
   const { engine } = useAudioEngine();
 
   const [state, setState] = useState<GaSpatialGameState>({
@@ -32,18 +34,20 @@ export function GaSpatialAudioGame() {
     trial: null,
     userSequence: [],
     feedbackMessage: '',
+    score: 0,
   });
 
   const trialCount = useRef(0);
-  const prng = useRef(new PRNG(Date.now()));
-  const sessionId = useRef(crypto.randomUUID());
+  const prng = useRef<PRNG | null>(null);
   const trialStartTime = useRef(0);
   const sessionTrials = useRef<TrialResult[]>([]);
+  const adaptiveStateRef = useRef<AdaptiveState>(getAdaptiveState(GAME_ID, FOCUS_MODE));
 
   const startNewTrial = useCallback(() => {
-    const adaptiveState = getAdaptiveState(GAME_ID, 'spatial');
-    const newTrial = generateSpatialAudioTrial(adaptiveState.currentLevel, prng.current);
-    setState({ phase: 'playback', trial: newTrial, userSequence: [], feedbackMessage: '' });
+    if (!prng.current) return;
+
+    const newTrial = generateSpatialAudioTrial(adaptiveStateRef.current.currentLevel, prng.current);
+    setState(prev => ({ ...prev, phase: 'playback', trial: newTrial, userSequence: [], feedbackMessage: '' }));
 
     if (!engine) return;
 
@@ -51,9 +55,9 @@ export function GaSpatialAudioGame() {
     newTrial.sequence.forEach((posId, index) => {
       const position = newTrial.positions.find(p => p.id === posId);
       if (position) {
-        const delay = index * 0.6; // 600ms interval
-        const pan = position.x / 5; // Normalize x-coord to -1 to 1 for panning
-        const gain = 1.0 - (Math.abs(position.z) / 10); // Attenuate based on depth
+        const delay = index * (policy.levelMap[adaptiveStateRef.current.currentLevel]?.mechanic_config.playback_speed_ms || 600) / 1000;
+        const pan = position.x / 5;
+        const gain = 1.0 - (Math.abs(position.z) / 10);
         engine.playTone({
             frequency: position.frequency, 
             duration: 0.3,
@@ -68,62 +72,103 @@ export function GaSpatialAudioGame() {
 
     setTimeout(() => {
       setState(prev => ({ ...prev, phase: 'response' }));
-      trialStartTime.current = Date.now();
+      trialStartTime.current = performance.now();
     }, time * 1000 + 200);
-  }, [getAdaptiveState, engine]);
+  }, [engine]);
   
   const handleStartSession = useCallback(() => {
     engine?.resumeContext();
     if (!engine) return;
     
-    const adaptiveState = getAdaptiveState(GAME_ID, 'spatial');
-    startSession(adaptiveState);
-    prng.current = new PRNG(Date.now());
-    sessionId.current = crypto.randomUUID();
+    const seed = crypto.randomUUID();
+    prng.current = new PRNG(seed);
+    startNewGameSession({
+        gameId: GAME_ID,
+        focus: FOCUS_MODE,
+        prngSeed: seed,
+        buildVersion: 'dev',
+        difficultyConfig: policy,
+    });
+
+    const currentAdaptiveState = getAdaptiveState(GAME_ID, FOCUS_MODE);
+    adaptiveStateRef.current = startAdaptiveSession(currentAdaptiveState);
+    updateAdaptiveState(GAME_ID, FOCUS_MODE, adaptiveStateRef.current);
+    
     trialCount.current = 0;
     sessionTrials.current = [];
+    setState(prev => ({ ...prev, score: 0 }));
     startNewTrial();
-  }, [engine, getAdaptiveState, startNewTrial]);
-
-  const handlePositionClick = (positionId: string) => {
-    if (state.phase !== 'response') return;
-    setState(prev => ({ ...prev, userSequence: [...prev.userSequence, positionId] }));
-  };
+  }, [engine, getAdaptiveState, startNewGameSession, startNewTrial, updateAdaptiveState]);
 
   const handleSubmit = () => {
-    if (state.phase !== 'response' || !state.trial) return;
+    if (state.phase !== 'response' || !state.trial || !activeSession) return;
 
-    const reactionTimeMs = Date.now() - trialStartTime.current;
+    const reactionTimeMs = performance.now() - trialStartTime.current;
     const isCorrect = JSON.stringify(state.userSequence) === JSON.stringify(state.trial.sequence);
 
-    const adaptiveState = getAdaptiveState(GAME_ID, 'spatial');
-    const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs, telemetry: { /* ... */ } };
+    const trialResult: TrialResult = { 
+      correct: isCorrect, 
+      reactionTimeMs, 
+      telemetry: { 
+        sequenceLength: state.trial.sequence.length,
+        positionCount: state.trial.positions.length,
+        userSequence: state.userSequence,
+        correctSequence: state.trial.sequence,
+      }
+    };
     sessionTrials.current.push(trialResult);
 
-    const newState = adjustDifficulty(trialResult, adaptiveState, policy);
-    updateAdaptiveState(GAME_ID, 'spatial', newState);
+    const currentAdaptiveState = getAdaptiveState(GAME_ID, FOCUS_MODE);
+    const newAdaptiveState = adjustDifficulty(trialResult, currentAdaptiveState, policy);
+    adaptiveStateRef.current = newAdaptiveState;
+    updateAdaptiveState(GAME_ID, FOCUS_MODE, newAdaptiveState);
 
-    setState(prev => ({...prev, phase: 'feedback', feedbackMessage: isCorrect ? 'Correct!' : 'Incorrect. Try again.'}));
+    logEvent({
+        type: 'trial_complete',
+        sessionId: activeSession.sessionId,
+        seq: trialCount.current + 1,
+        payload: {
+            gameId: GAME_ID,
+            focus: FOCUS_MODE,
+            trialIndex: trialCount.current,
+            difficultyLevel: currentAdaptiveState.currentLevel,
+            correct: isCorrect,
+            rtMs: reactionTimeMs,
+            stimulusParams: trialResult.telemetry
+        } as any,
+    });
+
+    setState(prev => ({
+        ...prev, 
+        phase: 'feedback', 
+        feedbackMessage: isCorrect ? 'Correct!' : 'Incorrect. Try again.',
+        score: prev.score + (isCorrect ? 1 : 0),
+    }));
 
     setTimeout(() => {
         trialCount.current++;
         if (trialCount.current >= policy.sessionLength) {
-            endSession(newState, sessionTrials.current);
+            const finalState = endSession(newAdaptiveState, sessionTrials.current);
+            updateAdaptiveState(GAME_ID, FOCUS_MODE, finalState);
+            completeCurrentGameSession();
             setState(prev => ({...prev, phase: 'finished'}));
         } else {
             startNewTrial();
         }
     }, 2000);
   };
+
+  const handlePositionClick = (positionId: string) => {
+    if (state.phase !== 'response') return;
+    setState(prev => ({ ...prev, userSequence: [...prev.userSequence, positionId] }));
+  };
   
   const handleReplay = () => {
       if (state.phase !== 'response' || !state.trial || !engine) return;
-      // In a real implementation, this would decrement a replay counter
-      // and re-trigger the playback sequence.
        state.trial.sequence.forEach((posId, index) => {
         const position = state.trial.positions.find(p => p.id === posId);
         if (position) {
-            const delay = index * 0.6;
+            const delay = index * (policy.levelMap[adaptiveStateRef.current.currentLevel]?.mechanic_config.playback_speed_ms || 600) / 1000;
             const pan = position.x / 5;
             const gain = 1.0 - (Math.abs(position.z) / 10);
             engine.playTone({
@@ -145,7 +190,7 @@ export function GaSpatialAudioGame() {
   }, [engine]);
 
   const renderFallback = () => (
-    <div className="flex items-center justify-center h-full">
+    <div className="flex items-center justify-center h-full min-h-[550px]">
       <Loader2 className="w-12 h-12 animate-spin" />
     </div>
   );
