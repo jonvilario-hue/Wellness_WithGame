@@ -7,7 +7,7 @@ import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
 import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
-import { adjustDifficulty, startSession } from "@/lib/adaptive-engine";
+import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { TrialResult, GameId, AdaptiveState, BaseRendererProps } from "@/types";
 import { GameStub } from "../game-stub";
@@ -18,13 +18,16 @@ import { PatternMatrixRenderer } from "./pattern-matrix-renderer";
 import { PRNG } from '@/lib/rng';
 import { Loader2 } from 'lucide-react';
 import type { Color } from '@react-three/fiber';
+import { generateEQMatrixPuzzle } from '@/lib/gf-stimulus-factory';
 
 const GfSpatialRenderer = lazy(() => import('./GfSpatialRenderer'));
+const GfEQRenderer = lazy(() => import('./GfEQRenderer'));
+
 
 const GAME_ID: GameId = 'gf_pattern_matrix';
 const policy = difficultyPolicies[GAME_ID];
 
-type GameVariant = 'neutral' | 'math' | 'probability' | 'verbal' | 'music' | 'spatial';
+type GameVariant = 'neutral' | 'math' | 'probability' | 'verbal' | 'music' | 'spatial' | 'eq';
 
 // --- STIMULUS GENERATION LOGIC ---
 const neutralShapes = ['circle', 'square', 'triangle', 'diamond'];
@@ -128,6 +131,9 @@ const generatePuzzleForLevel = (level: number, focus: GameVariant, prng: PRNG) =
     }
     if (focus === 'verbal') {
         return generateAnalogyProblem(level, prng);
+    }
+     if (focus === 'eq') {
+        return generateEQMatrixPuzzle(level, prng);
     }
 
     const focusConfig = content_config[focus];
@@ -306,18 +312,20 @@ export function PatternMatrix() {
             const reactionTimeMs = Date.now() - trialStartTime.current;
             const isCorrect = JSON.stringify(event.option) === JSON.stringify(puzzle.answer);
             
-            const trialResult: TrialResult = { 
-                correct: isCorrect, 
-                reactionTimeMs,
-                telemetry: {
-                    patternLength: puzzle.grid.length,
-                    ruleType: puzzle.params?.rule,
-                    ruleShifts: puzzle.params?.ruleShifts || 0,
-                    selectedAnswer: event.option,
-                    correctAnswer: puzzle.answer,
-                    dimsUsed: puzzle.type,
-                }
+            const telemetry: Record<string, any> = {
+                patternLength: puzzle.grid.length,
+                ruleType: puzzle.params?.rule,
+                ruleShifts: puzzle.params?.ruleShifts || 0,
+                selectedAnswer: event.option,
+                correctAnswer: puzzle.answer,
+                dimsUsed: puzzle.type,
             };
+
+            if (puzzle.type === 'eq') {
+                telemetry.rule_family = puzzle.ruleFamily;
+            }
+
+            const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs, telemetry };
             
             if (activeSession) {
                 logEvent({
@@ -387,7 +395,19 @@ export function PatternMatrix() {
     }
 
     if (currentMode === 'eq') {
-         return <GameStub name="Social Rule Induction" description="A 2x2 grid showing social interactions. Example: [Happy Face + Gift -> Thank You] ; [Sad Face + Spilled Drink -> Apology]. User must infer the 'emotional grammar' rule." chcFactor="Fluid Reasoning (Gf) / Social Cognition" techStack={['SVG Icons']} complexity="Medium" fallbackPlan="N/A" />;
+        return (
+             <Suspense fallback={renderLoading()}>
+                <GfEQRenderer 
+                    gameState={componentState}
+                    feedback={feedback}
+                    onEvent={handleEvent}
+                    adaptiveState={adaptiveState}
+                    currentTrialIndex={currentTrialIndex.current}
+                    sessionLength={policy.sessionLength}
+                    focus={currentMode}
+                />
+            </Suspense>
+        )
     }
 
     return <PatternMatrixRenderer 
