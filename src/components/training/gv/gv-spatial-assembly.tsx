@@ -138,6 +138,7 @@ export function GvSpatialAssembly() {
             currentTrialIndex={currentTrialIndex.current}
             sessionLength={policy.sessionLength}
             feedback={null}
+            focus={currentMode}
         />
     </Suspense>
   );
