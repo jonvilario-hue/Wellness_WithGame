@@ -21,6 +21,7 @@ import { PRNG } from "@/lib/rng";
 import { usePageVisibility } from "@/hooks/use-page-visibility";
 import { Loader2 } from "lucide-react";
 import { DynamicSequenceRenderer } from './DynamicSequenceRenderer';
+import { TokenNBack } from '../logic/TokenNBack';
 
 const GwmSpatialRenderer = lazy(() => import('./GwmSpatialRenderer'));
 const GwmEQRenderer = lazy(() => import('./GwmEQRenderer'));
@@ -29,29 +30,7 @@ const GwmEQRenderer = lazy(() => import('./GwmEQRenderer'));
 const GAME_ID: GameId = 'gwm_dynamic_sequence';
 const policy = difficultyPolicies[GAME_ID];
 
-const generateNeutralSequence = (length: number, charSet: string, prng: PRNG) => {
-  let chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  if (charSet === 'alphanumeric') chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  if (charSet === 'numeric') chars = '0123456789';
-  
-  let result = '';
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(prng.nextIntRange(0, chars.length));
-  }
-  return result;
-};
-
-const tasks = [
-  { id: 'reverse', label: "Repeat the sequence backward." },
-  { id: 'alpha_only', label: "Repeat only the letters, in order." },
-  { id: 'numeric_only', label: "Repeat only the numbers, in order." },
-  { id: 'remove_first', label: "Repeat the sequence, removing the first character." },
-  { id: 'alpha_shift', label: "Repeat the letters, shifting each forward by one (A->B, Z->A)." },
-  { id: 'every_other', label: "Repeat every other character, starting with the first." },
-  { id: 'sentence_unscramble', label: "Unscramble the words to form a grammatical sentence." },
-];
-
-// --- Types ---
+// --- Puzzle Types ---
 export type DynamicSequencePuzzle = {
   type: 'sequence';
   sequence: (string|number)[] | string;
@@ -276,7 +255,7 @@ export function DynamicSequenceTransformer() {
     verbal: DynamicSequenceRenderer,
     spatial: GwmSpatialRenderer,
     music: ComplexSpanTask,
-    logic: StateMachineTracer,
+    logic: TokenNBack,
     eq: GwmEQRenderer,
   };
 
@@ -304,3 +283,26 @@ export function DynamicSequenceTransformer() {
     </Suspense>
   )
 }
+
+
+const generateNeutralSequence = (length: number, charSet: string, prng: PRNG) => {
+  let chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  if (charSet === 'alphanumeric') chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  if (charSet === 'numeric') chars = '0123456789';
+  
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(prng.nextIntRange(0, chars.length));
+  }
+  return result;
+};
+
+const tasks = [
+  { id: 'reverse', label: "Repeat the sequence backward." },
+  { id: 'alpha_only', label: "Repeat only the letters, in order." },
+  { id: 'numeric_only', label: "Repeat only the numbers, in order." },
+  { id: 'remove_first', label: "Repeat the sequence, removing the first character." },
+  { id: 'alpha_shift', label: "Repeat the letters, shifting each forward by one (A->B, Z->A)." },
+  { id: 'every_other', label: "Repeat every other character, starting with the first." },
+  { id: 'sentence_unscramble', label: "Unscramble the words to form a grammatical sentence." },
+];
