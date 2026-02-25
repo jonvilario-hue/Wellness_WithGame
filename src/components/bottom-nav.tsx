@@ -6,7 +6,7 @@ import { Home, LayoutGrid } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
-  { href: '/', label: 'Home', icon: Home },
+  { href: '/', label: 'Profile', icon: Home },
   { href: '/games', label: 'Games', icon: LayoutGrid },
 ];
 
