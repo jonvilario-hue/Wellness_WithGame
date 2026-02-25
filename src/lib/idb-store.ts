@@ -252,22 +252,27 @@ export const clearAllData = async (): Promise<void> => {
   ]);
 };
 
-export const getCachedAsset = async (url: string): Promise<Blob | null> => {
+export const getCachedAsset = async (url: string): Promise<any | null> => {
     const db = await openDB();
     const tx = db.transaction('asset-cache', 'readonly');
     const asset = await promisifyRequest(tx.objectStore('asset-cache').get(url));
-    return asset ? asset.blob : null;
+    return asset ? asset.data : null;
 };
 
-export const putCachedAsset = async (url: string, blob: Blob): Promise<void> => {
+export const putCachedAsset = async (url: string, data: any): Promise<void> => {
     const db = await openDB();
     const tx = db.transaction('asset-cache', 'readwrite');
     const asset: CachedAsset = {
         url,
-        blob,
-        contentType: blob.type,
+        data,
         cachedAt: Date.now(),
-        sizeBytes: blob.size,
     };
     await promisifyRequest(tx.objectStore('asset-cache').put(asset));
+};
+
+export const clearAssetCache = async (): Promise<void> => {
+    const db = await openDB();
+    const tx = db.transaction('asset-cache', 'readwrite');
+    await promisifyRequest(tx.objectStore('asset-cache').clear());
+    console.log('[Storage] Asset cache cleared.');
 };

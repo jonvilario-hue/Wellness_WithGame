@@ -11,11 +11,10 @@ export interface PlaybackHandle {
   scheduledOnset: number;
 }
 
-// Default resolver for local assets. This can be swapped out for a cloud resolver.
+// Default resolver for local assets.
 const defaultLocalAssetResolver: AssetUrlResolver = (assetId, assetPath) => {
   return `/audio-assets/${assetPath}`;
 };
-
 
 export class AudioEngine {
   public audioContext: AudioContext | null = null;
@@ -62,15 +61,31 @@ export class AudioEngine {
 
     const source = this.audioContext.createBufferSource();
     source.buffer = buffer;
+    source.playbackRate.value = config.playbackRate ?? 1.0;
+    source.loop = config.loop ?? false;
 
     const gainNode = this.audioContext!.createGain();
     gainNode.gain.value = config.volume ?? 1;
+
+    let finalNode: AudioNode = gainNode;
+
+    if (config.pan !== undefined) {
+        const panner = this.audioContext.createStereoPanner();
+        panner.pan.setValueAtTime(config.pan, this.audioContext.currentTime);
+        gainNode.connect(panner);
+        finalNode = panner;
+    }
     
-    source.connect(gainNode);
-    gainNode.connect(this.masterGain!);
+    source.connect(finalNode);
+    finalNode.connect(this.masterGain!);
 
     const scheduledOnset = this.audioContext.currentTime + (config.delay ?? 0);
     source.start(scheduledOnset, config.startOffset ?? 0);
+    
+    if (config.duration) {
+        source.stop(scheduledOnset + config.duration);
+    }
+    
     this.activeSources.add(source);
 
     const handle: PlaybackHandle = {
@@ -85,18 +100,19 @@ export class AudioEngine {
         source.disconnect();
         gainNode.disconnect();
         this.activeSources.delete(source);
+        config.onEnd?.();
     };
     
     return handle;
   }
   
   public async playSequence(assetIds: AssetId[], intervalMs: number, onEnd?: () => void) {
-      if (!this.isReady || !this.audioContext) return;
+      if (!this.isReady || !this.audioContext || !this.sampleManager) return;
       await this.resumeContext();
 
       let time = this.audioContext.currentTime;
       for (const assetId of assetIds) {
-          const buffer = await this.sampleManager!.getAsset(assetId);
+          const buffer = await this.sampleManager.getAsset(assetId);
           if (buffer) {
               const source = this.audioContext.createBufferSource();
               source.buffer = buffer;
@@ -116,50 +132,6 @@ export class AudioEngine {
       }
   }
   
-    public async scheduleTone(frequency: number, startTime: number, duration: number, type: OscillatorType = 'sine', pan?: number, gain?: number): Promise<PlaybackHandle | null> {
-        if (!this.isReady || !this.audioContext) return null;
-
-        const oscillator = this.audioContext.createOscillator();
-        const gainNode = this.audioContext.createGain();
-
-        oscillator.type = type;
-        oscillator.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
-
-        const scheduledOnset = startTime;
-        gainNode.gain.setValueAtTime(0, scheduledOnset);
-        gainNode.gain.linearRampToValueAtTime(gain ?? 0.8, scheduledOnset + 0.02);
-        gainNode.gain.linearRampToValueAtTime(0, scheduledOnset + duration);
-
-        oscillator.connect(gainNode);
-        
-        if (pan !== undefined) {
-            const panner = this.audioContext.createStereoPanner();
-            panner.pan.setValueAtTime(pan, this.audioContext.currentTime);
-            gainNode.connect(panner);
-            panner.connect(this.masterGain!);
-        } else {
-            gainNode.connect(this.masterGain!);
-        }
-
-        oscillator.start(scheduledOnset);
-        oscillator.stop(scheduledOnset + duration + 0.1);
-        this.activeSources.add(oscillator);
-
-        const handle = {
-            stop: () => { try { oscillator.stop(); } catch(e) {} },
-            sourceNode: oscillator,
-            scheduledOnset
-        };
-        
-        oscillator.onended = () => {
-            gainNode.disconnect();
-            this.activeSources.delete(oscillator);
-        };
-
-        return handle;
-    }
-
-
   public stopAll() {
     this.activeSources.forEach(source => {
       try {
@@ -176,34 +148,5 @@ export class AudioEngine {
           this.stopAll();
           this.audioContext.close().then(() => console.log('[AudioEngine] Context closed.'));
       }
-  }
-  
-  public getAudioContextTime(): number {
-    return this.audioContext?.currentTime ?? 0;
-  }
-  
-  public getLatencyInfo() {
-      if(!this.audioContext) return { baseLatency: 0, outputLatency: 0, sampleRate: 44100 };
-      return {
-          baseLatency: (this.audioContext as any).baseLatency || 0,
-          outputLatency: this.audioContext.outputLatency || 0,
-          sampleRate: this.audioContext.sampleRate,
-      }
-  }
-
-  public speak(text: string, onEnd?: () => void) {
-      console.warn('[AudioEngine] Using synthetic speech fallback.');
-      if ('speechSynthesis' in window) {
-          const utterance = new SpeechSynthesisUtterance(text);
-          utterance.onend = () => onEnd?.();
-          window.speechSynthesis.speak(utterance);
-      } else {
-          console.error('[AudioEngine] Speech Synthesis not supported.');
-          onEnd?.();
-      }
-  }
-
-  public get isSpeechSupported(): boolean {
-      return typeof window !== 'undefined' && 'speechSynthesis' in window;
   }
 }

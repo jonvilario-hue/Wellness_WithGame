@@ -5,6 +5,7 @@ import * as idbStore from '@/lib/idb-store';
 import type { AssetUrlResolver } from './types';
 
 interface AssetManifest {
+    manifestVersion: string;
     assets: {
         id: AssetId;
         path: string;
@@ -28,11 +29,22 @@ export class AudioSampleManager {
             const response = await fetch('/audio-assets/manifest.json');
             if (!response.ok) throw new Error('Manifest not found');
             this.manifest = await response.json();
+            this.checkCacheVersion();
         } catch (e) {
             console.error('[AudioSampleManager] Failed to load manifest', e);
         }
     }
     
+    private async checkCacheVersion() {
+        if (!this.manifest || typeof window === 'undefined') return;
+        const storedVersion = window.localStorage.getItem('audioManifestVersion');
+        if (storedVersion !== this.manifest.manifestVersion) {
+            console.log(`[AudioSampleManager] New manifest version detected (${this.manifest.manifestVersion}). Clearing audio cache.`);
+            await idbStore.clearAssetCache();
+            window.localStorage.setItem('audioManifestVersion', this.manifest.manifestVersion);
+        }
+    }
+
     private getAssetPath(assetId: AssetId): string | null {
         const assetInfo = this.manifest?.assets.find(a => a.id === assetId);
         return assetInfo ? assetInfo.path : null;
@@ -52,19 +64,19 @@ export class AudioSampleManager {
         const url = this.assetUrlResolver(assetId, path);
 
         try {
-            const cachedBlob = await idbStore.getCachedAsset(url);
-            let blobToDecode = cachedBlob;
-
-            if (!blobToDecode) {
-                const response = await fetch(url);
-                if (!response.ok) throw new Error(`Failed to fetch asset: ${url}`);
-                blobToDecode = await response.blob();
-                await idbStore.putCachedAsset(url, blobToDecode);
+            const cachedBuffer = await idbStore.getCachedAsset(url) as AudioBuffer;
+            if (cachedBuffer) {
+                this.inMemoryCache.set(assetId, cachedBuffer);
+                return cachedBuffer;
             }
 
-            const arrayBuffer = await blobToDecode.arrayBuffer();
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`Failed to fetch asset: ${url}`);
+            
+            const arrayBuffer = await response.arrayBuffer();
             const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
             
+            await idbStore.putCachedAsset(url, audioBuffer);
             this.inMemoryCache.set(assetId, audioBuffer);
             return audioBuffer;
 
@@ -72,6 +84,17 @@ export class AudioSampleManager {
             console.error(`[AudioSampleManager] Error loading asset ${assetId}:`, error);
             return this.generatePlaceholder(assetId);
         }
+    }
+    
+    public async preloadAssets(assetIds: AssetId[], onProgress?: (progress: number) => void): Promise<void> {
+        let loadedCount = 0;
+        const totalCount = assetIds.length;
+
+        await Promise.all(assetIds.map(async (id) => {
+            await this.getAsset(id);
+            loadedCount++;
+            onProgress?.(loadedCount / totalCount);
+        }));
     }
 
     private async generatePlaceholder(assetId: AssetId): Promise<AudioBuffer> {

@@ -55,7 +55,6 @@
     "tailwind-merge": "^3.0.1",
     "tailwindcss-animate": "^1.0.7",
     "three": "^0.167.0",
-    "tone": "^15.0.4",
     "zod": "^3.24.2",
     "zustand": "^4.5.4"
   },
