@@ -63,17 +63,19 @@ export default function TrainingPage() {
             </Button>
           </div>
           <div className="flex items-center gap-3">
-            <PageIcon className="h-7 w-7 text-primary" />
+            <div className="p-2 bg-primary/10 rounded-lg">
+                <ModeIcon className="h-7 w-7 text-primary" />
+            </div>
             <div>
               <h1 className="text-2xl font-bold text-foreground font-headline tracking-tight">
                 {gameTitle}
               </h1>
               <div className="flex items-center gap-2 mt-1">
-                 <Badge variant="secondary" className="capitalize">
+                 <Badge variant="secondary" className="capitalize flex items-center gap-1.5">
+                    <PageIcon className="h-3.5 w-3.5" />
                    {domainInfo.name}
                  </Badge>
-                 <Badge variant="outline" className="capitalize flex items-center gap-1.5">
-                    <ModeIcon className="h-3.5 w-3.5" />
+                 <Badge variant="outline" className="capitalize">
                     {FOCUS_MODE_META[effectiveFocus].label} Mode
                  </Badge>
               </div>
