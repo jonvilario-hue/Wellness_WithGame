@@ -2,11 +2,11 @@
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Home, LayoutGrid } from 'lucide-react';
+import { User, LayoutGrid } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
-  { href: '/', label: 'Profile', icon: Home },
+  { href: '/', label: 'Profile', icon: User },
   { href: '/games', label: 'Games', icon: LayoutGrid },
 ];
 
