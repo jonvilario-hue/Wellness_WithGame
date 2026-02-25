@@ -66,10 +66,11 @@ const isAssociativelyRelated = (prevWord: string, currentWord: string, rule: str
     return prevWord.charAt(prevWord.length - 1).toLowerCase() === currentWord.charAt(0).toLowerCase();
 };
 
+type GlrGameMode = ReturnType<typeof useGlrStore.getState().getNextMode>;
 
 export function SemanticFluencyStorm() {
     const [gameState, setGameState] = useState<'idle' | 'running' | 'finished'>('idle');
-    const [currentMode, setCurrentMode] = useState<ReturnType<typeof useGlrStore.getState().getNextMode> | null>(null);
+    const [currentMode, setCurrentMode] = useState<GlrGameMode | null>(null);
     const [lastScore, setLastScore] = useState(0);
     const [lastClusterBreadth, setLastClusterBreadth] = useState(0);
     const { getNextMode } = useGlrStore();
