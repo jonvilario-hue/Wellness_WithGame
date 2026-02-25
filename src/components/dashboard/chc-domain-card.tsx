@@ -54,7 +54,7 @@ export function ChcDomainCard({ domain, onPlay }: { domain: (typeof import('@/li
       )}
     >
       <CardHeader className="flex-row items-start gap-4 space-y-0 pb-2">
-        <div className={cn('p-3 rounded-lg', domain.color.split(' ')[0])}>
+        <div className="p-3 rounded-lg bg-primary/10">
           <domain.icon className={cn("w-6 h-6", iconColor)} />
         </div>
         <div className="flex-1">
