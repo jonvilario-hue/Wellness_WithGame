@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,6 +20,7 @@ import { useAudioEngine } from "@/hooks/useAudioEngine";
 import { capabilities } from "@/lib/capabilities";
 import { generatePhonemeDiscriminationProblem } from "@/lib/verbal-stimulus-factory";
 import { PRNG } from "@/lib/rng";
+import { GaSpatialAudioGame } from "./GaSpatialAudioGame";
 
 
 const GAME_ID: GameId = 'ga_auditory_lab';
@@ -224,14 +226,7 @@ export function AuditoryProcessingRouter() {
             GameComponent = <PitchDiscriminationModule focus={currentMode} prng={prngRef.current} />;
             break;
         case 'spatial':
-             GameComponent = <GameStub 
-                name="Spatial Audio Challenge"
-                description="This game is being upgraded to use the new sample-first audio engine. The previous synth-based version is deprecated."
-                chcFactor="Auditory Processing (Ga)"
-                techStack={['AudioEngine', 'Three.js']}
-                complexity="High"
-                fallbackPlan="N/A"
-            />;
+             GameComponent = <GaSpatialAudioGame />;
             break;
         default:
              GameComponent = <GameStub 
@@ -260,3 +255,4 @@ export function AuditoryProcessingRouter() {
         </Card>
     );
 }
+
