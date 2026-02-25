@@ -146,7 +146,7 @@ const mutateSnippet = (snippet: string, tier: number, prng: PRNG): string => {
 };
 
 
-export const generateGsLogicTrial = (difficulty: number, prng: PRNG) => {
+export const generateGsSyntaxScanTrial = (difficulty: number, prng: PRNG) => {
     const isSame = prng.nextFloat() > 0.5;
     const snippetA = generateSnippet(difficulty, prng);
     let snippetB: string;
@@ -163,6 +163,75 @@ export const generateGsLogicTrial = (difficulty: number, prng: PRNG) => {
         snippetB,
         isSame,
     };
+};
+
+export type BooleanBlitzTrial = {
+  expression: string;
+  displayExpression: string;
+  correctValue: boolean;
+};
+
+const syntaxHighlight = (expression: string): string => {
+    return expression
+        .replace(/true/g, '<span style="color: #a6e3a1;">true</span>')
+        .replace(/false/g, '<span style="color: #f38ba8;">false</span>')
+        .replace(/&&/g, '<span style="color: #fab387;">&&</span>')
+        .replace(/\|\|/g, '<span style="color: #fab387;">||</span>')
+        .replace(/!/g, '<span style="color: #f9e2af;">!</span>')
+        .replace(/\(/g, '<span style="color: #89b4fa;">(</span>')
+        .replace(/\)/g, '<span style="color: #89b4fa;">)</span>');
+};
+
+const safeEvaluate = (expression: string): boolean => {
+    const sanitized = expression.replace(/[^truefalse&|!()\s]/g, '');
+    if (sanitized !== expression) {
+        throw new Error('Invalid characters in expression');
+    }
+    try {
+        return new Function(`return ${expression}`)();
+    } catch (e) {
+        console.error("Evaluation error for:", expression, e);
+        return false;
+    }
+};
+
+const generateExpression = (depth: number, prng: PRNG): string => {
+    if (depth <= 0) {
+        return prng.nextFloat() > 0.5 ? 'true' : 'false';
+    }
+
+    const type = prng.nextIntRange(0, 4);
+    switch (type) {
+        case 0: // NOT
+            return `!${generateExpression(depth - 1, prng)}`;
+        case 1: // AND
+            return `(${generateExpression(depth - 1, prng)} && ${generateExpression(depth - 1, prng)})`;
+        case 2: // OR
+             return `(${generateExpression(depth - 1, prng)} || ${generateExpression(depth - 1, prng)})`;
+        default: // base
+            return prng.nextFloat() > 0.5 ? 'true' : 'false';
+    }
+};
+
+
+export const generateGsLogicBooleanTrial = (difficulty: number, prng: PRNG): BooleanBlitzTrial => {
+    let expression = '';
+    if (difficulty <= 3) { // Tier 1
+        const op = prng.nextFloat() > 0.5 ? '&&' : '||';
+        const p1 = prng.nextFloat() > 0.5 ? 'true' : 'false';
+        const p2 = prng.nextFloat() > 0.5 ? 'true' : 'false';
+        expression = `${p1} ${op} ${p2}`;
+    } else if (difficulty <= 6) { // Tier 2
+        expression = generateExpression(1, prng);
+    } else { // Tier 3
+        const maxDepth = difficulty < 9 ? 3 : 4;
+        expression = generateExpression(prng.nextIntRange(2, maxDepth + 1), prng);
+    }
+
+    const correctValue = safeEvaluate(expression);
+    const displayExpression = syntaxHighlight(expression);
+
+    return { expression, displayExpression, correctValue };
 };
 
 // --- Gv (Visual Processing) ---
@@ -302,3 +371,5 @@ const generateNestedTrial = (prng: PRNG): FlowchartTrial => {
         options: prng.shuffle(["high", "medium", "low", "default"]),
     };
 };
+
+    

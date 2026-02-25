@@ -14,7 +14,6 @@ import { adjustDifficulty, startSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { TrialResult, GameId } from "@/types";
 import { GameStub } from "../game-stub";
-import { GateSpeed } from '../logic/gate-speed';
 import { domainIcons } from "@/components/icons";
 import { useAudioEngine } from "@/hooks/use-audio-engine";
 import { generateLexicalDecisionProblem } from '@/lib/verbal-stimulus-factory';
@@ -22,8 +21,10 @@ import { generateSpatialGvRotationTrial, type Polycube } from "@/lib/polycube-ge
 import { PRNG } from "@/lib/rng";
 import { FOCUS_MODE_META } from "@/lib/mode-constants";
 import { GsEQFlashRecognition } from "./GsEQFlashRecognition";
+import { BooleanBlitz } from "../logic/boolean-blitz";
 
 const GsSpatialRenderer = lazy(() => import('./GsSpatialRenderer'));
+
 
 const GAME_ID: GameId = 'gs_rapid_code';
 const policy = difficultyPolicies[GAME_ID];
@@ -256,6 +257,10 @@ export function RapidCodeMatch() {
       return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
     }
     const state = getAdaptiveState(GAME_ID, currentMode);
+    
+    if (currentMode === 'logic') {
+        return <BooleanBlitz />;
+    }
 
     if (gameState === 'start') {
         if (currentMode === 'music' && !isAudioReady) {
@@ -305,9 +310,6 @@ export function RapidCodeMatch() {
                 />
             </Suspense>
         );
-    }
-    if (currentMode === 'logic') {
-        return <GateSpeed />;
     }
 
     if (currentMode === 'eq') {
@@ -420,3 +422,5 @@ const symbolKeyPool = ['★', '●', '▲', '■', '◆', '✚', '❤', '⚡', '
 const mathSymbolKeyPool = ['+', '−', '×', '÷', '%', '∑', '√', '∞', '='];
 const musicSymbolKeyPool = ['♩', '♪', '♫', '♭', '♯', '♮', '𝄞', '𝄢', '𝄡'];
 const digits = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+    
