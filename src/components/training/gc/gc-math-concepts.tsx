@@ -10,7 +10,7 @@ import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
-import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
+import type { AdaptiveState, TrialResult, GameId, TrainingFocus, TelemetryEvent } from "@/types";
 import { mathConceptQuestions } from '@/data/math-content';
 import { usePageVisibility } from "@/hooks/use-page-visibility";
 import { PRNG } from "@/lib/rng";
@@ -35,7 +35,7 @@ const getQuestionsForLevel = (level: number, prng: PRNG) => {
 }
 
 export default function GcMathConcepts({ focus = 'math' }: { focus: TrainingFocus }) {
-  const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
+  const { getAdaptiveState, updateAdaptiveState, logEvent, activeSession } = usePerformanceStore();
   const [adaptiveState, setAdaptiveState] = useState<AdaptiveState | null>(null);
   const [gameState, setGameState] = useState<'loading' | 'start' | 'playing' | 'feedback' | 'finished'>('loading');
   const [shuffledQuestions, setShuffledQuestions] = useState<any[]>([]);
@@ -66,7 +66,7 @@ export default function GcMathConcepts({ focus = 'math' }: { focus: TrainingFocu
   }, [focus, getAdaptiveState]);
   
   const handleAnswer = useCallback((option: string | null) => {
-    if (gameState !== 'playing' || !currentQuestion || !adaptiveState) return;
+    if (gameState !== 'playing' || !currentQuestion || !adaptiveState || !activeSession) return;
 
     if (timerRef.current) clearInterval(timerRef.current);
     const levelPlayed = adaptiveState.currentLevel;
@@ -89,14 +89,26 @@ export default function GcMathConcepts({ focus = 'math' }: { focus: TrainingFocu
         }
     };
 
-    logTrial({
-      userId: 'local_user',
-      module_id: GAME_ID,
-      currentLevel: levelPlayed,
-      isCorrect,
-      responseTime_ms: reactionTimeMs,
-      meta: trialResult.telemetry
-    });
+    logEvent({
+        type: 'trial_complete',
+        sessionId: activeSession.sessionId,
+        payload: {
+            id: `${activeSession.sessionId}-${currentTrialIndex.current}`,
+            sessionId: activeSession.sessionId,
+            gameId: GAME_ID,
+            focus,
+            trialIndex: currentTrialIndex.current,
+            difficultyLevel: levelPlayed,
+            correct: isCorrect,
+            rtMs: reactionTimeMs,
+            stimulusParams: trialResult.telemetry,
+            responseType: isCorrect ? 'correct' : 'incorrect',
+            stimulusOnsetTs: trialStartTime.current,
+            responseTs: Date.now(),
+            pausedDurationMs: pausedDurationRef.current,
+            wasFallback: false
+        }
+    } as Omit<TelemetryEvent, 'eventId' | 'timestamp' | 'schemaVersion' | 'seq'>);
     
     const newState = adjustDifficulty(trialResult, adaptiveState, policy);
     updateAdaptiveState(GAME_ID, focus, newState);
@@ -110,7 +122,7 @@ export default function GcMathConcepts({ focus = 'math' }: { focus: TrainingFocu
         startNewTrial(newState);
       }
     }, 2500);
-  }, [gameState, currentQuestion, adaptiveState, logTrial, focus, updateAdaptiveState, timeLimit]);
+  }, [gameState, currentQuestion, adaptiveState, logEvent, focus, updateAdaptiveState, timeLimit, activeSession]);
 
   // Timer logic
   useEffect(() => {
@@ -251,3 +263,5 @@ export default function GcMathConcepts({ focus = 'math' }: { focus: TrainingFocu
     </Card>
   );
 }
+
+    

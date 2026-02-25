@@ -9,7 +9,7 @@ import { useAudioEngine, midiToFreq } from "@/hooks/use-audio-engine";
 import { Loader2, Headphones, Brain } from "lucide-react";
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
-import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
+import type { AdaptiveState, TrialResult, GameId, TrainingFocus, TelemetryEvent } from "@/types";
 import { domainIcons } from "@/components/icons";
 import { cn } from "@/lib/utils";
 
@@ -56,8 +56,8 @@ const PianoKeyboard = ({ notePalette, onNoteClick, disabled }: { notePalette: nu
 
 
 export function ComplexSpanTask() {
-    const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
-    const { playSequence, playChord, resumeContext, isAudioReady, getAudioContextTime, getLatencyInfo } = useAudioEngine();
+    const { getAdaptiveState, updateAdaptiveState, logEvent, activeSession } = usePerformanceStore();
+    const { playSequence, playChord, resumeContext, isReady, getAudioContextTime, getLatencyInfo } = useAudioEngine();
     const [gameState, setGameState] = useState<'loading' | 'tutorial' | 'encoding' | 'processing' | 'recall' | 'feedback' | 'finished'>('loading');
     
     // Trial state
@@ -68,7 +68,6 @@ export function ComplexSpanTask() {
     
     // Session state
     const trialCount = useRef(0);
-    const sessionTrials = useRef<TrialResult[]>([]);
     const sessionId = useRef(crypto.randomUUID());
     const deviceInfo = useRef<any>(null);
 
@@ -90,7 +89,6 @@ export function ComplexSpanTask() {
         const sessionState = startSession(adaptiveState);
         updateAdaptiveState(GAME_ID, 'music', sessionState);
         trialCount.current = 0;
-        sessionTrials.current = [];
         sessionId.current = crypto.randomUUID();
         setGameState('encoding');
     }, [resumeContext, getLatencyInfo, adaptiveState, updateAdaptiveState]);
@@ -122,7 +120,7 @@ export function ComplexSpanTask() {
         setDistractor(newDistractor);
 
         // 3. Play Encoding Sequence
-        playSequence(newMelody, 0.4, () => {
+        playSequence(newMelody.map(n => ({ frequency: midiToFreq(n), duration: 0.3, type: 'sine' })), 400, () => {
             setGameState('processing');
         });
 
@@ -135,10 +133,10 @@ export function ComplexSpanTask() {
     }, [gameState, startNewTrial]);
 
     useEffect(() => {
-        if(isAudioReady && gameState === 'loading') {
+        if(isReady && gameState === 'loading') {
             setGameState('tutorial');
         }
-    }, [isAudioReady, gameState]);
+    }, [isReady, gameState]);
     
     useEffect(() => {
         if (gameState === 'processing' && distractor) {
@@ -164,6 +162,7 @@ export function ComplexSpanTask() {
     };
 
     const handleRecallSubmit = () => {
+        if (!activeSession) return;
         const recall_accuracy_positional = melody.reduce((acc, note, i) => {
             return acc + (recalledSequence[i] === note ? 1 : 0);
         }, 0) / melody.length;
@@ -204,17 +203,27 @@ export function ComplexSpanTask() {
             }
         };
 
-        logTrial({
-            sessionId: sessionId.current,
-            userId: 'local-user', 
-            gameId: GAME_ID,
-            trialIndex: trialCount.current,
-            difficultyLevel: level,
-            stimulusOnsetTs: 0,
-            responseTs: 0,
-            deviceInfo,
-            ...trialResult,
-        } as any);
+        logEvent({
+            type: 'trial_complete',
+            sessionId: activeSession.sessionId,
+            payload: {
+                 id: `${activeSession.sessionId}-${trialCount.current}`,
+                 sessionId: activeSession.sessionId,
+                 gameId: GAME_ID,
+                 focus: 'music',
+                 trialIndex: trialCount.current,
+                 difficultyLevel: level,
+                 correct: isTrialCorrect,
+                 rtMs: 0,
+                 stimulusParams: trialResult.telemetry,
+                 responseType: isTrialCorrect ? 'correct' : 'incorrect',
+                 stimulusOnsetTs: 0,
+                 responseTs: 0,
+                 pausedDurationMs: 0,
+                 wasFallback: false
+            }
+        } as Omit<TelemetryEvent, 'eventId' | 'timestamp' | 'schemaVersion' | 'seq'>);
+
 
         const newState = adjustDifficulty(trialResult, state, policy);
         updateAdaptiveState(GAME_ID, 'music', newState);
@@ -291,3 +300,5 @@ export function ComplexSpanTask() {
         </Card>
     );
 }
+
+    

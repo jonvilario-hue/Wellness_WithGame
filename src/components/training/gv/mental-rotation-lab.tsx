@@ -10,7 +10,7 @@ import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
-import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
+import type { AdaptiveState, TrialResult, GameId, TrainingFocus, TelemetryEvent } from "@/types";
 
 const GAME_ID: GameId = 'gv_visual_lab';
 const policy = difficultyPolicies[GAME_ID];
@@ -96,7 +96,7 @@ const generatePuzzleForLevel = (level: number): Puzzle => {
 };
 
 export function MentalRotationLab({ focus }: { focus: TrainingFocus }) {
-  const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
+  const { getAdaptiveState, updateAdaptiveState, logEvent, activeSession } = usePerformanceStore();
 
   const [adaptiveState, setAdaptiveState] = useState<AdaptiveState | null>(null);
   const [gameState, setGameState] = useState<'loading' | 'start' | 'playing' | 'feedback' | 'finished'>('loading');
@@ -134,26 +134,34 @@ export function MentalRotationLab({ focus }: { focus: TrainingFocus }) {
   }, [adaptiveState, startNewTrial, updateAdaptiveState, focus]);
 
   const handleSelectOption = (option: Grid) => {
-    if (gameState !== 'playing' || !puzzle || !adaptiveState) return;
+    if (gameState !== 'playing' || !puzzle || !adaptiveState || !activeSession) return;
     setGameState('feedback');
     setSelectedOption(option);
     const reactionTimeMs = Date.now() - trialStartTime.current;
     const isCorrect = areGridsEqual(option, puzzle.answer);
 
     const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs, telemetry: {} };
-    logTrial({
-      id: crypto.randomUUID(),
-      userId: 'local_user',
-      timestamp: Date.now(),
-      module_id: GAME_ID,
-      currentLevel: adaptiveState.currentLevel,
-      isCorrect,
-      responseTime_ms: reactionTimeMs,
-      meta: {
-        rotationDegrees: 0, // Placeholder
-        errorMarginPx: 0, // Placeholder
-      }
-    } as any);
+    logEvent({
+        type: 'trial_complete',
+        sessionId: activeSession.sessionId,
+        payload: {
+            id: `${activeSession.sessionId}-${currentTrialIndex.current}`,
+            sessionId: activeSession.sessionId,
+            gameId: GAME_ID,
+            focus,
+            trialIndex: currentTrialIndex.current,
+            difficultyLevel: adaptiveState.currentLevel,
+            correct: isCorrect,
+            rtMs: reactionTimeMs,
+            stimulusParams: { rotationDegrees: 0, errorMarginPx: 0 },
+            responseType: isCorrect ? 'correct' : 'incorrect',
+            stimulusOnsetTs: trialStartTime.current,
+            responseTs: Date.now(),
+            pausedDurationMs: 0,
+            wasFallback: false
+        }
+    } as Omit<TelemetryEvent, 'eventId' | 'timestamp' | 'schemaVersion' | 'seq'>);
+
 
     setSessionTrials(prev => [...prev, trialResult]);
     
@@ -257,3 +265,5 @@ export function MentalRotationLab({ focus }: { focus: TrainingFocus }) {
     </Card>
   );
 }
+
+    

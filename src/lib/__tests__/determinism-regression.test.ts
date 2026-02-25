@@ -9,13 +9,14 @@ import { usePerformanceStore } from '@/hooks/use-performance-store';
 import { normalizeTelemetryRecord } from '../telemetry-migration';
 import * as idbStore from '../idb-store';
 import { replayAndValidateSession } from '../dev/replay-session';
-import type { ReplayInputs, SessionRecord, TrialRecord } from '@/types/local-store';
+import type { ReplayInputs, SessionRecord } from '@/types/local-store';
+import type { TelemetryEvent, TrialCompletePayload } from '@/lib/telemetry-events';
 
 // Mock the idb-store to avoid actual IndexedDB operations in tests
 jest.mock('../idb-store', () => ({
   ...jest.requireActual('../idb-store'),
   runEviction: jest.fn(),
-  logTrial: jest.fn(),
+  logEvent: jest.fn(),
 }));
 
 describe('Platform Determinism and Integrity Regression Tests', () => {
@@ -79,7 +80,7 @@ describe('Platform Determinism and Integrity Regression Tests', () => {
   // Test 1.3: Telemetry Schema Completeness
   test('Test 1.3 — Session and Trial records contain all required replay/schema fields', () => {
     // This test relies on the logic inside the zustand store, so we call its actions
-    const { updateAdaptiveState, logTrial } = usePerformanceStore.getState();
+    const { updateAdaptiveState, logEvent } = usePerformanceStore.getState();
     
     const replayInputs: ReplayInputs = {
         seed: 'test-seed-1.3',
@@ -93,44 +94,53 @@ describe('Platform Determinism and Integrity Regression Tests', () => {
     // Simulate starting a session
     updateAdaptiveState('gwm_dynamic_sequence', 'verbal', { sessionCount: 1 }, replayInputs);
     
-    const trialData = {
+    const trialPayload: TrialCompletePayload = {
+        id: 't1',
         sessionId: "session-123",
+        gameId: 'gwm_dynamic_sequence',
         trialIndex: 0,
-        correct: true,
-        rtMs: 500,
-        timestamp: Date.now(),
+        seq: 1,
         difficultyLevel: 1,
         stimulusParams: {},
         stimulusOnsetTs: 0,
         responseTs: 500,
-        responseType: "correct"
+        rtMs: 500,
+        correct: true,
+        responseType: "correct",
+        pausedDurationMs: 0,
+        wasFallback: false,
     };
 
     // Simulate logging a trial
-    logTrial(trialData);
+    logEvent({
+      type: 'trial_complete',
+      sessionId: 'session-123',
+      seq: 1,
+      payload: trialPayload
+    });
     
     // Check the logged trial record from the mock
-    const loggedTrial = (idbStore.logTrial as jest.Mock).mock.calls[0][0] as TrialRecord;
+    const loggedEvent = (idbStore.logEvent as jest.Mock).mock.calls[0][0] as TelemetryEvent;
     
-    expect(loggedTrial).toBeDefined();
-    expect(loggedTrial.seq).toBe(0); // Assuming this is the first trial logged
-    expect(loggedTrial.schemaVersion).toBe(2);
+    expect(loggedEvent).toBeDefined();
+    expect(loggedEvent.seq).toBe(1); 
+    expect(loggedEvent.schemaVersion).toBe(2);
 
     // Test the normalizer
     const legacyRecord = { id: 'old-1', rtMs: 100 };
     const normalized = normalizeTelemetryRecord(legacyRecord);
-    expect(normalized.legacy).toBe(true);
+    expect((normalized as any).payload.legacy).toBe(true);
     expect(normalized.schemaVersion).toBe(2);
-    expect((normalized as TrialRecord).pausedDurationMs).toBe(0);
+    expect((normalized as any).payload.pausedDurationMs).toBe(0);
     expect(normalizeTelemetryRecord({})).toBeDefined();
   });
   
   // Test 1.4: Eviction Session Protection
   test('Test 1.4 — Eviction logic protects incomplete sessions and uses canonical order', async () => {
-    const allTrials: TrialRecord[] = [];
+    const allTrials: TelemetryEvent[] = [];
     for(let i=0; i<10; i++) {
-        allTrials.push({ id: `A-${i}`, sessionId: 'A', seq: i, sessionComplete: true } as any);
-        allTrials.push({ id: `B-${i}`, sessionId: 'B', seq: i, sessionComplete: false } as any);
+        allTrials.push({ eventId: `A-${i}`, sessionId: 'A', type: 'trial_complete', seq: i } as any);
+        allTrials.push({ eventId: `B-${i}`, sessionId: 'B', type: 'trial_complete', seq: i } as any);
     }
     
     const mockDb: any = {
@@ -167,14 +177,16 @@ describe('Platform Determinism and Integrity Regression Tests', () => {
     
     // Generate a "recorded" trial sequence
     const prng = new PRNG(replayInputs.seed);
-    const recordedTrials: TrialRecord[] = Array.from({length: 5}).map((_, i) => ({
+    const recordedTrials: TrialCompletePayload[] = Array.from({length: 5}).map((_, i) => ({
         trialIndex: i,
         difficultyLevel: 3,
         stimulusParams: generateVerbalSequence(3, prng),
     } as any));
 
-    const result = await replayAndValidateSession(replayInputs, recordedTrials);
+    const result = await replayAndValidateSession(replayInputs, recordedTrials as any);
     expect(result.valid).toBe(true);
     expect(result.mismatches.length).toBe(0);
   });
 });
+
+    

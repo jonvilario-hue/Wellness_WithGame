@@ -8,7 +8,7 @@
 import { PRNG } from '../rng';
 import * as verbalFactory from '../verbal-stimulus-factory';
 import { difficultyPolicies } from '@/data/difficulty-policies';
-import type { TrialRecord, TrainingFocus, GameId } from '@/types';
+import type { TrialCompletePayload, TrainingFocus, GameId } from '@/types';
 import type { ReplayInputs } from '@/types/local-store';
 
 
@@ -28,7 +28,7 @@ const getStimulusGenerator = (gameId: GameId, focus: TrainingFocus) => {
     return generatorMap[gameId]?.[focus];
 }
 
-export async function replayAndValidateSession(replayInputs: ReplayInputs, recordedTrials: TrialRecord[]): Promise<{ valid: boolean, mismatches: any[] }> {
+export async function replayAndValidateSession(replayInputs: ReplayInputs, recordedTrials: TrialCompletePayload[]): Promise<{ valid: boolean, mismatches: any[] }> {
     if (process.env.NODE_ENV !== 'development') {
         console.warn("Replay validation is only available in development mode.");
         return { valid: true, mismatches: [] };
@@ -75,3 +75,5 @@ export async function replayAndValidateSession(replayInputs: ReplayInputs, recor
 if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
     (window as any).cognitune_replaySession = replayAndValidateSession;
 }
+
+    

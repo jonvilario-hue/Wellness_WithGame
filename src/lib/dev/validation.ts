@@ -8,8 +8,8 @@ import { PRNG } from '../rng';
 import * as verbalFactory from '../verbal-stimulus-factory';
 import { difficultyPolicies } from '@/data/difficulty-policies';
 import { realWords, wordCorpus } from '@/data/verbal-content';
-import { logTrial } from '../idb-store';
-import type { TrialRecord } from '@/types';
+import { logEvent } from '../idb-store';
+import type { TelemetryEvent } from '@/lib/telemetry-events';
 
 // --- Tier 1 Quality Gate ---
 export function validateDeterminism(mode: 'verbal' | 'math', seed: string, trialCount: number): boolean {
@@ -67,26 +67,34 @@ export async function simulateStorageLoad(sessionCount: number, trialsPerSession
     const totalTrials = sessionCount * trialsPerSession;
 
     for (let i = 0; i < totalTrials; i++) {
-        const mockTrial: TrialRecord = {
-            id: `sim-${Date.now()}-${i}`,
+        const mockEvent: TelemetryEvent = {
+            eventId: `sim-${Date.now()}-${i}`,
             sessionId: `sim-session-${Math.floor(i / trialsPerSession)}`,
-            gameId: 'gf_pattern_matrix',
-            trialIndex: i % trialsPerSession,
-            correct: Math.random() > 0.5,
-            rtMs: 500 + Math.random() * 1000,
+            type: 'trial_complete',
             timestamp: Date.now() - (totalTrials - i) * 2000,
-            difficultyLevel: 1,
-            stimulusParams: {},
-            stimulusOnsetTs: 0,
-            responseTs: 0,
-            responseType: 'n/a',
+            schemaVersion: 2,
+            seq: i % trialsPerSession,
+            payload: {
+                id: `sim-${Date.now()}-${i}`,
+                sessionId: `sim-session-${Math.floor(i / trialsPerSession)}`,
+                gameId: 'gf_pattern_matrix',
+                trialIndex: i % trialsPerSession,
+                correct: Math.random() > 0.5,
+                rtMs: 500 + Math.random() * 1000,
+                difficultyLevel: 1,
+                stimulusParams: {},
+                stimulusOnsetTs: 0,
+                responseTs: 0,
+                responseType: 'n/a',
+                seq: i % trialsPerSession
+            } as any
         };
-        await logTrial(mockTrial);
+        await logEvent(mockEvent);
         if (i > 0 && i % 1000 === 0) {
            console.log(`... ${i} trials written.`);
         }
     }
-    console.log(`[VALIDATION] Load simulation complete. Check IndexedDB 'trials' store count.`);
+    console.log(`[VALIDATION] Load simulation complete. Check IndexedDB 'events' store count.`);
 };
 
 // --- Tier 4 Quality Gate ---
@@ -133,3 +141,5 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
     (window as any).cognitune_simulateStorageLoad = simulateStorageLoad;
     (window as any).cognitune_validateWordFrequencies = validateWordFrequencies;
 }
+
+    

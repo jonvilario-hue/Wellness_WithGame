@@ -8,7 +8,7 @@ import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { useToast } from "@/hooks/use-toast";
 import { useGlrStore, type SpacedPair } from "@/hooks/use-glr-store";
 import { Loader2 } from "lucide-react";
-import type { TrainingFocus, AdaptiveState, TrialResult, GameId } from "@/types";
+import type { TrainingFocus, AdaptiveState, TrialResult, GameId, TelemetryEvent } from "@/types";
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
 import { generalCategories, mathCategories, musicCategories, verbalCategories, realWords, validationWordList } from "@/data/verbal-content";
@@ -163,7 +163,7 @@ export function SemanticFluencyStorm() {
 }
 
 function AssociativeChainMode({ onComplete, focus }: { onComplete: (result: { score: number, trials: TrialResult[] }) => void, focus: TrainingFocus }) {
-    const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
+    const { getAdaptiveState, updateAdaptiveState, logEvent, activeSession } = usePerformanceStore();
     
     const [chain, setChain] = useState<string[]>([]);
     const [trials, setTrials] = useState<TrialResult[]>([]);
@@ -174,8 +174,7 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (result: { sc
     const timerRef = useRef<NodeJS.Timeout>();
     const trialStartTime = useRef<number>(0);
     const isVisible = usePageVisibility();
-    const sessionId = useRef(crypto.randomUUID());
-    const prngRef = useRef<PRNG>(new PRNG(sessionId.current));
+    const prngRef = useRef<PRNG>(new PRNG(activeSession?.sessionId || ''));
 
     const [currentWord, setCurrentWord] = useState(() => prngRef.current.shuffle(realWords)[0]);
     const [currentRule, setCurrentRule] = useState<string>('last-letter');
@@ -209,6 +208,7 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (result: { sc
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        if (!activeSession) return;
         const reactionTimeMs = Date.now() - trialStartTime.current;
         const submittedWord = userInput.trim().toLowerCase();
 
@@ -217,7 +217,7 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (result: { sc
         const currentState = getAdaptiveState(GLR_GAME_ID, focus);
         const trial: TrialResult = { correct: isValid, reactionTimeMs, telemetry: { mode: 'associative', rule: currentRule, prev_word: currentWord, submitted_word: submittedWord } };
         
-        logTrial({ sessionId: sessionId.current, gameId: GLR_GAME_ID, seq: trials.length, ...trial} as any);
+        logEvent({ type: 'trial_complete', sessionId: activeSession.sessionId, payload: { ...trial, gameId: GLR_GAME_ID, focus } as any });
         setTrials(prev => [...prev, trial]);
 
         const newState = adjustDifficulty(trial, currentState, glrPolicy);
@@ -246,7 +246,7 @@ function AssociativeChainMode({ onComplete, focus }: { onComplete: (result: { sc
 }
 
 function CategorySwitchingMode({ onComplete, focus }: { onComplete: (result: { score: number, cluster_breadth: number, trials: TrialResult[] }) => void, focus: TrainingFocus }) {
-    const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
+    const { getAdaptiveState, updateAdaptiveState, logEvent, activeSession } = usePerformanceStore();
     
     const [timeLeft, setTimeLeft] = useState(10);
     const [totalTimeLeft, setTotalTimeLeft] = useState(60);
@@ -261,8 +261,7 @@ function CategorySwitchingMode({ onComplete, focus }: { onComplete: (result: { s
     const totalTimerRef = useRef<NodeJS.Timeout>();
     const trialStartTime = useRef<number>(0);
     const isVisible = usePageVisibility();
-    const sessionId = useRef(crypto.randomUUID());
-    const prng = useMemo(() => new PRNG(sessionId.current), [sessionId.current]);
+    const prng = useMemo(() => new PRNG(activeSession?.sessionId || ''), [activeSession]);
 
     const categoryList = useMemo(() => {
         if (focus === 'eq') {
@@ -319,6 +318,7 @@ function CategorySwitchingMode({ onComplete, focus }: { onComplete: (result: { s
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        if (!activeSession) return;
         const word = userInput.trim().toLowerCase();
         if (!word) return;
 
@@ -374,7 +374,7 @@ function CategorySwitchingMode({ onComplete, focus }: { onComplete: (result: { s
         }
         
         const currentState = getAdaptiveState(GLR_GAME_ID, focus);
-        logTrial({ sessionId: sessionId.current, gameId: GLR_GAME_ID, seq: trials.length, ...trial} as any);
+        logEvent({ type: 'trial_complete', sessionId: activeSession.sessionId, payload: { ...trial, gameId: GLR_GAME_ID, focus } as any });
         setTrials(prev => [...prev, trial]);
 
         const newState = adjustDifficulty(trial, currentState, glrPolicy);
@@ -399,3 +399,5 @@ function CategorySwitchingMode({ onComplete, focus }: { onComplete: (result: { s
         </div>
     );
 }
+
+    

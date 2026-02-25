@@ -1,3 +1,4 @@
+
 'use client';
 
 import { create } from 'zustand';
@@ -85,14 +86,12 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
                         const sessionPointer = JSON.parse(sessionPointerJSON);
                         const trials = await idbStore.getEventsForSession(sessionPointer.sessionId);
                         
-                        set({ activeSession: { ...sessionPointer, currentSeq: trials.length } });
+                        set({ activeSession: { ...sessionPointer, trialCount: trials.length } });
 
                         // Fast-forward PRNG and other state restoration would happen in the component layer
                         // that uses this session data.
-                        if (get().isHydrated) { // Check if hydrate has finished
-                            console.log("Session resumed from where you left off.");
-                            // This would typically be a toast notification
-                        }
+                         console.log("Session resumed from where you left off.");
+                        // This would typically be a toast notification
                     }
                     get().flushFailedWrites();
                 } catch (e) {
@@ -171,12 +170,28 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
             },
 
             logEvent: async (event) => {
+                let eventWithSeq = { ...event };
+                if (event.type === 'trial_complete') {
+                    const newTrialCount = (get().activeSession?.trialCount || 0) + 1;
+                     set(state => {
+                        if (state.activeSession) {
+                            state.activeSession.trialCount = newTrialCount;
+                        }
+                    });
+                    eventWithSeq.seq = newTrialCount;
+                }
+
+
                 const fullEvent: TelemetryEvent = {
-                    ...event,
+                    ...eventWithSeq,
                     eventId: `evt-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
                     timestamp: Date.now(),
                     schemaVersion: 2,
-                } as TelemetryEvent; // Cast because Omit makes it tricky
+                } as TelemetryEvent; 
+
+                if (fullEvent.type === 'trial_complete' && fullEvent.payload) {
+                    (fullEvent.payload as any).seq = fullEvent.seq;
+                }
 
                 if (!get().storageAvailable) {
                     console.warn("[Storage] IDB not available. Buffering event.");
@@ -245,6 +260,7 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
                     startTimestamp: Date.now(),
                     sessionComplete: false,
                     replayInputs,
+                    trialCount: 0,
                 };
                 
                 set({ activeSession: newSession });
@@ -298,3 +314,5 @@ export const usePerformanceStore = create<PerformanceState & PerformanceActions>
         }
     )
 );
+
+    

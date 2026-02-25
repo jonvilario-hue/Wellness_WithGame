@@ -1,4 +1,5 @@
-import type { GameId, TrainingFocus, DifficultyPolicy } from './index';
+
+import type { GameId, TrainingFocus, DifficultyPolicy, AdaptiveState } from './index';
 import type { TelemetryEvent } from '@/lib/telemetry-events';
 
 export interface LatencyInfo {
@@ -26,6 +27,7 @@ export interface SessionRecord {
   summary?: SessionSummary;
   replayInputs: ReplayInputs;
   sessionComplete: boolean;
+  trialCount: number;
 }
 
 export interface SessionSummary {
@@ -45,3 +47,11 @@ export type ProfileRecord = {
 
 // Kept for migration reference, but TelemetryEvent is now the primary type.
 export type TrialRecord = TelemetryEvent & { type: 'trial_complete' };
+
+export interface CachedAsset {
+    url: string;
+    data: any; // Storing decoded AudioBuffer might not be possible across all browsers, storing ArrayBuffer is safer
+    cachedAt: number;
+}
+
+    
