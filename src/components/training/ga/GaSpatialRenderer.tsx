@@ -19,7 +19,8 @@ interface RendererProps {
   onClear: () => void;
 }
 
-const PositionNode = ({ position, onClick, isActive, isUserSelection }: { position: any, onClick: (id: string) => void, isActive: boolean, isUserSelection: boolean }) => {
+const PositionNode = ({ position, onClick, isActive, sequenceNumber }: { position: any, onClick: (id: string) => void, isActive: boolean, sequenceNumber?: number }) => {
+  const isUserSelection = sequenceNumber !== undefined;
   return (
     <group position={[position.x, position.y, position.z]}>
       <Sphere
@@ -40,7 +41,7 @@ const PositionNode = ({ position, onClick, isActive, isUserSelection }: { positi
       </Sphere>
       {isUserSelection && (
         <Text fontSize={0.5} position={[0, 0.8, 0]} color="white">
-          {isUserSelection}
+          {sequenceNumber}
         </Text>
       )}
     </group>
@@ -64,7 +65,7 @@ const GaSpatialRenderer: React.FC<RendererProps> = ({
     if (phase === 'start' || phase === 'finished') {
       return (
         <div className="flex flex-col items-center gap-4 text-center">
-          <CardTitle>{phase === 'finished' ? 'Session Complete!' : 'Spatial Audio Challenge'}</CardTitle>
+          <CardTitle>{phase === 'finished' ? 'Session Complete!' : 'Auditory Spatial Tracer'}</CardTitle>
           <Button onClick={onStartSession} size="lg" className="bg-violet-600 hover:bg-violet-500 text-white">
             {phase === 'finished' ? 'Play Again' : 'Start Session'}
           </Button>
@@ -89,7 +90,7 @@ const GaSpatialRenderer: React.FC<RendererProps> = ({
                     position={pos} 
                     onClick={onPositionClick}
                     isActive={phase === 'playback'}
-                    isUserSelection={userSequence.includes(pos.id)}
+                    sequenceNumber={userSequence.includes(pos.id) ? userSequence.indexOf(pos.id) + 1 : undefined}
                 />
               ))}
               {userSequence.length > 1 && userSequence.map((id, i) => {
@@ -112,7 +113,7 @@ const GaSpatialRenderer: React.FC<RendererProps> = ({
             <Button onClick={onReplay} disabled={phase !== 'response'}>
                 <Play className="mr-2 h-4 w-4" /> Replay
             </Button>
-            <Button onClick={onClear} variant="secondary" disabled={phase !== 'response'}>
+            <Button onClick={onClear} variant="secondary" disabled={phase !== 'response' || userSequence.length === 0}>
                 <RotateCcw className="mr-2 h-4 w-4" /> Clear
             </Button>
             <Button onClick={onSubmit} disabled={phase !== 'response' || userSequence.length === 0} className="bg-violet-600 hover:bg-violet-500">
@@ -127,9 +128,9 @@ const GaSpatialRenderer: React.FC<RendererProps> = ({
     <Card className="w-full max-w-3xl bg-gray-900 border-violet-500/30 text-gray-100">
       <CardHeader>
         <CardTitle className="flex items-center justify-center gap-2 text-violet-300">
-          <Ear /> (Ga) Spatial Sound Localization
+          <Ear /> (Ga) Spatial Sound Tracer
         </CardTitle>
-        <CardDescription className="text-center text-violet-300/70">Listen to the sequence of sounds and click the speakers in the correct order.</CardDescription>
+        <CardDescription className="text-center text-violet-300/70">Listen to the sequence of spatialized tones and reconstruct the shape by clicking the spheres in the correct order.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-4 min-h-[550px] justify-center">
         {renderContent()}

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,7 +18,7 @@ import CoreMode from './CoreMode';
 import { AuditoryFlanker } from './auditory-flanker';
 import { CodeLogicMode } from './CodeLogicMode';
 import VerbalMode from './VerbalMode';
-import SpatialMode from './SpatialMode';
+import { GaSpatialAudioGame } from './GaSpatialAudioGame';
 import MathMode from './MathMode';
 import EQMode from './EQMode';
 import { useTrainingFocus } from "@/hooks/use-training-focus";
@@ -40,7 +41,7 @@ export default function AuditoryProcessingRouter() {
         case 'music':
             return <AuditoryFlanker />;
         case 'spatial':
-            return <SpatialMode />;
+            return <GaSpatialAudioGame />;
         case 'logic':
             return <CodeLogicMode />;
         case 'verbal':

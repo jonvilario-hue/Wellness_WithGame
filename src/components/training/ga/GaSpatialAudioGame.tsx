@@ -17,7 +17,7 @@ const GAME_ID: GameId = 'ga_auditory_lab';
 const policy = difficultyPolicies[GAME_ID];
 
 export type GaSpatialGameState = {
-  phase: 'loading' | 'start' | 'playback' | 'response' | 'feedback';
+  phase: 'loading' | 'start' | 'playback' | 'response' | 'feedback' | 'finished';
   trial: SpatialAudioTrial | null;
   userSequence: string[];
   feedbackMessage: string;
@@ -25,7 +25,7 @@ export type GaSpatialGameState = {
 
 export function GaSpatialAudioGame() {
   const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
-  const { isAudioReady, resumeContext, scheduleTone } = useAudioEngine();
+  const { engine } = useAudioEngine();
 
   const [state, setState] = useState<GaSpatialGameState>({
     phase: 'loading',
@@ -45,28 +45,36 @@ export function GaSpatialAudioGame() {
     const newTrial = generateSpatialAudioTrial(adaptiveState.currentLevel, prng.current);
     setState({ phase: 'playback', trial: newTrial, userSequence: [], feedbackMessage: '' });
 
+    if (!engine) return;
+
     let time = 0;
     newTrial.sequence.forEach((posId, index) => {
       const position = newTrial.positions.find(p => p.id === posId);
       if (position) {
-        setTimeout(() => {
-          const pan = position.x / 5; // Normalize x-coord to -1 to 1 for panning
-          const gain = 1.0 - (Math.abs(position.z) / 10); // Attenuate based on depth
-          scheduleTone(position.frequency, 0, 0.3, 'sine', pan, gain);
-        }, index * 600); // 600ms interval between tones
-        time = (index + 1) * 600;
+        const delay = index * 0.6; // 600ms interval
+        const pan = position.x / 5; // Normalize x-coord to -1 to 1 for panning
+        const gain = 1.0 - (Math.abs(position.z) / 10); // Attenuate based on depth
+        engine.playTone({
+            frequency: position.frequency, 
+            duration: 0.3,
+            type: 'sine', 
+            pan, 
+            volume: gain,
+            delay,
+        });
+        time = delay + 0.3;
       }
     });
 
     setTimeout(() => {
       setState(prev => ({ ...prev, phase: 'response' }));
       trialStartTime.current = Date.now();
-    }, time + 200);
-  }, [getAdaptiveState, scheduleTone]);
+    }, time * 1000 + 200);
+  }, [getAdaptiveState, engine]);
   
   const handleStartSession = useCallback(() => {
-    resumeContext();
-    if (!isAudioReady) return;
+    engine?.resumeContext();
+    if (!engine) return;
     
     const adaptiveState = getAdaptiveState(GAME_ID, 'spatial');
     startSession(adaptiveState);
@@ -75,7 +83,7 @@ export function GaSpatialAudioGame() {
     trialCount.current = 0;
     sessionTrials.current = [];
     startNewTrial();
-  }, [resumeContext, isAudioReady, getAdaptiveState, startNewTrial]);
+  }, [engine, getAdaptiveState, startNewTrial]);
 
   const handlePositionClick = (positionId: string) => {
     if (state.phase !== 'response') return;
@@ -109,21 +117,32 @@ export function GaSpatialAudioGame() {
   };
   
   const handleReplay = () => {
-      if (state.phase !== 'response' || !state.trial) return;
+      if (state.phase !== 'response' || !state.trial || !engine) return;
       // In a real implementation, this would decrement a replay counter
       // and re-trigger the playback sequence.
-       let time = 0;
-      state.trial.sequence.forEach((posId, index) => {
+       state.trial.sequence.forEach((posId, index) => {
         const position = state.trial.positions.find(p => p.id === posId);
         if (position) {
-          setTimeout(() => {
+            const delay = index * 0.6;
             const pan = position.x / 5;
             const gain = 1.0 - (Math.abs(position.z) / 10);
-            scheduleTone(position.frequency, 0, 0.3, 'sine', pan, gain);
-          }, index * 600);
+            engine.playTone({
+                frequency: position.frequency, 
+                duration: 0.3,
+                type: 'sine', 
+                pan, 
+                volume: gain,
+                delay,
+            });
         }
       });
   }
+
+  useEffect(() => {
+    if (engine) {
+      setState(prev => ({...prev, phase: 'start'}));
+    }
+  }, [engine]);
 
   const renderFallback = () => (
     <div className="flex items-center justify-center h-full">

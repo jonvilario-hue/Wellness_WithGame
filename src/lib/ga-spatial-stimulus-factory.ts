@@ -41,9 +41,7 @@ export const generateSpatialAudioTrial = (
     });
   }
 
-  const sequence = Array.from({ length: sequenceLength }, () => {
-    return `pos-${prng.nextIntRange(0, positionCount)}`;
-  });
+  const sequence = prng.shuffle(positions.map(p => p.id)).slice(0, sequenceLength);
 
   return {
     positions: prng.shuffle(positions),
