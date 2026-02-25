@@ -14,7 +14,7 @@ import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
 import { GameStub } from "../game-stub";
 import { useTrainingFocus } from "@/hooks/use-training-focus";
-import { useTrainingOverride } from "@/hooks/use-training-override";
+import { useTrainingOverride } from "@/hooks/use-training-override.tsx";
 import { domainIcons } from "@/components/icons";
 import { useAudioEngine } from "@/hooks/use-audio-engine";
 import { FOCUS_MODE_META } from "@/lib/mode-constants";
@@ -90,29 +90,36 @@ export function FocusSwitchReactor() {
     ruleRef.current = rule;
   }, [rule]);
 
-  const generateStimulus = useCallback(() => {
+  const generateStimulus = useCallback((): Partial<Stimulus> => {
     if (currentMode === 'neutral') {
         const positions: Position[] = ['top', 'bottom', 'left', 'right'];
         const arrows: ArrowDir[] = ['up', 'down', 'left', 'right'];
         const newPosition = positions[Math.floor(Math.random() * positions.length)];
         const newArrow = arrows[Math.floor(Math.random() * arrows.length)];
-        setStimulus({ position: newPosition, arrow: newArrow });
+        const newStimulus = { position: newPosition, arrow: newArrow };
+        setStimulus(newStimulus);
+        return newStimulus;
     } else if (currentMode === 'math') {
         const newValue = Math.floor(Math.random() * 99) + 1; // 1-99
-        setStimulus({ value: newValue });
+        const newStimulus = { value: newValue };
+        setStimulus(newStimulus);
+        return newStimulus;
     } else if (currentMode === 'music') {
         const state = getAdaptiveState(GAME_ID, 'music');
         const params = policy.levelMap[state.currentLevel]?.content_config['music']?.params;
-        if (!params) return;
+        if (!params) return {};
 
         const pitch = Math.random() > 0.5 ? params.high_pitch_hz : params.low_pitch_hz;
         const duration = Math.random() > 0.5 ? params.long_duration_ms : params.short_duration_ms;
-        setStimulus({ pitch, duration });
+        const newStimulus = { pitch, duration };
+        setStimulus(newStimulus);
+        return newStimulus;
     }
+    return {};
   }, [currentMode, getAdaptiveState]);
 
   const startNewTrial = useCallback((state: AdaptiveState) => {
-    generateStimulus();
+    const newStimulus = generateStimulus();
     
     const levelDef = policy.levelMap[state.currentLevel] || policy.levelMap[20];
     const { mechanic_config } = levelDef;
@@ -146,7 +153,7 @@ export function FocusSwitchReactor() {
         setGameState('cueing');
         const csi = contentConfig.params?.csi_ms || 1000;
         setTimeout(() => {
-            const stimulusToPlay = get().stimulus;
+            const stimulusToPlay = newStimulus;
             if(stimulusToPlay.pitch && stimulusToPlay.duration) {
                 const handle = scheduleTone(stimulusToPlay.pitch, getAudioContextTime(), stimulusToPlay.duration / 1000);
                 if (handle) stimulusOnsetTs.current = handle.scheduledOnset;
