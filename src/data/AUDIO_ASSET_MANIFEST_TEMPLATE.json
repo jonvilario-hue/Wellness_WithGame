@@ -1,0 +1,265 @@
+{
+  "manifestVersion": "1.0.0",
+  "assets": [
+    {
+      "id": "piano-c3",
+      "path": "tones/piano/C3.mp3",
+      "duration": 1500,
+      "category": ["Gf", "Ga"],
+      "tags": ["piano", "tone", "C3"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 48000
+    },
+    {
+      "id": "piano-cs3",
+      "path": "tones/piano/Cs3.mp3",
+      "duration": 1500,
+      "category": ["Gf", "Ga"],
+      "tags": ["piano", "tone", "C#3"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 48000
+    },
+    {
+      "id": "piano-d3",
+      "path": "tones/piano/D3.mp3",
+      "duration": 1500,
+      "category": ["Gf", "Ga"],
+      "tags": ["piano", "tone", "D3"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 48000
+    },
+    {
+      "id": "piano-ds3",
+      "path": "tones/piano/Ds3.mp3",
+      "duration": 1500,
+      "category": ["Gf", "Ga"],
+      "tags": ["piano", "tone", "D#3"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 48000
+    },
+    {
+      "id": "piano-e3",
+      "path": "tones/piano/E3.mp3",
+      "duration": 1500,
+      "category": ["Gf", "Ga"],
+      "tags": ["piano", "tone", "E3"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 48000
+    },
+    {
+      "id": "piano-f3",
+      "path": "tones/piano/F3.mp3",
+      "duration": 1500,
+      "category": ["Gf", "Ga"],
+      "tags": ["piano", "tone", "F3"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 48000
+    },
+    {
+      "id": "piano-fs3",
+      "path": "tones/piano/Fs3.mp3",
+      "duration": 1500,
+      "category": ["Gf", "Ga"],
+      "tags": ["piano", "tone", "F#3"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 48000
+    },
+    {
+      "id": "piano-g3",
+      "path": "tones/piano/G3.mp3",
+      "duration": 1500,
+      "category": ["Gf", "Ga"],
+      "tags": ["piano", "tone", "G3"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 48000
+    },
+    {
+      "id": "piano-gs3",
+      "path": "tones/piano/Gs3.mp3",
+      "duration": 1500,
+      "category": ["Gf", "Ga"],
+      "tags": ["piano", "tone", "G#3"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 48000
+    },
+    {
+      "id": "piano-a3",
+      "path": "tones/piano/A3.mp3",
+      "duration": 1500,
+      "category": ["Gf", "Ga"],
+      "tags": ["piano", "tone", "A3"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 48000
+    },
+    {
+      "id": "piano-as3",
+      "path": "tones/piano/As3.mp3",
+      "duration": 1500,
+      "category": ["Gf", "Ga"],
+      "tags": ["piano", "tone", "A#3"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 48000
+    },
+    {
+      "id": "piano-b3",
+      "path": "tones/piano/B3.mp3",
+      "duration": 1500,
+      "category": ["Gf", "Ga"],
+      "tags": ["piano", "tone", "B3"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 48000
+    },
+    {
+      "id": "perc-kick",
+      "path": "tones/percussion/kick.mp3",
+      "duration": 200,
+      "category": ["Gf", "Gq"],
+      "tags": ["percussion", "kick"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 8000
+    },
+    {
+      "id": "perc-snare",
+      "path": "tones/percussion/snare.mp3",
+      "duration": 200,
+      "category": ["Gf", "Gq"],
+      "tags": ["percussion", "snare"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 8000
+    },
+    {
+      "id": "perc-hihat",
+      "path": "tones/percussion/hihat.mp3",
+      "duration": 150,
+      "category": ["Gf", "Gq"],
+      "tags": ["percussion", "hihat"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 6000
+    },
+    {
+      "id": "perc-click",
+      "path": "tones/percussion/click.wav",
+      "duration": 50,
+      "category": ["Gf", "Gq"],
+      "tags": ["percussion", "metronome", "click"],
+      "format": "wav",
+      "sampleRate": 44100,
+      "fileSize": 5000
+    },
+    { "id": "phoneme-ba", "path": "verbal/phoneme-ba.mp3", "duration": 300, "category": ["Ga"], "tags": [], "format": "mp3", "sampleRate": 44100, "fileSize": 12000 },
+    { "id": "phoneme-da", "path": "verbal/phoneme-da.mp3", "duration": 300, "category": ["Ga"], "tags": [], "format": "mp3", "sampleRate": 44100, "fileSize": 12000 },
+    { "id": "phoneme-ga", "path": "verbal/phoneme-ga.mp3", "duration": 300, "category": ["Ga"], "tags": [], "format": "mp3", "sampleRate": 44100, "fileSize": 12000 },
+    { "id": "phoneme-pa", "path": "verbal/phoneme-pa.mp3", "duration": 300, "category": ["Ga"], "tags": [], "format": "mp3", "sampleRate": 44100, "fileSize": 12000 },
+    { "id": "phoneme-ta", "path": "verbal/phoneme-ta.mp3", "duration": 300, "category": ["Ga"], "tags": [], "format": "mp3", "sampleRate": 44100, "fileSize": 12000 },
+    { "id": "phoneme-ka", "path": "verbal/phoneme-ka.mp3", "duration": 300, "category": ["Ga"], "tags": [], "format": "mp3", "sampleRate": 44100, "fileSize": 12000 },
+    { "id": "phoneme-sa", "path": "verbal/phoneme-sa.mp3", "duration": 400, "category": ["Ga"], "tags": [], "format": "mp3", "sampleRate": 44100, "fileSize": 15000 },
+    { "id": "phoneme-sha", "path": "verbal/phoneme-sha.mp3", "duration": 400, "category": ["Ga"], "tags": [], "format": "mp3", "sampleRate": 44100, "fileSize": 15000 },
+    { "id": "phoneme-fa", "path": "verbal/phoneme-fa.mp3", "duration": 400, "category": ["Ga"], "tags": [], "format": "mp3", "sampleRate": 44100, "fileSize": 15000 },
+    { "id": "phoneme-tha", "path": "verbal/phoneme-tha.mp3", "duration": 400, "category": ["Ga"], "tags": [], "format": "mp3", "sampleRate": 44100, "fileSize": 15000 },
+    {
+      "id": "word-en-apple",
+      "path": "speech/words/en/apple.mp3",
+      "duration": 500,
+      "category": ["Gc"],
+      "tags": ["speech", "word", "english"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 16000
+    },
+    {
+      "id": "word-en-banana",
+      "path": "speech/words/en/banana.mp3",
+      "duration": 600,
+      "category": ["Gc"],
+      "tags": ["speech", "word", "english"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 18000
+    },
+    {
+      "id": "sentence-01-happy-f1",
+      "path": "speech/sentences/happy/s01_happy_f1.mp3",
+      "duration": 2500,
+      "category": ["EF"],
+      "tags": ["speech", "sentence", "emotion", "happy", "female-1"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 64000
+    },
+    {
+      "id": "vocalization-laugh-01",
+      "path": "emotions/vocalizations/laugh-01.mp3",
+      "duration": 3000,
+      "category": ["EF"],
+      "tags": ["emotion", "vocalization", "happy", "laugh"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 72000
+    },
+    {
+      "id": "noise-babble-01",
+      "path": "noise/babble-01.mp3",
+      "duration": 60000,
+      "category": ["Gc"],
+      "tags": ["noise", "ambient", "babble"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 960000
+    },
+    {
+      "id": "melody-easy-01",
+      "path": "melodies/easy/melody-01.mp3",
+      "duration": 5000,
+      "category": ["Ga"],
+      "tags": ["melody", "easy"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 128000
+    },
+    {
+      "id": "instr-piano",
+      "path": "tones/piano/C4.mp3",
+      "duration": 1500,
+      "category": ["Gf", "Glr"],
+      "tags": ["instrument", "identity", "piano"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 48000
+    },
+    {
+      "id": "instr-drum",
+      "path": "tones/percussion/kick.mp3",
+      "duration": 200,
+      "category": ["Gf", "Glr"],
+      "tags": ["instrument", "identity", "drum"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 8000
+    },
+    {
+      "id": "instr-bell",
+      "path": "tones/synth/bell.mp3",
+      "duration": 1000,
+      "category": ["Gf", "Glr"],
+      "tags": ["instrument", "identity", "bell"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 32000
+    }
+  ]
+}

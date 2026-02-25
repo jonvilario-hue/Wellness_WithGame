@@ -19,6 +19,7 @@ export type PlaybackConfig = {
     startOffset?: number;
     duration?: number;
     onEnd?: () => void;
+    delay?: number;
 };
 
 
@@ -241,16 +242,69 @@ export class AudioEngine {
     return handle;
   }
   
+    public playSpeechShapedNoise(duration: number, gain: number): PlaybackHandle | null {
+        if (!this.audioContext || !this.masterGain) return null;
+        this.resumeContext();
+
+        const bufferSize = this.audioContext.sampleRate * duration;
+        const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
+        const output = buffer.getChannelData(0);
+
+        // Generate white noise
+        for (let i = 0; i < bufferSize; i++) {
+            output[i] = Math.random() * 2 - 1;
+        }
+
+        const whiteNoiseSource = this.audioContext.createBufferSource();
+        whiteNoiseSource.buffer = buffer;
+        whiteNoiseSource.loop = true;
+
+        // Create a bandpass filter to shape the noise into something more speech-like
+        const bandpassFilter = this.audioContext.createBiquadFilter();
+        bandpassFilter.type = 'bandpass';
+        bandpassFilter.frequency.value = 1500; // Center frequency in the middle of human speech range
+        bandpassFilter.Q.value = 0.5; // A moderate quality factor
+
+        const gainNode = this.audioContext.createGain();
+        gainNode.gain.value = gain;
+
+        whiteNoiseSource.connect(bandpassFilter);
+        bandpassFilter.connect(gainNode);
+        gainNode.connect(this.masterGain);
+
+        const scheduledOnset = this.audioContext.currentTime;
+        whiteNoiseSource.start(scheduledOnset);
+        whiteNoiseSource.stop(scheduledOnset + duration);
+
+        this.activeSources.add(whiteNoiseSource);
+
+        const handle: PlaybackHandle = {
+            stop: () => { try { whiteNoiseSource.stop(); } catch (e) { } },
+            sourceNode: whiteNoiseSource,
+            scheduledOnset
+        };
+
+        whiteNoiseSource.onended = () => {
+            whiteNoiseSource.disconnect();
+            bandpassFilter.disconnect();
+            gainNode.disconnect();
+            this.activeSources.delete(whiteNoiseSource);
+        };
+
+        return handle;
+    }
+
   public async playSequence(items: (AssetId | ToneConfig)[], intervalMs: number, onEnd?: () => void) {
       if (!this.isReady || !this.audioContext || !this.sampleManager) return;
       await this.resumeContext();
 
       let time = this.audioContext.currentTime;
       for (const item of items) {
+          const delay = time > this.audioContext.currentTime ? time - this.audioContext.currentTime : 0;
           if(typeof item === 'string') {
-              this.playSample(item, { delay: time - this.audioContext.currentTime });
+              this.playSample(item, { delay });
           } else {
-              this.playTone({ ...item, delay: time - this.audioContext.currentTime });
+              this.playTone({ ...item, delay });
           }
           time += intervalMs / 1000;
       }
