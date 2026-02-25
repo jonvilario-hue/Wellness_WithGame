@@ -21,24 +21,29 @@ const useDomainStats = (domainId: GameId) => {
       return { score: 0, trend: 0, lastPlayed: 'Never' };
     }
     
+    // Aggregate score and history from all focus modes for this game
+    const combinedHistory = allStatesForGame.flatMap(state => state.levelHistory).sort((a,b) => a.sessionDate - b.sessionDate);
+    
     const mostRecentState = allStatesForGame.reduce((latest, current) => {
-        return (current.lastSessionAt || 0) > (latest.lastSessionAt || 0) ? current : latest;
+        const latestTs = latest.lastSessionAt || 0;
+        const currentTs = current.lastSessionAt || 0;
+        return currentTs > latestTs ? current : latest;
     });
+    
+    const totalScore = allStatesForGame.reduce((acc, state) => acc + (state.currentLevel / state.levelCeiling), 0);
+    const avgScore = (totalScore / allStatesForGame.length) * 100;
 
-    const score = Math.round((mostRecentState.currentLevel / mostRecentState.levelCeiling) * 100);
     const lastPlayed = mostRecentState.lastSessionAt ? formatDistanceToNow(new Date(mostRecentState.lastSessionAt), { addSuffix: true }) : 'Never';
     
-    const combinedHistory = allStatesForGame.flatMap(state => state.levelHistory).sort((a,b) => a.sessionDate - b.sessionDate);
-
     let trend = 0;
     if (combinedHistory.length >= 5) {
         const recentHistory = combinedHistory.slice(-5);
-        const startScore = (recentHistory[0].startLevel / mostRecentState.levelCeiling) * 100;
-        const endScore = (recentHistory[recentHistory.length - 1].endLevel / mostRecentState.levelCeiling) * 100;
+        const startScore = (recentHistory[0].startLevel / 10) * 100;
+        const endScore = (recentHistory[recentHistory.length - 1].endLevel / 10) * 100;
         trend = endScore - startScore;
     }
 
-    return { score, trend, lastPlayed };
+    return { score: Math.round(avgScore), trend, lastPlayed };
   }, [gameStates, domainId]);
 };
 
@@ -58,14 +63,14 @@ export function GameCard({ domain, onSelect }: { domain: (typeof import('@/lib/d
   return (
     <Card
       onClick={() => onSelect(domain.key)}
-      className="flex flex-col aspect-square justify-between transition-all duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer"
+      className="flex flex-col aspect-square justify-between transition-all duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer bg-card"
     >
       <CardHeader className="flex-row items-start gap-4 space-y-0 pb-2">
         <div className={cn("p-3 rounded-lg", domain.color)}>
           <domain.icon className="w-6 h-6" />
         </div>
         <div className="flex-1">
-          <CardTitle className="font-headline text-lg">{domain.gameTitle}</CardTitle>
+          <CardTitle className="font-headline text-base">({domain.key}) {domain.gameTitle}</CardTitle>
           <CardDescription className="text-sm">{domain.friendlyLabel}</CardDescription>
         </div>
         <div className={cn("flex items-center font-bold text-sm", trendColor)}>
@@ -84,7 +89,7 @@ export function GameCard({ domain, onSelect }: { domain: (typeof import('@/lib/d
       </CardContent>
        <CardFooter className="p-4">
         <Button onClick={handlePlayClick} className="w-full">
-            <Play className="mr-2 h-4 w-4" /> Play Now
+            <Play className="mr-2 h-4 w-4" /> Play {domain.friendlyLabel}
         </Button>
       </CardFooter>
     </Card>
