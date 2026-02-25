@@ -65,9 +65,9 @@ Record at least 5 distinct non-verbal sounds for each primary emotion (laugh, si
 
 ## 5. How to Upload
 
-1. Place your recorded and formatted `.mp3` files into a local folder named `public/audio-assets/`. The folder structure inside `public/audio-assets/` should match the paths defined in `AUDIO_ASSET_MANIFEST_TEMPLATE.json` (e.g., `public/audio-assets/tones/piano/C3.mp3`).
+1. Place your recorded and formatted `.mp3` files into a local folder named `public/audio-assets/`. The folder structure inside `public/audio-assets/` should match the paths defined in the asset manifest (e.g., `public/audio-assets/tones/piano/C3.mp3`).
 2. This project does not currently use Firebase Storage. Assets are served directly from the `public` folder.
-3. After adding files, you **must update `public/audio-assets/manifest.json`** manually. Add a new entry for your asset, ensuring the `id`, `path`, `duration`, `format`, `sampleRate`, and `fileSize` are all correct.
+3. After adding files, you **must update the main manifest file at `public/audio-assets/manifest.json`**. Add a new entry for your asset, ensuring all fields are correct. The file `src/data/AUDIO_ASSET_MANIFEST_TEMPLATE.json` serves as a reference for the required structure.
 
 ## 6. How to Test Your Assets
 
