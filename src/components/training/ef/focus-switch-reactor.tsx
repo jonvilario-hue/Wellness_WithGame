@@ -14,9 +14,9 @@ import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
 import { GameStub } from "../game-stub";
 import { useTrainingFocus } from "@/hooks/use-training-focus";
-import { useTrainingOverride } from "@/hooks/use-training-override.tsx";
+import { useTrainingOverride } from '@/hooks/use-training-override.tsx';
 import { domainIcons } from "@/components/icons";
-import { useAudioEngine } from "@/hooks/use-audio-engine";
+import { useAudioEngine } from "@/hooks/useAudioEngine";
 import { FOCUS_MODE_META } from "@/lib/mode-constants";
 import { logicTokenPools } from "@/data/logic-content";
 
@@ -67,7 +67,7 @@ const logicOperators = new Set(['==', '!=', '===', '!==', '&&', '||', '=>', '>='
 const logicTokenPool = logicTokenPools.tier2;
 
 export function FocusSwitchReactor() {
-  const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
+  const { getAdaptiveState, updateAdaptiveState, logEvent, activeSession, startNewGameSession, completeCurrentGameSession } = usePerformanceStore();
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
   const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
   const { playNote, scheduleTone, resumeContext, isAudioReady, getAudioContextTime, getLatencyInfo } = useAudioEngine();
@@ -84,7 +84,6 @@ export function FocusSwitchReactor() {
   const ruleSwitchCounter = useRef(0);
   const ruleRef = useRef(rule);
   const previousRuleRef = useRef(rule);
-  const sessionId = useRef<string | null>(null);
   const deviceInfo = useRef<any>(null);
   
   const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
@@ -197,19 +196,26 @@ export function FocusSwitchReactor() {
     const info = getLatencyInfo();
     deviceInfo.current = info;
 
+    startNewGameSession({
+        gameId: GAME_ID,
+        focus: currentMode,
+        prngSeed: crypto.randomUUID(), // This game doesn't use a PRNG, but the session needs a seed.
+        buildVersion: 'dev',
+        difficultyConfig: policy,
+    });
+
     const state = getAdaptiveState(GAME_ID, currentMode);
     const sessionState = startSession(state);
     updateAdaptiveState(GAME_ID, currentMode, sessionState);
     currentTrialIndex.current = 0;
     ruleSwitchCounter.current = 0;
     setScore(0);
-    sessionId.current = crypto.randomUUID();
     startNewTrial(sessionState);
-  }, [startNewTrial, resumeContext, updateAdaptiveState, currentMode, getAdaptiveState, getLatencyInfo]);
+  }, [startNewTrial, resumeContext, updateAdaptiveState, currentMode, getAdaptiveState, getLatencyInfo, startNewGameSession]);
 
   const processNextTurn = useCallback((correct: boolean, source: 'click' | 'keyboard' | 'timeout', responseValue?: any) => {
     const state = getAdaptiveState(GAME_ID, currentMode);
-    if ((gameState !== 'running' && gameState !== 'cueing') || !state) return;
+    if ((gameState !== 'running' && gameState !== 'cueing') || !state || !activeSession) return;
 
     setGameState('feedback');
     const responseTs = getAudioContextTime();
@@ -256,17 +262,26 @@ export function FocusSwitchReactor() {
         telemetry,
     };
     
-    logTrial({
-      sessionId: sessionId.current!,
-      gameId: GAME_ID,
-      trialIndex: currentTrialIndex.current,
-      difficultyLevel: levelPlayed,
-      stimulusOnsetTs: stimulusOnsetTs.current,
-      responseTs,
-      rtMs: reactionTimeMs,
-      deviceInfo: deviceInfo.current,
-      responseType: 'n/a',
-      ...trialResult,
+    logEvent({
+      type: 'trial_complete',
+      sessionId: activeSession.sessionId,
+      payload: {
+        id: `${activeSession.sessionId}-${currentTrialIndex.current}`,
+        sessionId: activeSession.sessionId,
+        gameId: GAME_ID,
+        focus: currentMode,
+        trialIndex: currentTrialIndex.current,
+        difficultyLevel: levelPlayed,
+        correct,
+        rtMs: reactionTimeMs,
+        stimulusParams: telemetry,
+        responseType: 'n/a',
+        stimulusOnsetTs: stimulusOnsetTs.current,
+        responseTs,
+        deviceInfo: deviceInfo.current,
+        pausedDurationMs: 0,
+        wasFallback: false,
+      }
     } as any);
     
     const newState = adjustDifficulty(trialResult, state, policy);
@@ -279,11 +294,12 @@ export function FocusSwitchReactor() {
         currentTrialIndex.current++;
         if(currentTrialIndex.current >= policy.sessionLength) {
             setGameState('finished');
+            completeCurrentGameSession();
         } else {
             startNewTrial(newState);
         }
     }, 1500);
-  }, [gameState, getAdaptiveState, logTrial, updateAdaptiveState, currentMode, startNewTrial, stimulus, getAudioContextTime]);
+  }, [gameState, getAdaptiveState, logEvent, updateAdaptiveState, currentMode, startNewTrial, stimulus, getAudioContextTime, activeSession, completeCurrentGameSession]);
   
   const handleAnswer = useCallback((answer: any, source: 'click' | 'keyboard') => {
     if (gameState !== 'running' || !stimulus) return;
@@ -566,5 +582,3 @@ export function FocusSwitchReactor() {
     </Card>
   );
 }
-
-  
