@@ -49,7 +49,7 @@ export type TierSelection = Tier | 4; // 4 represents "Automatic"
 export interface TrialResult {
   correct: boolean;
   reactionTimeMs: number;
-  telemetry: Record<string, any>;
+  telemetry?: Record<string, any>;
   stimulusOnsetTs?: number; 
   responseTs?: number;
 }

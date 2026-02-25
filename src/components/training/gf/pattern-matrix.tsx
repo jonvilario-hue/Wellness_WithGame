@@ -8,7 +8,7 @@ import { useTrainingOverride } from "@/hooks/use-training-override";
 import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
 import { adjustDifficulty, startSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
-import type { TrialResult, GameId, AdaptiveState } from "@/types";
+import type { TrialResult, GameId, AdaptiveState, BaseRendererProps } from "@/types";
 import { GameStub } from "../game-stub";
 import { RuleInductionEngine } from '../logic/rule-induction-engine';
 import { useAudioEngine } from "@/hooks/use-audio-engine";
