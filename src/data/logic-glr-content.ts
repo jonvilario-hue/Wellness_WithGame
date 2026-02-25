@@ -1,4 +1,5 @@
 
+
 export const logicPairsTier1 = [
     { stimulus: '&&', meaning: 'AND — both must be true', hint: 'Think of "and" — ALL conditions' },
     { stimulus: '||', meaning: 'OR — at least one must be true', hint: 'Think of "or" — ANY condition' },
@@ -31,3 +32,5 @@ export const logicPairsTier3 = [
     { stimulus: 'typeof', meaning: 'Check the type of a value', hint: 'Asks "what kind of thing are you?"' },
     { stimulus: 'void', meaning: 'Evaluates expression, returns undefined', hint: 'Void = emptiness' }
 ];
+
+export const allLogicPairs = [...logicPairsTier1, ...logicPairsTier2, ...logicPairsTier3];

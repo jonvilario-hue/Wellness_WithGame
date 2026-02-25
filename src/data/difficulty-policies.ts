@@ -103,7 +103,7 @@ const policies: Partial<Record<GameId, DifficultyPolicy>> = {
           music: { sub_variant: 'spaced_retrieval', params: { pairs: 4, distractorDuration: 10 } },
           verbal: { sub_variant: 'category_sprint', params: {} },
           eq: { sub_variant: 'category_sprint', params: {} },
-          logic: { sub_variant: 'associative_chain', params: {} },
+          logic: { sub_variant: 'operator_recall', params: {} },
       }},
       2: { mechanic_config: {}, content_config: {
           spatial: { sub_variant: 'memory_palace', params: { landmarkCount: 4, objectCount: 4, encodingDurationMs: 30000, delayDurationMs: 15000, distractorCount: 2 } },
@@ -112,7 +112,7 @@ const policies: Partial<Record<GameId, DifficultyPolicy>> = {
           music: { sub_variant: 'spaced_retrieval', params: { pairs: 4, distractorDuration: 15 } },
           verbal: { sub_variant: 'associative_chain', params: {} },
           eq: { sub_variant: 'category_sprint', params: {} },
-          logic: { sub_variant: 'associative_chain', params: {} },
+          logic: { sub_variant: 'operator_recall', params: {} },
       }},
       3: { mechanic_config: {}, content_config: {
           spatial: { sub_variant: 'memory_palace', params: { landmarkCount: 6, objectCount: 6, encodingDurationMs: 25000, delayDurationMs: 20000, distractorCount: 3 } },
@@ -121,7 +121,7 @@ const policies: Partial<Record<GameId, DifficultyPolicy>> = {
           music: { sub_variant: 'spaced_retrieval', params: { pairs: 5, distractorDuration: 15 } },
           verbal: { sub_variant: 'spaced_retrieval', params: { pairs: 5, distractorDuration: 15 } },
           eq: { sub_variant: 'category_sprint', params: {} },
-          logic: { sub_variant: 'associative_chain', params: {} },
+          logic: { sub_variant: 'operator_recall', params: {} },
       }},
       4: { mechanic_config: {}, content_config: {
           spatial: { sub_variant: 'memory_palace', params: { landmarkCount: 6, objectCount: 6, encodingDurationMs: 25000, delayDurationMs: 20000, distractorCount: 3 } },
@@ -130,7 +130,7 @@ const policies: Partial<Record<GameId, DifficultyPolicy>> = {
           music: { sub_variant: 'spaced_retrieval', params: { pairs: 5, distractorDuration: 20 } },
           verbal: { sub_variant: 'category_sprint', params: {} },
           eq: { sub_variant: 'category_sprint', params: {} },
-          logic: { sub_variant: 'associative_chain', params: {} },
+          logic: { sub_variant: 'operator_recall', params: {} },
       }},
       5: { mechanic_config: {}, content_config: {
           spatial: { sub_variant: 'memory_palace', params: { landmarkCount: 8, objectCount: 8, encodingDurationMs: 20000, delayDurationMs: 30000, distractorCount: 4 } },
@@ -139,7 +139,7 @@ const policies: Partial<Record<GameId, DifficultyPolicy>> = {
           music: { sub_variant: 'spaced_retrieval', params: { pairs: 6, distractorDuration: 20 } },
           verbal: { sub_variant: 'associative_chain', params: {} },
           eq: { sub_variant: 'category_sprint', params: {} },
-          logic: { sub_variant: 'associative_chain', params: {} },
+          logic: { sub_variant: 'operator_recall', params: {} },
       }},
       6: { mechanic_config: {}, content_config: {
           spatial: { sub_variant: 'memory_palace', params: { landmarkCount: 8, objectCount: 8, encodingDurationMs: 20000, delayDurationMs: 30000, distractorCount: 4 } },
@@ -148,7 +148,7 @@ const policies: Partial<Record<GameId, DifficultyPolicy>> = {
           music: { sub_variant: 'spaced_retrieval', params: { pairs: 6, distractorDuration: 25 } },
           verbal: { sub_variant: 'spaced_retrieval', params: { pairs: 6, distractorDuration: 25 } },
           eq: { sub_variant: 'category_sprint', params: {} },
-          logic: { sub_variant: 'associative_chain', params: {} },
+          logic: { sub_variant: 'operator_recall', params: {} },
       }},
     }
   },
@@ -159,14 +159,14 @@ const policies: Partial<Record<GameId, DifficultyPolicy>> = {
     targetAccuracyHigh: 0.88,
     targetAccuracyLow: 0.60,
     levelMap: {
-      1: { mechanic_config: { timeLimit: 20000 }, content_config: { logic: { sub_variant: 'knowledge_retrieval', params: {} }, math: { sub_variant: 'knowledge_retrieval', params: { question_level: 1 } }, neutral: { sub_variant: "analogy", params: { word_rarity: 1000 } }, music: { sub_variant: 'knowledge_retrieval', params: { question_level: 1 } }, verbal: { sub_variant: 'cloze_deletion', params: { word_rarity: 'common' } }, spatial: { sub_variant: 'spatial_concept_map', params: { nodeCount: 8, abstraction: 'concrete' } }, eq: { sub_variant: 'novel_concept_learning', params: { concept_complexity: 1 } } } },
-      2: { mechanic_config: { timeLimit: 20000 }, content_config: { logic: { sub_variant: 'knowledge_retrieval', params: {} }, math: { sub_variant: 'knowledge_retrieval', params: { question_level: 1 } }, music: { sub_variant: 'knowledge_retrieval', params: { question_level: 1 } }, spatial: { sub_variant: 'spatial_concept_map', params: { nodeCount: 10, abstraction: 'concrete' } }, eq: { sub_variant: 'novel_concept_learning', params: { concept_complexity: 1 } } } },
-      3: { mechanic_config: { timeLimit: 20000 }, content_config: { logic: { sub_variant: 'knowledge_retrieval', params: {} }, math: { sub_variant: 'knowledge_retrieval', params: { question_level: 1 } }, music: { sub_variant: 'knowledge_retrieval', params: { question_level: 2 } }, spatial: { sub_variant: 'spatial_concept_map', params: { nodeCount: 10, abstraction: 'concrete' } }, eq: { sub_variant: 'novel_concept_learning', params: { concept_complexity: 2 } } } },
-      4: { mechanic_config: { timeLimit: 20000 }, content_config: { logic: { sub_variant: 'knowledge_retrieval', params: {} }, math: { sub_variant: 'knowledge_retrieval', params: { question_level: 2 } }, music: { sub_variant: 'knowledge_retrieval', params: { question_level: 2 } }, spatial: { sub_variant: 'spatial_concept_map', params: { nodeCount: 12, abstraction: 'abstract' } }, eq: { sub_variant: 'novel_concept_learning', params: { concept_complexity: 2 } } } },
-      5: { mechanic_config: { timeLimit: 20000 }, content_config: { logic: { sub_variant: 'knowledge_retrieval', params: {} }, math: { sub_variant: 'knowledge_retrieval', params: { question_level: 2 } }, music: { sub_variant: 'knowledge_retrieval', params: { question_level: 3 } }, spatial: { sub_variant: 'spatial_concept_map', params: { nodeCount: 12, abstraction: 'abstract' } }, eq: { sub_variant: 'novel_concept_learning', params: { concept_complexity: 3 } } } },
-      6: { mechanic_config: { timeLimit: 20000 }, content_config: { logic: { sub_variant: 'knowledge_retrieval', params: {} }, math: { sub_variant: 'knowledge_retrieval', params: { question_level: 2 } }, music: { sub_variant: 'knowledge_retrieval', params: { question_level: 3 } }, spatial: { sub_variant: 'spatial_concept_map', params: { nodeCount: 15, abstraction: 'abstract' } }, eq: { sub_variant: 'novel_concept_learning', params: { concept_complexity: 3 } } } },
-      7: { mechanic_config: { timeLimit: 20000 }, content_config: { logic: { sub_variant: 'knowledge_retrieval', params: {} }, math: { sub_variant: 'knowledge_retrieval', params: { question_level: 3 } }, music: { sub_variant: 'knowledge_retrieval', params: { question_level: 4 } }, spatial: { sub_variant: 'spatial_concept_map', params: { nodeCount: 15, abstraction: 'abstract' } }, eq: { sub_variant: 'novel_concept_learning', params: { concept_complexity: 4 } } } },
-      8: { mechanic_config: { timeLimit: 20000 }, content_config: { logic: { sub_variant: 'knowledge_retrieval', params: {} }, math: { sub_variant: 'knowledge_retrieval', params: { question_level: 3 } }, music: { sub_variant: 'knowledge_retrieval', params: { question_level: 4 } }, spatial: { sub_variant: 'spatial_concept_map', params: { nodeCount: 15, abstraction: 'abstract' } }, eq: { sub_variant: 'novel_concept_learning', params: { concept_complexity: 4 } } } },
+      1: { mechanic_config: { timeLimit: 20000 }, content_config: { logic: { sub_variant: 'knowledge_retrieval', params: { tier: 1 } }, math: { sub_variant: 'knowledge_retrieval', params: { question_level: 1 } }, neutral: { sub_variant: "analogy", params: { word_rarity: 1000 } }, music: { sub_variant: 'knowledge_retrieval', params: { question_level: 1 } }, verbal: { sub_variant: 'cloze_deletion', params: { word_rarity: 'common' } }, spatial: { sub_variant: 'spatial_concept_map', params: { nodeCount: 8, abstraction: 'concrete' } }, eq: { sub_variant: 'novel_concept_learning', params: { concept_complexity: 1 } } } },
+      2: { mechanic_config: { timeLimit: 20000 }, content_config: { logic: { sub_variant: 'knowledge_retrieval', params: { tier: 1 } }, math: { sub_variant: 'knowledge_retrieval', params: { question_level: 1 } }, music: { sub_variant: 'knowledge_retrieval', params: { question_level: 1 } }, spatial: { sub_variant: 'spatial_concept_map', params: { nodeCount: 10, abstraction: 'concrete' } }, eq: { sub_variant: 'novel_concept_learning', params: { concept_complexity: 1 } } } },
+      3: { mechanic_config: { timeLimit: 20000 }, content_config: { logic: { sub_variant: 'knowledge_retrieval', params: { tier: 1 } }, math: { sub_variant: 'knowledge_retrieval', params: { question_level: 1 } }, music: { sub_variant: 'knowledge_retrieval', params: { question_level: 2 } }, spatial: { sub_variant: 'spatial_concept_map', params: { nodeCount: 10, abstraction: 'concrete' } }, eq: { sub_variant: 'novel_concept_learning', params: { concept_complexity: 2 } } } },
+      4: { mechanic_config: { timeLimit: 20000 }, content_config: { logic: { sub_variant: 'knowledge_retrieval', params: { tier: 2 } }, math: { sub_variant: 'knowledge_retrieval', params: { question_level: 2 } }, music: { sub_variant: 'knowledge_retrieval', params: { question_level: 2 } }, spatial: { sub_variant: 'spatial_concept_map', params: { nodeCount: 12, abstraction: 'abstract' } }, eq: { sub_variant: 'novel_concept_learning', params: { concept_complexity: 2 } } } },
+      5: { mechanic_config: { timeLimit: 20000 }, content_config: { logic: { sub_variant: 'knowledge_retrieval', params: { tier: 2 } }, math: { sub_variant: 'knowledge_retrieval', params: { question_level: 2 } }, music: { sub_variant: 'knowledge_retrieval', params: { question_level: 3 } }, spatial: { sub_variant: 'spatial_concept_map', params: { nodeCount: 12, abstraction: 'abstract' } }, eq: { sub_variant: 'novel_concept_learning', params: { concept_complexity: 3 } } } },
+      6: { mechanic_config: { timeLimit: 20000 }, content_config: { logic: { sub_variant: 'knowledge_retrieval', params: { tier: 2 } }, math: { sub_variant: 'knowledge_retrieval', params: { question_level: 2 } }, music: { sub_variant: 'knowledge_retrieval', params: { question_level: 3 } }, spatial: { sub_variant: 'spatial_concept_map', params: { nodeCount: 15, abstraction: 'abstract' } }, eq: { sub_variant: 'novel_concept_learning', params: { concept_complexity: 3 } } } },
+      7: { mechanic_config: { timeLimit: 20000 }, content_config: { logic: { sub_variant: 'knowledge_retrieval', params: { tier: 3 } }, math: { sub_variant: 'knowledge_retrieval', params: { question_level: 3 } }, music: { sub_variant: 'knowledge_retrieval', params: { question_level: 4 } }, spatial: { sub_variant: 'spatial_concept_map', params: { nodeCount: 15, abstraction: 'abstract' } }, eq: { sub_variant: 'novel_concept_learning', params: { concept_complexity: 4 } } } },
+      8: { mechanic_config: { timeLimit: 20000 }, content_config: { logic: { sub_variant: 'knowledge_retrieval', params: { tier: 3 } }, math: { sub_variant: 'knowledge_retrieval', params: { question_level: 3 } }, music: { sub_variant: 'knowledge_retrieval', params: { question_level: 4 } }, spatial: { sub_variant: 'spatial_concept_map', params: { nodeCount: 15, abstraction: 'abstract' } }, eq: { sub_variant: 'novel_concept_learning', params: { concept_complexity: 4 } } } },
     }
   },
   ef_focus_switch: {

@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useCallback, useEffect, useRef, lazy, Suspense } from "react";
@@ -104,6 +105,8 @@ export function VerbalInferenceBuilder() {
   const trialStartTime = useRef(0);
   const currentTrialIndex = useRef(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const correctSentenceRef = useRef('');
+  const sessionId = useRef(crypto.randomUUID());
 
   const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
   const currentMode = isComponentLoaded ? (override || globalFocus) : 'neutral';
@@ -213,6 +216,12 @@ export function VerbalInferenceBuilder() {
     currentTrialIndex: currentTrialIndex.current,
     focus: currentMode,
   };
+  
+  if (currentMode === 'eq' && Renderer === GameStub) {
+      rendererProps.name = "Affective Span";
+      rendererProps.description = "Memorize a sequence of faces showing different emotions, then recall the emotions in the correct order.";
+      rendererProps.chcFactor = "Working Memory (Gwm) / Emotion Recognition";
+  }
 
   return (
       <Suspense fallback={<div className="w-full max-w-2xl min-h-[500px] flex items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>}>

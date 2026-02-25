@@ -3,9 +3,8 @@
 
 import { create } from 'zustand';
 import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
-import { immer } from 'zustand/middleware/immer';
 import type { TrainingFocus } from '@/types';
-import { logicPairsTier1, logicPairsTier2, logicPairsTier3 } from '@/data/logic-glr-content';
+import { allLogicPairs, logicPairsTier1, logicPairsTier2, logicPairsTier3 } from '@/data/logic-glr-content';
 import { realWords } from '@/data/verbal-content';
 
 // Server-safe storage object for Zustand's persist middleware
@@ -67,7 +66,7 @@ type GlrActions = {
     getNextMode: (focus: TrainingFocus) => 'associative' | 'spaced' | 'category' | 'operator_recall' | 'spatial';
     // Spaced Retrieval
     introduceNewPairs: (focus: TrainingFocus, count: number) => SpacedPair[];
-    getDueReviewPairs: (focus: TrainingFocus) => SpacedPair[];
+    getDueReviewPairs: (focus?: TrainingFocus) => SpacedPair[];
     updatePairOnResult: (pairId: string, correct: boolean) => void;
     prioritizePairForReview: (stimulus: string) => void;
     // Category Sprint
@@ -155,7 +154,7 @@ export const useGlrStore = create<GlrState & GlrActions>()(
                 const now = Date.now();
                 const pairType = focus === 'logic' ? 'logic' : 'verbal';
                 return Object.values(get().spacedPairs)
-                    .filter(p => p.type === pairType && p.nextReviewAt <= now)
+                    .filter(p => (focus ? p.type === pairType : true) && p.nextReviewAt <= now)
                     .sort((a, b) => a.strength - b.strength); // Review weakest due pairs first
             },
             
@@ -183,12 +182,12 @@ export const useGlrStore = create<GlrState & GlrActions>()(
                     const allLogicPairs = Object.values(state.spacedPairs).filter(p => p.type === 'logic');
                     const tier1Pairs = allLogicPairs.filter(p => logicPairsTier1.some(lp => lp.stimulus === p.word1));
 
-                    if (state.logicTierUnlocked === 1 && tier1Pairs.every(p => p.strength >= 0.6)) {
+                    if (state.logicTierUnlocked === 1 && tier1Pairs.length > 0 && tier1Pairs.every(p => p.strength >= 0.6)) {
                         state.logicTierUnlocked = 2;
                         console.log("LOGIC TIER 2 UNLOCKED");
                     }
                      const tier2Pairs = allLogicPairs.filter(p => logicPairsTier2.some(lp => lp.stimulus === p.word1));
-                     if (state.logicTierUnlocked === 2 && tier2Pairs.every(p => p.strength >= 0.6)) {
+                     if (state.logicTierUnlocked === 2 && tier2Pairs.length > 0 && tier2Pairs.every(p => p.strength >= 0.6)) {
                         state.logicTierUnlocked = 3;
                         console.log("LOGIC TIER 3 UNLOCKED");
                     }
@@ -198,7 +197,8 @@ export const useGlrStore = create<GlrState & GlrActions>()(
             prioritizePairForReview: (stimulus) => {
                 const id = `logic-${stimulus}`;
                 set(state => {
-                    if (state.spacedPairs[id]) {
+                    const pairExists = !!allLogicPairs.find(p => p.stimulus === stimulus);
+                    if (pairExists && state.spacedPairs[id]) {
                         state.spacedPairs[id].nextReviewAt = Date.now();
                     }
                 });

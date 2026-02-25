@@ -12,68 +12,56 @@ import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engin
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
 import { PRNG } from '@/lib/rng';
+import { useGlrStore } from "@/hooks/use-glr-store";
+import { gcLogicTrials } from '@/data/logic-gc-content';
 
 const GAME_ID: GameId = 'gc_verbal_inference';
 const policy = difficultyPolicies[GAME_ID];
 
-const logicQuestions = [
-  {
-    level: 1,
-    question: "In a flowchart, what shape typically represents a decision point?",
-    options: ["Rectangle", "Oval", "Diamond", "Arrow"],
-    answer: "Diamond",
-    explanation: "Diamonds are used for conditional logic (if/then), where the path splits."
-  },
-  {
-    level: 2,
-    question: "What is the output of the expression: `TRUE AND FALSE`?",
-    options: ["TRUE", "FALSE", "ERROR", "NULL"],
-    answer: "FALSE",
-    explanation: "The AND operator requires both inputs to be TRUE for the output to be TRUE."
-  },
-  {
-    level: 4,
-    question: "A function that calls itself is known as:",
-    options: ["Recursive", "Iterative", "Conditional", "Sequential"],
-    answer: "Recursive",
-    explanation: "Recursion is a technique where a function solves a problem by calling itself with a smaller version of the same problem."
-  },
-  {
-    level: 6,
-    question: "In a state machine, what is a 'transition'?",
-    options: ["The action performed within a state", "A special 'end' state", "The final output of the machine", "A path from one state to another, triggered by an input"],
-    answer: "A path from one state to another, triggered by an input",
-    explanation: "Transitions define how a system moves between states in response to events."
-  },
-  {
-    level: 8,
-    question: "What is the primary trade-off between a hash table and a binary search tree for data retrieval?",
-    options: ["Speed vs. Memory", "Speed vs. Ordered Traversal", "Memory vs. Complexity", "Complexity vs. Readability"],
-    answer: "Speed vs. Ordered Traversal",
-    explanation: "Hash tables offer average O(1) lookups (very fast) but do not store keys in order. Binary search trees have O(log n) lookups but allow for efficient in-order traversal."
-  },
-  {
-    level: 9,
-    question: "Which of these describes a 'base case' in recursion?",
-    options: ["The first line of the function", "A condition that causes the function to call itself", "A condition that stops the recursion and returns a value", "An error state"],
-    answer: "A condition that stops the recursion and returns a value",
-    explanation: "The base case is critical for preventing infinite loops and providing a concrete answer to the smallest version of the problem."
-  },
-];
+const CodeSnippet = ({ code }: { code: string }) => {
+    const highlight = (line: string) => {
+        return line.split(/(\s+|[(){};=,])/).map((token, i) => {
+            if (['let', 'const', 'if', 'for', 'while', 'return', 'function'].includes(token)) {
+                return <span key={i} className="text-purple-400">{token}</span>;
+            }
+            if (['true', 'false', 'null'].includes(token) || !isNaN(Number(token))) {
+                return <span key={i} className="text-orange-400">{token}</span>;
+            }
+            if (['>', '<', '==', '!=', '>=', '<=', '&&', '||', '!', '+', '-', '*'].includes(token)) {
+                 return <span key={i} className="text-cyan-400">{token}</span>;
+            }
+            if(token.startsWith('"')) {
+                return <span key={i} className="text-green-400">{token}</span>;
+            }
+            return <span key={i} className="text-slate-300">{token}</span>;
+        });
+    };
+    
+    return (
+        <pre className="text-left text-sm bg-gray-900 p-4 rounded-md overflow-x-auto">
+            <code className="whitespace-pre-wrap">
+                {code.split('\n').map((line, i) => (
+                    <div key={i}><span className="text-gray-600 mr-4 select-none">{i+1}</span>{highlight(line)}</div>
+                ))}
+            </code>
+        </pre>
+    );
+};
 
 export function LogicLibrary({ focus }: { focus: TrainingFocus }) {
   const { getAdaptiveState, updateAdaptiveState } = usePerformanceStore();
+  const { prioritizePairForReview } = useGlrStore.getState();
   const [adaptiveState, setAdaptiveState] = useState<AdaptiveState | null>(null);
   const [gameState, setGameState] = useState<'loading' | 'start' | 'playing' | 'feedback' | 'finished'>('loading');
   const [sessionTrials, setSessionTrials] = useState<TrialResult[]>([]);
   
-  const [puzzle, setPuzzle] = useState<(typeof logicQuestions)[0] | null>(null);
+  const [puzzle, setPuzzle] = useState<(typeof gcLogicTrials)[0] | null>(null);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [inlineFeedback, setInlineFeedback] = useState({ message: '', type: '' });
   
   const trialStartTime = useRef(0);
   const currentTrialIndex = useRef(0);
-  const prngRef = useRef<PRNG>(new PRNG(Date.now()));
+  const prngRef = useRef<PRNG | null>(null);
 
   useEffect(() => {
     const initialState = getAdaptiveState(GAME_ID);
@@ -82,11 +70,9 @@ export function LogicLibrary({ focus }: { focus: TrainingFocus }) {
   }, [focus, getAdaptiveState]);
   
   const startNewTrial = useCallback((state: AdaptiveState) => {
-    const onRamp = state.uncertainty > 0.7;
-    const loadedLevel = onRamp ? Math.max(state.levelFloor, state.currentLevel - 2) : state.currentLevel;
-    
-    // Find a question appropriate for the current level
-    const availableQuestions = logicQuestions.filter(q => q.level <= loadedLevel);
+    if (!prngRef.current) return;
+    const tier = policy.levelMap[state.currentLevel]?.content_config['logic']?.params.tier || 1;
+    const availableQuestions = gcLogicTrials.filter(q => q.tier <= tier);
     const newPuzzle = prngRef.current.shuffle(availableQuestions)[0];
 
     setPuzzle({...newPuzzle, options: prngRef.current.shuffle([...newPuzzle.options])});
@@ -98,7 +84,7 @@ export function LogicLibrary({ focus }: { focus: TrainingFocus }) {
 
   const startNewSession = useCallback(() => {
     if (!adaptiveState) return;
-    prngRef.current = new PRNG(Date.now());
+    prngRef.current = new PRNG(crypto.randomUUID());
     const sessionState = startSession(adaptiveState);
     setAdaptiveState(sessionState);
     setSessionTrials([]);
@@ -112,7 +98,7 @@ export function LogicLibrary({ focus }: { focus: TrainingFocus }) {
     setGameState('feedback');
     setSelectedAnswer(option);
     const reactionTimeMs = Date.now() - trialStartTime.current;
-    const isCorrect = option === puzzle.answer;
+    const isCorrect = option === puzzle.options[puzzle.correctIndex];
 
     const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs };
     setSessionTrials(prev => [...prev, trialResult]);
@@ -121,6 +107,11 @@ export function LogicLibrary({ focus }: { focus: TrainingFocus }) {
     setAdaptiveState(newState);
 
     setInlineFeedback({ message: isCorrect ? getSuccessFeedback('Gc') : getFailureFeedback('Gc'), type: isCorrect ? 'success' : 'failure' });
+    
+    // Cross-game hook call
+    if (puzzle.conceptTag) {
+        prioritizePairForReview(puzzle.conceptTag);
+    }
     
     setTimeout(() => {
         currentTrialIndex.current++;
@@ -131,7 +122,7 @@ export function LogicLibrary({ focus }: { focus: TrainingFocus }) {
         } else {
             startNewTrial(newState);
         }
-    }, 2500);
+    }, 3500);
   };
   
   const renderContent = () => {
@@ -160,15 +151,15 @@ export function LogicLibrary({ focus }: { focus: TrainingFocus }) {
     if (!puzzle) return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
 
     return (
-      <>
+      <div className="w-full flex flex-col items-center gap-4">
         <div className="w-full flex justify-between font-mono text-sm">
           <span>Trial: {currentTrialIndex.current + 1} / {policy.sessionLength}</span>
           <span>Level: {adaptiveState?.currentLevel}</span>
         </div>
-        <div className="p-6 bg-muted rounded-lg w-full text-center min-h-[100px] flex items-center justify-center">
-          <p className="text-lg md:text-xl font-medium">{puzzle.question}</p>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+        <CodeSnippet code={puzzle.snippet} />
+        <p className="text-lg md:text-xl font-medium text-center">{puzzle.question}</p>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full">
           {puzzle.options.map((option, index) => (
             <Button 
               key={index} 
@@ -177,9 +168,9 @@ export function LogicLibrary({ focus }: { focus: TrainingFocus }) {
               size="lg"
               variant="outline"
               className={cn(
-                "h-auto py-3 whitespace-normal text-left justify-start transition-all duration-300",
-                gameState === 'feedback' && option === puzzle.answer && "bg-green-100 dark:bg-green-900/30 border-green-500",
-                gameState === 'feedback' && selectedAnswer === option && option !== puzzle.answer && "bg-destructive/10 border-destructive",
+                "h-auto py-3 whitespace-normal text-left justify-center text-center transition-all duration-300",
+                gameState === 'feedback' && index === puzzle.correctIndex && "bg-green-100 dark:bg-green-900/30 border-green-500",
+                gameState === 'feedback' && selectedAnswer === option && index !== puzzle.correctIndex && "bg-destructive/10 border-destructive",
             )}
             >
               {option}
@@ -192,7 +183,7 @@ export function LogicLibrary({ focus }: { focus: TrainingFocus }) {
                 <p className={cn("font-semibold", inlineFeedback.type === 'success' ? 'text-green-600' : 'text-amber-600')}>
                     {inlineFeedback.message}
                 </p>
-                <p className="text-sm text-muted-foreground">{puzzle.explanation}</p>
+                <p className="text-sm text-muted-foreground">{selectedAnswer === puzzle.options[puzzle.correctIndex] ? puzzle.explanationOnCorrect : puzzle.explanationOnWrong}</p>
             </div>
           )}
         </div>
@@ -205,10 +196,10 @@ export function LogicLibrary({ focus }: { focus: TrainingFocus }) {
       <CardHeader>
         <CardTitle className="flex items-center justify-center gap-2">
             <Library />
-            (Gc) Logic Library
+            (Gc) Code Literacy
         </CardTitle>
         <CardDescription className="text-center">
-          Test your crystallized knowledge of core computational thinking concepts.
+          Read the code snippet and answer the comprehension question.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-6 min-h-[400px] justify-center">
