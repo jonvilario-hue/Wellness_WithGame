@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,7 +26,7 @@ const policy = difficultyPolicies[GAME_ID];
 
 
 const PitchDiscriminationModule = ({ focus, prng }: { focus: TrainingFocus, prng: PRNG }) => {
-    const { playTone, resumeContext, isAudioReady, audioContext } = useAudioEngine();
+    const { scheduleTone, resumeContext, isAudioReady, audioContext } = useAudioEngine();
     const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
 
     const [gameState, setGameState] = useState<'loading' | 'playing' | 'feedback' | 'finished'>('loading');
@@ -39,7 +40,7 @@ const PitchDiscriminationModule = ({ focus, prng }: { focus: TrainingFocus, prng
         const state = getAdaptiveState(GAME_ID, focus);
         const levelDef = policy.levelMap[state.currentLevel] || policy.levelMap[1];
         const params = levelDef.content_config[focus]?.params;
-        if (!params) return;
+        if (!params || !audioContext) return;
 
         setGameState('playing');
         setFeedback('');
@@ -49,11 +50,14 @@ const PitchDiscriminationModule = ({ focus, prng }: { focus: TrainingFocus, prng
         answerRef.current = isHigher ? 'higher' : 'lower';
         const secondFreq = isHigher ? baseFreq * Math.pow(2, params.pitchDelta / 1200) : baseFreq / Math.pow(2, params.pitchDelta / 1200);
 
-        const { scheduledTime } = playTone(baseFreq, 0.3);
-        trialStartTime.current = scheduledTime; // Set start time based on audio scheduling
-        setTimeout(() => playTone(secondFreq, 0.3), 500);
+        const now = audioContext.currentTime;
+        const handle = scheduleTone(baseFreq, now, 0.3);
+        if (handle) {
+            trialStartTime.current = handle.scheduledOnset; // Set start time based on audio scheduling
+        }
+        setTimeout(() => { if (audioContext) scheduleTone(secondFreq, audioContext.currentTime, 0.3); }, 500);
 
-    }, [playTone, getAdaptiveState, focus, prng]);
+    }, [scheduleTone, getAdaptiveState, focus, prng, audioContext]);
     
     const startNewSession = useCallback(() => {
         resumeContext();
