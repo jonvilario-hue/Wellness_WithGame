@@ -125,8 +125,8 @@ export const GwmEQRenderer: React.FC<BaseRendererProps<GwmGameState, GwmGameEven
           </div>
           
           <div className="grid grid-cols-4 gap-2">
-            {puzzle.recallOptions.map(option => (
-                <Button key={option.emotionCategory} onClick={() => handleRecallClick(option.emotionCategory)} disabled={phase === 'feedback'} className="h-20 flex flex-col gap-1 capitalize">
+            {puzzle.recallOptions.map((option, i) => (
+                <Button key={`${option.emotionCategory}-${i}`} onClick={() => handleRecallClick(option.emotionCategory)} disabled={phase === 'feedback'} className="h-20 flex flex-col gap-1 capitalize">
                    <FaceSprite stimulus={option} showLabel={false} />
                    {option.emotionCategory}
                 </Button>
