@@ -15,9 +15,24 @@ import { CardHeader, CardTitle, CardDescription, CardContent } from '../ui/card'
 import { Skeleton } from '../ui/skeleton';
 import { DOMAIN_META, chcDomains } from '@/lib/domain-constants';
 import { usePerformanceStore } from '@/hooks/use-performance-store';
-import type { TrainingFocus } from '@/types';
+import type { TrainingFocus, AdaptiveState } from '@/types';
 import { useTheme } from '@/hooks/use-theme';
 import { FOCUS_MODE_META } from '@/lib/mode-constants';
+
+const getAggregatedScore = (gameStates: any, domainKey: keyof typeof DOMAIN_META): number => {
+    const domainId = DOMAIN_META[domainKey].id;
+    const allStatesForDomain = Object.keys(gameStates)
+        .filter(key => key.startsWith(`${domainId}/`))
+        .map(key => gameStates[key] as AdaptiveState);
+
+    if (allStatesForDomain.length === 0) return 40; // Baseline
+
+    const activeStates = allStatesForDomain.filter(s => s.sessionCount > 0);
+    if (activeStates.length === 0) return 40;
+
+    const totalScore = activeStates.reduce((acc, state) => acc + (state.currentLevel / state.levelCeiling) * 100, 0);
+    return Math.round(totalScore / activeStates.length);
+};
 
 const getFilteredScore = (gameStates: any, domainKey: keyof typeof DOMAIN_META, focus: TrainingFocus) => {
     const domainId = DOMAIN_META[domainKey].id;
@@ -28,7 +43,7 @@ const getFilteredScore = (gameStates: any, domainKey: keyof typeof DOMAIN_META, 
     return Math.round((state.currentLevel / state.levelCeiling) * 100);
 }
 
-export function StrengthProfileRadar({ focus }: { focus: TrainingFocus }) {
+export function StrengthProfileRadar({ focus }: { focus?: TrainingFocus }) {
   const [isClient, setIsClient] = useState(false);
   const { gameStates } = usePerformanceStore();
   const { theme } = useTheme();
@@ -39,11 +54,11 @@ export function StrengthProfileRadar({ focus }: { focus: TrainingFocus }) {
 
   const chartData = chcDomains.map(domain => ({
     subject: `(${domain.key}) ${domain.friendlyLabel}`,
-    score: getFilteredScore(gameStates, domain.key, focus),
+    score: focus ? getFilteredScore(gameStates, domain.key, focus) : getAggregatedScore(gameStates, domain.key),
     fullMark: 100,
   }));
   
-  const title = focus === 'neutral' ? 'My Full Strength' : `My ${FOCUS_MODE_META[focus].label} Profile`;
+  const title = focus ? `My ${FOCUS_MODE_META[focus].label} Profile` : 'My Full Strength';
 
   if (!isClient) {
     return (

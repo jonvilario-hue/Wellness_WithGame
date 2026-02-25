@@ -6,11 +6,26 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Progress } from '../ui/progress';
 import { DOMAIN_META, chcDomains } from '@/lib/domain-constants';
 import { usePerformanceStore } from '@/hooks/use-performance-store';
-import type { CHCDomain, TrainingFocus } from '@/types';
+import type { AdaptiveState, CHCDomain, TrainingFocus } from '@/types';
 import { cn } from '@/lib/utils';
 import { GrowthDecoration } from '../ui/growth-decoration';
 import { useTheme } from '@/hooks/use-theme';
 import { FOCUS_MODE_META } from '@/lib/mode-constants';
+
+const getAggregatedDomainScore = (gameStates: any, domainKey: CHCDomain): number => {
+    const domainId = DOMAIN_META[domainKey].id;
+    const allStatesForDomain = Object.keys(gameStates)
+        .filter(key => key.startsWith(`${domainId}/`))
+        .map(key => gameStates[key] as AdaptiveState);
+    
+    if (allStatesForDomain.length === 0) return 40;
+
+    const activeStates = allStatesForDomain.filter(s => s.sessionCount > 0);
+    if (activeStates.length === 0) return 40;
+
+    const totalScore = activeStates.reduce((acc, state) => acc + (state.currentLevel / state.levelCeiling) * 100, 0);
+    return Math.round(totalScore / activeStates.length);
+};
 
 const getScoreForDomain = (gameStates: any, domainKey: CHCDomain, focus: TrainingFocus) => {
     const domainId = DOMAIN_META[domainKey].id;
@@ -37,7 +52,7 @@ const getScoreForFocus = (gameStates: any, focus: TrainingFocus): number => {
 };
 
 
-export function StrengthsWeaknesses({ subject, viewMode = 'domain' }: { subject: TrainingFocus; viewMode?: 'domain' | 'focus' }) {
+export function StrengthsWeaknesses({ subject, viewMode = 'domain' }: { subject?: TrainingFocus; viewMode?: 'domain' | 'focus' }) {
   const { gameStates } = usePerformanceStore();
   const { organicGrowth } = useTheme();
   const router = useRouter();
@@ -46,10 +61,10 @@ export function StrengthsWeaknesses({ subject, viewMode = 'domain' }: { subject:
     return (Object.keys(DOMAIN_META) as CHCDomain[]).map(key => ({
       key,
       friendlyLabel: DOMAIN_META[key].friendlyLabel,
-      score: getScoreForDomain(gameStates, key, subject),
+      score: viewMode === 'domain' ? getAggregatedDomainScore(gameStates, key) : getScoreForDomain(gameStates, key, subject!),
       color: DOMAIN_META[key].color.replace('bg-', 'text-'),
     })).sort((a, b) => b.score - a.score);
-  }, [gameStates, subject]);
+  }, [gameStates, subject, viewMode]);
 
   const focusScores = useMemo(() => {
     if (viewMode !== 'focus') return [];

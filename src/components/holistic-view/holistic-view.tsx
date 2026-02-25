@@ -1,16 +1,13 @@
-
 'use client';
 
 import { useState } from "react";
 import { StrengthProfileRadar } from "./strength-profile-radar";
-import { SubjectSelector } from "./subject-selector";
 import { StrengthsWeaknesses } from "./strengths-weaknesses";
 import { SubjectInsightCard } from "./subject-insight-card";
 import { Card } from "../ui/card";
 import { GrowthDecoration } from "../ui/growth-decoration";
 import { useTheme } from "@/hooks/use-theme";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import type { TrainingFocus } from '@/types';
 import { FocusProfileRadar } from './focus-profile-radar';
 
 export type ViewMode = 'domain' | 'focus';
@@ -33,10 +30,10 @@ export function HolisticView() {
                     <div className="space-y-6">
                         <Card className="hover:shadow-lg transition-shadow duration-300 relative overflow-hidden">
                              {organicGrowth && <GrowthDecoration />}
-                            <StrengthProfileRadar focus="neutral" />
+                            <StrengthProfileRadar />
                         </Card>
-                        <StrengthsWeaknesses subject="neutral" viewMode="domain" />
-                        <SubjectInsightCard subject="neutral" viewMode="domain" />
+                        <StrengthsWeaknesses viewMode="domain" />
+                        <SubjectInsightCard viewMode="domain" />
                     </div>
                 </TabsContent>
 
@@ -46,8 +43,8 @@ export function HolisticView() {
                             {organicGrowth && <GrowthDecoration />}
                             <FocusProfileRadar />
                         </Card>
-                        <StrengthsWeaknesses subject={'neutral'} viewMode="focus" />
-                        <SubjectInsightCard subject={'neutral'} viewMode="focus" />
+                        <StrengthsWeaknesses viewMode="focus" />
+                        <SubjectInsightCard viewMode="focus" />
                     </div>
                 </TabsContent>
             </Tabs>

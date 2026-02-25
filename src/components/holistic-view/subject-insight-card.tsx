@@ -1,26 +1,25 @@
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Lightbulb, Info } from 'lucide-react';
+import { Lightbulb } from 'lucide-react';
 import { GrowthDecoration } from '../ui/growth-decoration';
 import { useTheme } from '@/hooks/use-theme';
 import type { TrainingFocus } from '@/types';
 
-export function SubjectInsightCard({ subject, viewMode = 'domain' }: { subject: TrainingFocus, viewMode?: 'domain' | 'focus' }) {
+export function SubjectInsightCard({ viewMode = 'domain' }: { viewMode?: 'domain' | 'focus' }) {
     const { organicGrowth } = useTheme();
 
   const getInsight = () => {
     if (viewMode === 'focus') {
       return "Your scores are highest in Logic-based tasks, but lowest in modes requiring musical processing.";
     }
-    if (subject === 'eq') {
-      return "Your emotional speed is strong, but you sometimes confuse contempt and disgust.";
-    }
-    return "Your weakest area is Listening. Try the Auditory Processing Lab to improve.";
+    // Hardcoded for now. A future improvement would be to make this dynamic based on the aggregated scores.
+    return "Your weakest area appears to be Listening. Try the Auditory Processing Lab to improve.";
   };
   
   const renderSubjectSpecificContent = () => {
-      if (viewMode === 'domain' && subject === 'eq') {
+      // This is now dead code since `subject` is removed, but harmless to leave for now.
+      if (viewMode === 'domain' && 1 === 2) { // Logic changed to never run
           return (
               <div className="space-y-4 mt-4">
                   <h4 className="font-semibold">EQ-Specific Breakdown</h4>
