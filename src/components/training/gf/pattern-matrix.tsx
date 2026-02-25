@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
@@ -90,6 +91,10 @@ const generateSpatialPuzzleForLevel = (level: number, prng: PRNG) => {
             decoy.shape = prng.shuffle(spatialShapes.filter(s => s !== answer.shape))[0];
         } else if (changeAttr === 'color') {
              decoy.color = prng.shuffle(spatialColors.filter(c => c !== answer.color))[0];
+        } else if (changeAttr === 'rotation') {
+            decoy.rotation = [decoy.rotation[0], decoy.rotation[1] + Math.PI / 2, decoy.rotation[2]];
+        } else { // scale
+            decoy.scale = [decoy.scale[0], decoy.scale[1] * 1.5, decoy.scale[2]];
         }
         if (!options.some(o => JSON.stringify(o) === JSON.stringify(decoy))) {
             options.push(decoy);
