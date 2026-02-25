@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useRef, useCallback, useState, useEffect } from 'react';
@@ -278,6 +279,8 @@ export const useAudioEngine = () => {
         source.connect(masterGainRef.current!);
         source.start();
     }, [context]);
+    
+    const { speak, isSupported } = useSpeechSynthesis();
 
     return {
         audioContext: context,
@@ -293,5 +296,60 @@ export const useAudioEngine = () => {
         playSimultaneous,
         playFlanker,
         playCachedAudio,
+        speak,
+        isSupported
     };
+};
+
+
+// --- Speech Synthesis Hook ---
+type SpeechSynthesisState = {
+  isSupported: boolean;
+  isSpeaking: boolean;
+  speak: (text: string, onEnd?: () => void) => void;
+  cancel: () => void;
+};
+
+let synthesis: SpeechSynthesis | null = null;
+if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+  synthesis = window.speechSynthesis;
+}
+
+export const useSpeechSynthesis = (): SpeechSynthesisState => {
+  const [isSupported] = useState(!!synthesis);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+
+  const speak = (text: string, onEnd?: () => void) => {
+    if (!isSupported || !synthesis) return;
+    
+    synthesis.cancel();
+    
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.onstart = () => setIsSpeaking(true);
+    utterance.onend = () => {
+      setIsSpeaking(false);
+      onEnd?.();
+    };
+    utterance.onerror = (event) => {
+        console.error("SpeechSynthesis Error:", event.error);
+        setIsSpeaking(false);
+    };
+    synthesis.speak(utterance);
+  };
+
+  const cancel = () => {
+    if (!isSupported || !synthesis) return;
+    synthesis.cancel();
+    setIsSpeaking(false);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (synthesis) {
+        synthesis.cancel();
+      }
+    };
+  }, []);
+
+  return { isSupported, isSpeaking, speak, cancel };
 };
