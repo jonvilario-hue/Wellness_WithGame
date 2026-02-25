@@ -25,7 +25,7 @@ export function HolisticView() {
             <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as ViewMode)} className="w-full">
                 <div className="flex justify-center mb-4">
                     <TabsList>
-                        <TabsTrigger value="focus">By Training Focus</TabsTrigger>
+                        <TabsTrigger value="focus">Cognitive Domain</TabsTrigger>
                         <TabsTrigger value="domain">Training Focus</TabsTrigger>
                     </TabsList>
                 </div>
