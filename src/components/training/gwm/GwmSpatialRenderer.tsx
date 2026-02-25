@@ -153,3 +153,5 @@ export const GwmSpatialRenderer: React.FC<BaseRendererProps<GwmGameState, GwmGam
     </Card>
   );
 };
+
+export default GwmSpatialRenderer;

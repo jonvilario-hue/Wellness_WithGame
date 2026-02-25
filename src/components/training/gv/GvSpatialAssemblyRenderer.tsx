@@ -138,4 +138,6 @@ export const GvSpatialAssemblyRenderer: React.FC<BaseRendererProps<GvSpatialAsse
       </CardContent>
     </Card>
   );
-}
+};
+
+export default GvSpatialAssemblyRenderer;
