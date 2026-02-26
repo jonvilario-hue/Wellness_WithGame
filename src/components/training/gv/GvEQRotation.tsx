@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { Smile, View, Loader2 } from "lucide-react";
+import { Smile, View, Loader2, X } from "lucide-react";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
@@ -18,15 +18,20 @@ const GAME_ID: GameId = 'gv_visual_lab';
 const policy = difficultyPolicies[GAME_ID];
 
 // Placeholder component for rendering a face stimulus
-const FaceRenderer = ({ stimulus }: { stimulus: { emotion: string, rotation: number, mirrored: boolean } }) => (
-    <div
-      className="flex items-center justify-center w-24 h-24"
-      style={{ transform: `rotate(${stimulus.rotation}deg) ${stimulus.mirrored ? 'scaleX(-1)' : ''}` }}
-    >
-      <Smile className="w-16 h-16 text-lime-400" />
-      <p className="absolute text-xs capitalize bottom-1">{stimulus.emotion}</p>
-    </div>
-);
+const FaceRenderer = ({ stimulus }: { stimulus?: { emotion: string, rotation: number, mirrored: boolean } | null }) => {
+    if (!stimulus) {
+        return <div className="w-24 h-24 bg-gray-700/50 rounded-lg flex items-center justify-center"><X className="w-8 h-8 text-red-500"/></div>;
+    }
+    return (
+        <div
+        className="flex items-center justify-center w-24 h-24"
+        style={{ transform: `rotate(${stimulus.rotation}deg) ${stimulus.mirrored ? 'scaleX(-1)' : ''}` }}
+        >
+        <Smile className="w-16 h-16 text-lime-400" />
+        <p className="absolute text-xs capitalize bottom-1">{stimulus.emotion}</p>
+        </div>
+    );
+};
 
 
 export function GvEQRotation({ focus }: { focus: TrainingFocus }) {
