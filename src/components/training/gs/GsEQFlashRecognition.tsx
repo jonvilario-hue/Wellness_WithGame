@@ -143,7 +143,7 @@ export function GsEQFlashRecognition() {
   const renderDisplay = () => {
     switch (phase) {
       case 'fixation': return <div className="text-6xl text-orange-400">+</div>;
-      case 'stimulus': return <div className="text-8xl"><Smile/></div>; // Placeholder for actual face image
+      case 'stimulus': return <div className="text-6xl font-bold capitalize text-orange-300">{puzzle?.target}</div>;
       case 'mask': return <div className="text-8xl bg-gray-600 w-32 h-32 rounded-lg"></div>;
       case 'response':
       case 'feedback':
@@ -154,7 +154,7 @@ export function GsEQFlashRecognition() {
             </div>
             <div className="flex flex-wrap justify-center gap-4">
               {puzzle?.options.map((opt, index) => (
-                <Button key={`${opt}-${index}`} onClick={() => handleResponse(opt)} disabled={phase === 'feedback'} className="h-20 w-32 text-lg capitalize bg-orange-800/80 border border-orange-500/30 text-white hover:bg-orange-700/90 active:bg-orange-700/80 transition-colors">{opt}</Button>
+                <Button key={`${opt}-${index}`} onClick={() => handleResponse(opt)} disabled={phase === 'feedback'} className="h-20 w-32 text-lg font-bold capitalize bg-orange-800/80 border border-orange-500/30 text-white hover:bg-orange-700/90 active:bg-orange-700/80 transition-colors">{opt}</Button>
               ))}
             </div>
           </div>
