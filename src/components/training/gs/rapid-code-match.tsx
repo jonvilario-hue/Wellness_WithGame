@@ -41,6 +41,11 @@ type Problem = {
     objectB?: Polycube;
 };
 
+const symbolKeyPool = ['★', '●', '▲', '■', '◆', '✚', '❤', '⚡', '☺'];
+const mathSymbolKeyPool = ['+', '−', '×', '÷', '%', '∑', '√', '∞', '='];
+const musicSymbolKeyPool = ['♩', '♪', '♫', '♭', '♯', '♮', '𝄞', '𝄢', '𝄡'];
+const digits = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+
 export function RapidCodeMatch() {
   const { getAdaptiveState, updateAdaptiveState, logEvent, activeSession } = usePerformanceStore();
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
@@ -257,11 +262,9 @@ export function RapidCodeMatch() {
   const renderContent = () => {
     if (!isComponentLoaded) {
       return (
-        <Card className="w-full max-w-2xl text-center">
             <CardContent className="flex flex-col items-center gap-6 min-h-[500px] justify-center">
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
             </CardContent>
-        </Card>
       );
     }
     
@@ -271,14 +274,6 @@ export function RapidCodeMatch() {
     if (currentMode === 'spatial') {
         const score = currentTrialIndex.current - mistakes.current;
         return (
-            <Card className="w-full max-w-2xl text-center">
-                <CardHeader>
-                    <CardTitle className="text-primary flex items-center justify-center gap-2">
-                        <span className="p-2 bg-primary/10 rounded-md"><domainIcons.Gs className="w-6 h-6 text-primary" /></span>
-                        Rapid Spatial Match
-                    </CardTitle>
-                    <CardDescription>Are the two shapes the same, just rotated?</CardDescription>
-                </CardHeader>
                 <CardContent>
                     {gameState === 'start' && <Button onClick={startNewSession} size="lg">Start</Button>}
                     {gameState === 'finished' && <p>Finished!</p>}
@@ -293,7 +288,6 @@ export function RapidCodeMatch() {
                         </Suspense>
                     )}
                 </CardContent>
-            </Card>
         );
     }
 
@@ -301,14 +295,6 @@ export function RapidCodeMatch() {
     const state = getAdaptiveState(GAME_ID, currentMode);
     
     return (
-        <Card className="w-full max-w-2xl text-center">
-            <CardHeader>
-                <CardTitle className="flex items-center justify-center gap-2 text-primary">
-                    <span className="p-2 bg-primary/10 rounded-md"><domainIcons.Gs className="w-6 h-6 text-primary" /></span>
-                    Rapid Code Match
-                </CardTitle>
-                <CardDescription>Match the symbol to its number as fast as you can. The key changes periodically!</CardDescription>
-            </CardHeader>
             <CardContent className="flex flex-col items-center gap-6 min-h-[500px] justify-center">
                  {(() => {
                     if (gameState === 'start') {
@@ -422,19 +408,5 @@ export function RapidCodeMatch() {
                     return <Loader2 className="animate-spin"/>;
                 })()}
             </CardContent>
-        </Card>
     );
 }
-
-const symbolKeyPool = ['★', '●', '▲', '■', '◆', '✚', '❤', '⚡', '☺'];
-const mathSymbolKeyPool = ['+', '−', '×', '÷', '%', '∑', '√', '∞', '='];
-const musicSymbolKeyPool = ['♩', '♪', '♫', '♭', '♯', '♮', '𝄞', '𝄢', '𝄡'];
-const digits = [1, 2, 3, 4, 5, 6, 7, 8, 9];
-
-    
-
-
-
-
-
-    
