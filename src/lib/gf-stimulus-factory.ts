@@ -39,7 +39,6 @@ export const generateEQMatrixPuzzle = (level: number, prng: PRNG): EQMatrixPuzzl
     const ruleFamily = prng.shuffle(ruleFamilies)[0];
 
     let answer: EQStimulus;
-    let gridIsFilled = false;
     
     // --- Rule Implementation ---
     if (ruleFamily === 'Intensity') {
@@ -57,7 +56,7 @@ export const generateEQMatrixPuzzle = (level: number, prng: PRNG): EQMatrixPuzzl
                  grid[r * size + c] = { emotion: c % 2 === 0 ? posEmotion : negEmotion, intensity: 0.5 + r * 0.2 };
             }
         }
-    } else { // Default to Intensity as fallback
+    } else { // Default to Intensity as a robust fallback for unimplemented rules
         const baseEmotion = prng.shuffle([...emotions])[0];
         for (let r = 0; r < size; r++) {
             for (let c = 0; c < size; c++) {
