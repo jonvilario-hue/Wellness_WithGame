@@ -16,11 +16,17 @@ export type PolycubePuzzle = {
 };
 
 // --- Core Polycube Generation ---
-const getNeighbors = (cube: Cube): Cube[] => [
-  { x: cube.x + 1, y: cube.y, z: cube.z }, { x: cube.x - 1, y: cube.y, z: cube.z },
-  { x: cube.x, y: cube.y + 1, z: cube.z }, { x: cube.x, y: cube.y - 1, z: cube.z },
-  { x: cube.x, y: cube.y, z: cube.z + 1 }, { x: cube.x, y: cube.y, z: cube.z - 1 },
-];
+const getNeighbors = (cube: Cube): Cube[] => {
+  if (!cube) {
+    console.warn("getNeighbors was called with an undefined cube. Returning empty array.");
+    return [];
+  }
+  return [
+    { x: cube.x + 1, y: cube.y, z: cube.z }, { x: cube.x - 1, y: cube.y, z: cube.z },
+    { x: cube.x, y: cube.y + 1, z: cube.z }, { x: cube.x, y: cube.y - 1, z: cube.z },
+    { x: cube.x, y: cube.y, z: cube.z + 1 }, { x: cube.x, y: cube.y, z: cube.z - 1 },
+  ];
+};
 
 const createPolycube = (size: number, prng: PRNG): Polycube => {
   const polycube: Polycube = [{ x: 0, y: 0, z: 0 }];
@@ -57,6 +63,11 @@ const normalizePolycube = (p: Polycube): Polycube => {
     center.z /= p.length;
     return p.map(c => ({ x: c.x - center.x, y: c.y - center.y, z: c.z - center.z }));
 };
+
+const areCubesEqual = (c1: Cube, c2: Cube): boolean => {
+    if (!c1 || !c2) return false;
+    return c1.x === c2.x && c1.y === c2.y && c1.z === c2.z;
+}
 
 const arePolycubesEqual = (p1: Polycube, p2: Polycube): boolean => {
     if (p1.length !== p2.length) return false;
@@ -98,7 +109,8 @@ export const generateSpatialGvRotationTrial = (level: number, pieceCount: number
     const cubeToRemoveIndex = prng.nextIntRange(0, nearMiss.length);
     nearMiss.splice(cubeToRemoveIndex, 1);
     if(nearMiss.length > 0) { // Ensure there's a cube left to find neighbors for
-        const neighbors = getNeighbors(nearMiss[prng.nextIntRange(0, nearMiss.length)]).filter(n => !nearMiss.some(c => arePolycubesEqual([n], [c])));
+        const neighbors = getNeighbors(nearMiss[prng.nextIntRange(0, nearMiss.length)])
+            .filter(n => !nearMiss.some(c => areCubesEqual(n, c)));
         if(neighbors.length > 0) {
             const newPos = neighbors[prng.nextIntRange(0, neighbors.length)];
             nearMiss.push(newPos);
