@@ -8,9 +8,12 @@ import type { BaseRendererProps } from "@/types";
 import { FOCUS_MODE_META } from '@/lib/mode-constants';
 import type { PatternMatrixState, PatternMatrixEvent } from "./pattern-matrix";
 import type { EQMatrixPuzzle } from '@/lib/gf-stimulus-factory';
+import { Loader2 } from 'lucide-react';
 
 const FaceStimulus = ({ stimulus }: { stimulus: any }) => {
-  if (!stimulus) return null;
+  // Defense-in-depth: Ensure stimulus and emotion property exist.
+  if (!stimulus || !stimulus.emotion) return null;
+  
   // In a real implementation, this would use the sprite sheet.
   // For now, we use text placeholders.
   return (
@@ -31,11 +34,21 @@ export const GfEQRenderer: React.FC<BaseRendererProps<PatternMatrixState, Patter
   focus
 }) => {
 
-  const eqPuzzle = puzzle as EQMatrixPuzzle;
+  // This guard handles the race condition where the puzzle state from a previous
+  // mode is still present when this renderer is mounted for the new mode.
+  if (puzzle && puzzle.type !== 'eq') {
+    return (
+      <div className="flex items-center justify-center h-full">
+          <Loader2 className="h-12 w-12 animate-spin text-blue-400" />
+      </div>
+    );
+  }
+
+  const eqPuzzle = puzzle as EQMatrixPuzzle | null;
   
   const renderContent = () => {
     if (!adaptiveState || gameState === 'loading') {
-      return <div className="h-12 w-12 animate-spin text-blue-400" />;
+      return <Loader2 className="h-12 w-12 animate-spin text-blue-400" />;
     }
     
     if (gameState === 'start') {
@@ -61,7 +74,7 @@ export const GfEQRenderer: React.FC<BaseRendererProps<PatternMatrixState, Patter
       );
     }
     
-    if (!eqPuzzle) return <div className="animate-spin text-blue-400"/>;
+    if (!eqPuzzle) return <Loader2 className="h-12 w-12 animate-spin text-blue-400"/>;
 
     return (
       <div className="flex flex-col items-center gap-4 w-full">
