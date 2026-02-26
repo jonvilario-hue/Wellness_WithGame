@@ -49,22 +49,47 @@ export type GcVerbalGameEvent =
 
 
 // --- Puzzle Generation ---
-const generatePuzzleForLevel = (level: number, focus: TrainingFocus): GcCombinedPuzzle => {
+export const generatePuzzleForLevel = (level: number, focus: TrainingFocus): GcCombinedPuzzle => {
     if (focus === 'spatial') {
         return generateSpatialConceptMapPuzzle(level);
     }
 
     const levelDef = policy.levelMap[level] || policy.levelMap[Object.keys(policy.levelMap).pop() as any];
-    const contentConfig = levelDef.content_config[focus];
-    if (!contentConfig || !contentConfig.params) { // Fallback to verbal if focus not implemented for Gc
-      return generatePuzzleForLevel(level, 'verbal');
+    let contentConfig = levelDef.content_config[focus];
+    
+    // If the specific focus isn't defined for this level, fall back to the verbal config for this level
+    if (!contentConfig || !contentConfig.params) {
+      contentConfig = levelDef.content_config['verbal'];
     }
+
+    // If even the verbal config is missing (which would be an error in the policy file),
+    // we need a hard fallback to prevent crashing.
+    if (!contentConfig || !contentConfig.params) {
+        const puzzleTemplate = {
+            question: "Which word is an antonym for 'happy'?",
+            options: ["Joyful", "Ecstatic", "Sad"],
+            answer: "Sad",
+            explanation: "An antonym has the opposite meaning."
+        };
+         return {
+            type: 'cloze_deletion', // give it a default type
+            question: puzzleTemplate.question,
+            options: [...puzzleTemplate.options, puzzleTemplate.answer].sort(() => Math.random() - 0.5),
+            answer: puzzleTemplate.answer,
+            explanation: puzzleTemplate.explanation,
+        };
+    }
+    
     const { sub_variant, params } = contentConfig;
     
     let puzzleTemplate;
     if (sub_variant === 'cloze_deletion') {
         const filteredSentences = clozeSentences.filter(p => p.difficulty === params.word_rarity);
-        puzzleTemplate = filteredSentences[Math.floor(Math.random() * filteredSentences.length)] || clozeSentences[0];
+        if (filteredSentences.length === 0) {
+            puzzleTemplate = clozeSentences[0]; // Safeguard
+        } else {
+            puzzleTemplate = filteredSentences[Math.floor(Math.random() * filteredSentences.length)];
+        }
          return {
             type: sub_variant,
             question: puzzleTemplate.question,
@@ -74,7 +99,7 @@ const generatePuzzleForLevel = (level: number, focus: TrainingFocus): GcCombined
         };
     }
     
-    // Fallback for verbal mode
+    // Fallback for other unhandled sub-variants
     puzzleTemplate = {
         question: "Which word is an antonym for 'happy'?",
         options: ["Joyful", "Ecstatic", "Sad"],
@@ -82,7 +107,7 @@ const generatePuzzleForLevel = (level: number, focus: TrainingFocus): GcCombined
         explanation: "An antonym has the opposite meaning."
     };
      return {
-        type: sub_variant,
+        type: sub_variant || 'cloze_deletion',
         question: puzzleTemplate.question,
         options: [...puzzleTemplate.options, puzzleTemplate.answer].sort(() => Math.random() - 0.5),
         answer: puzzleTemplate.answer,
