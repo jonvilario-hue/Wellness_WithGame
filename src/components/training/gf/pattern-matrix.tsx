@@ -272,9 +272,14 @@ export function PatternMatrix() {
     
     useEffect(() => {
         if (isComponentLoaded) {
-            setComponentState(prev => ({ ...prev, gameState: 'start' }));
+            // When mode changes, reset the entire game state to avoid rendering with stale data.
+            setComponentState({ 
+                gameState: 'start',
+                puzzle: null,
+                selectedOption: null,
+            });
         }
-    }, [isComponentLoaded]);
+    }, [isComponentLoaded, currentMode]);
 
     const startNewTrial = useCallback(() => {
         const state = getAdaptiveState(GAME_ID, currentMode);
