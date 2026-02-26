@@ -9,7 +9,7 @@ import { useAudioEngine } from "@/hooks/useAudioEngine";
 import { Loader2, Smile, Zap, X, Check } from "lucide-react";
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
-import type { AdaptiveState, TrialResult, GameId } from "@/types";
+import type { AdaptiveState, TrialResult, GameId, TelemetryEvent } from "@/types";
 import { PRNG } from "@/lib/rng";
 import { cn } from "@/lib/utils";
 
@@ -58,6 +58,7 @@ export function GsEQFlashRecognition() {
 
   const trialStartTime = useRef(0);
   const prngRef = useRef(new PRNG('gs-eq-seed'));
+  const trialCount = useRef(0);
   const adaptiveState = getAdaptiveState(GAME_ID, 'eq');
 
   const startNewTrial = useCallback(() => {
@@ -95,7 +96,6 @@ export function GsEQFlashRecognition() {
       isCorrect = response === puzzle.target;
     }
 
-    // Update adaptive flash duration
     const newAccuracyWindow = [...accuracyWindow, isCorrect].slice(-10);
     setAccuracyWindow(newAccuracyWindow);
     if (newAccuracyWindow.length === 10) {
@@ -111,8 +111,7 @@ export function GsEQFlashRecognition() {
     setScore(s => s + (isCorrect ? 1 : 0));
     setFeedback({ correct: isCorrect, message: isCorrect ? "Correct!" : "Incorrect." });
     
-    // Log trial
-    const ies = isCorrect ? rt / 1 : rt / (1 - 0.001); // Avoid division by zero
+    const ies = isCorrect ? rt / 1 : rt / (1 - 0.001);
     const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs: rt, telemetry: {
         ies,
         flashDuration,
@@ -121,19 +120,25 @@ export function GsEQFlashRecognition() {
     }};
     
     if (activeSession) {
-        logEvent({ type: 'trial_complete', sessionId: activeSession.sessionId, seq: activeSession.trialCount || 0, payload: { ...trialResult, gameId: GAME_ID, focus: 'eq' } as any });
+        logEvent({ type: 'trial_complete', sessionId: activeSession.sessionId, seq: trialCount.current, payload: { ...trialResult, gameId: GAME_ID, focus: 'eq' } as any });
     }
     const newState = adjustDifficulty(trialResult, getAdaptiveState(GAME_ID, 'eq'), policy);
     updateAdaptiveState(GAME_ID, 'eq', newState);
 
     setPhase('feedback');
-    setTimeout(startNewTrial, 1500);
+    setTimeout(() => {
+        trialCount.current++;
+        if (trialCount.current >= policy.sessionLength) {
+            setPhase('finished');
+        } else {
+            startNewTrial();
+        }
+    }, 1500);
   }, [accuracyWindow, activeSession, flashDuration, getAdaptiveState, logEvent, phase, puzzle, startNewTrial, updateAdaptiveState]);
   
   useEffect(() => {
-    // No-Go response timeout
     if (phase === 'response' && puzzle?.target === 'neutral') {
-      const timer = setTimeout(() => handleResponse('no-go'), 2000); // 2s response window
+      const timer = setTimeout(() => handleResponse('no-go'), 2000);
       return () => clearTimeout(timer);
     }
   }, [phase, puzzle, handleResponse]);
@@ -143,7 +148,7 @@ export function GsEQFlashRecognition() {
       case 'fixation': return <div className="text-6xl text-primary">+</div>;
       case 'stimulus': return <div className="text-6xl font-bold capitalize text-primary">{puzzle?.target}</div>;
       case 'mask': return <div className="text-8xl bg-muted w-32 h-32 rounded-lg" />;
-      default: return <div className="w-32 h-32" />; // Empty placeholder
+      default: return <div className="w-32 h-32" />;
     }
   };
 
@@ -162,7 +167,7 @@ export function GsEQFlashRecognition() {
         ) : phase === 'finished' ? (
            <div className="text-center">
                 <CardTitle>Session Complete</CardTitle>
-                <p>Score: {score}</p>
+                <p>Score: {score}/{trialCount.current}</p>
                 <Button onClick={startNewTrial} className="mt-4">Play Again</Button>
             </div>
         ) : (
@@ -172,38 +177,35 @@ export function GsEQFlashRecognition() {
             </div>
             <div className="font-mono text-muted-foreground">Flash Duration: {flashDuration}ms</div>
              
-            <div className={cn(
-              "flex flex-col items-center gap-4 w-full",
-              (phase !== 'response' && phase !== 'feedback') && 'invisible'
-            )}>
-              <div className="h-10 text-xl font-bold">
-                {feedback && (
-                  <p className={cn(
-                    "animate-in fade-in",
-                    feedback.correct ? 'text-green-500' : 'text-destructive'
-                  )}>
-                    {feedback.message}
-                  </p>
-                )}
+            {(phase === 'response' || phase === 'feedback') && (
+              <div className="flex flex-col items-center gap-4 w-full animate-in fade-in">
+                <div className="h-10 text-xl font-bold">
+                  {feedback && (
+                    <p className={cn(
+                      feedback.correct ? 'text-green-500' : 'text-destructive'
+                    )}>
+                      {feedback.message}
+                    </p>
+                  )}
+                </div>
+                <div className="flex flex-wrap justify-center gap-4">
+                  {puzzle?.options.map((opt, index) => (
+                    <Button
+                      key={`${opt}-${index}`}
+                      onClick={() => handleResponse(opt)}
+                      disabled={phase === 'feedback'}
+                      variant="secondary"
+                      className="h-20 w-32 text-lg font-bold capitalize"
+                    >
+                      {opt}
+                    </Button>
+                  ))}
+                </div>
               </div>
-              <div className="flex flex-wrap justify-center gap-4">
-                {puzzle?.options.map((opt, index) => (
-                  <Button
-                    key={`${opt}-${index}`}
-                    onClick={() => handleResponse(opt)}
-                    disabled={phase === 'feedback'}
-                    variant="secondary"
-                    className="h-20 w-32 text-lg font-bold capitalize"
-                  >
-                    {opt}
-                  </Button>
-                ))}
-              </div>
-            </div>
+            )}
           </>
         )}
       </CardContent>
     </Card>
   );
 }
-
