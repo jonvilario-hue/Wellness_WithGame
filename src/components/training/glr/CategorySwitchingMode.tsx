@@ -10,7 +10,8 @@ import { Button } from '@/components/ui/button';
 import { generalCategories, mathCategories, musicCategories, verbalCategories, validationWordList } from "@/data/verbal-content";
 import { emotionLexicon, type EmotionCluster } from '@/data/emotion-lexicon';
 import type { TrialResult, TrainingFocus, GameId, TelemetryEvent } from '@/types';
-import { adjustDifficulty, endSession, difficultyPolicies } from '@/lib/adaptive-engine';
+import { adjustDifficulty, endSession } from '@/lib/adaptive-engine';
+import { difficultyPolicies } from '@/data/difficulty-policies';
 
 const GLR_GAME_ID: GameId = 'glr_fluency_storm';
 const glrPolicy = difficultyPolicies[GLR_GAME_ID];

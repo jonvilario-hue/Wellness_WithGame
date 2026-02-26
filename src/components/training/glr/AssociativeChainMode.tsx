@@ -9,7 +9,8 @@ import { validationWordList, realWords } from '@/data/verbal-content';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import type { TrialResult, TrainingFocus, GameId, TelemetryEvent } from '@/types';
-import { adjustDifficulty, difficultyPolicies } from '@/lib/adaptive-engine';
+import { adjustDifficulty } from '@/lib/adaptive-engine';
+import { difficultyPolicies } from '@/data/difficulty-policies';
 
 const GLR_GAME_ID: GameId = 'glr_fluency_storm';
 const glrPolicy = difficultyPolicies[GLR_GAME_ID];
