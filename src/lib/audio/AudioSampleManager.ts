@@ -30,6 +30,9 @@ export class AudioSampleManager {
     }
 
     private async loadManifest() {
+        if (typeof window === 'undefined') {
+            return;
+        }
         try {
             // Ensure manifest is fetched without browser caching to get the latest version
             const response = await fetch('/audio-assets/manifest.json', { cache: 'no-store' });
