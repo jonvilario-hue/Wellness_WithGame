@@ -11,7 +11,7 @@ import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
-import { realWords, pseudowords } from "@/data/verbal-content";
+import { realWords, pseudowords } from '@/data/verbal-content';
 
 const GAME_ID: GameId = 'gv_visual_lab';
 const policy = difficultyPolicies[GAME_ID];
@@ -65,7 +65,7 @@ const generateGrid = (level: number): { grid: string[], task: SearchTask, soluti
 
 
 export function TypographicSearch({ focus }: { focus: TrainingFocus }) {
-  const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
+  const { getAdaptiveState, updateAdaptiveState, logEvent, activeSession } = usePerformanceStore();
   const [adaptiveState, setAdaptiveState] = useState<AdaptiveState | null>(null);
   const [gameState, setGameState] = useState<'loading' | 'start' | 'playing' | 'feedback' | 'finished'>('loading');
   const [sessionTrials, setSessionTrials] = useState<TrialResult[]>([]);
@@ -118,28 +118,40 @@ export function TypographicSearch({ focus }: { focus: TrainingFocus }) {
   }
 
   const handleSubmit = () => {
-    if (gameState !== 'playing' || !puzzle || !adaptiveState) return;
+    if (gameState !== 'playing' || !puzzle || !adaptiveState || !activeSession) return;
     setGameState('feedback');
     const reactionTimeMs = Date.now() - trialStartTime.current;
     
     // Check if selected words exactly match the solution
     const isCorrect = puzzle.solution.length === selectedWords.size && puzzle.solution.every(word => selectedWords.has(word));
 
-    const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs, telemetry: {} };
-    logTrial({
-      id: crypto.randomUUID(),
-      userId: 'local_user',
-      timestamp: Date.now(),
-      module_id: GAME_ID,
-      currentLevel: adaptiveState.currentLevel,
-      isCorrect,
-      responseTime_ms: reactionTimeMs,
-      meta: {
+    const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs, telemetry: {
         puzzleType: 'typographic_search',
         prompt: puzzle.task.prompt,
         solution: puzzle.solution,
         userSelection: Array.from(selectedWords),
       }
+    };
+    
+    logEvent({
+      type: 'trial_complete',
+      sessionId: activeSession.sessionId,
+      payload: {
+        id: `${activeSession.sessionId}-${currentTrialIndex.current}`,
+        sessionId: activeSession.sessionId,
+        gameId: GAME_ID,
+        focus,
+        trialIndex: currentTrialIndex.current,
+        difficultyLevel: adaptiveState.currentLevel,
+        correct: isCorrect,
+        rtMs: reactionTimeMs,
+        stimulusParams: trialResult.telemetry,
+        responseType: isCorrect ? 'correct' : 'incorrect',
+        stimulusOnsetTs: trialStartTime.current,
+        responseTs: Date.now(),
+        pausedDurationMs: 0,
+        wasFallback: false,
+      } as any,
     });
 
     setSessionTrials(prev => [...prev, trialResult]);
