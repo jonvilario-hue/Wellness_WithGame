@@ -2,55 +2,65 @@
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { usePerformanceStore } from "@/hooks/use-performance-store";
-import { Headphones, Loader2, Check, X, Music, Waves, Ear, Locate, Brain, Bot, Smile } from "lucide-react";
-import { cn } from "@/lib/utils";
-import type { AdaptiveState, TrialResult, GameId, TrainingFocus, AssetId } from "@/types";
-import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
-import { difficultyPolicies } from "@/data/difficulty-policies";
+import { useState, useCallback } from "react";
 import { useAudioEngine } from "@/hooks/useAudioEngine";
-import { PRNG } from "@/lib/rng";
+import { Headphones, Music, Waves, Ear, Locate, Brain, Bot } from "lucide-react";
 import { domainIcons } from "@/components/icons";
-import { usePreloadAssets } from "@/hooks/usePreloadAssets";
-import CoreMode from './CoreMode';
-import { AuditoryFlanker } from './auditory-flanker';
-import CodeLogicMode from './CodeLogicMode';
-import VerbalMode from './VerbalMode';
-import { GaSpatialAudioGame } from './GaSpatialAudioGame';
-import MathMode from './MathMode';
-import EQMode from './EQMode';
-import { useTrainingFocus } from "@/hooks/use-training-focus";
-import { useTrainingOverride } from "@/hooks/use-training-override";
+import { PitchDiscriminationModule } from './PitchDiscriminationModule';
+import { TimbreModule } from './TimbreModule';
+import { LocalizationModule } from './LocalizationModule';
+import { Menu } from './Menu';
 
+type GaMode = 'pitch' | 'timing' | 'timbre' | 'recall' | 'segregation' | 'localization' | 'prosody';
+
+const modeConfig: Record<GaMode, { title: string, Icon: React.ElementType, Component: React.FC<{ onComplete: () => void }> }> = {
+    pitch: { title: "Pitch", Icon: Waves, Component: PitchDiscriminationModule },
+    timing: { title: "Timing", Icon: Music, Component: () => <p>Timing Module WIP</p> },
+    timbre: { title: "Timbre", Icon: Ear, Component: TimbreModule },
+    recall: { title: "Melody Recall", Icon: Brain, Component: () => <p>Melody Recall WIP</p> },
+    segregation: { title: "Segregation", Icon: Bot, Component: () => <p>Segregation Module WIP</p> },
+    localization: { title: "Localization", Icon: Locate, Component: LocalizationModule },
+    prosody: { title: "Prosody", Icon: Headphones, Component: () => <p>Prosody Module WIP</p> },
+};
 
 export default function AuditoryProcessingRouter() {
-    const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
-    const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
+    const [activeMode, setActiveMode] = useState<'menu' | GaMode>('menu');
+    const { engine } = useAudioEngine();
 
-    if (!isGlobalFocusLoaded || !isOverrideLoaded) {
-        return <div className="w-full max-w-3xl min-h-[450px] flex items-center justify-center"><Loader2 className="animate-spin" /></div>;
-    }
+    const handleSelectMode = useCallback((mode: string) => {
+        engine?.resumeContext();
+        setActiveMode(mode as GaMode);
+    }, [engine]);
 
-    const effectiveFocus = override || globalFocus;
-    
-    switch(effectiveFocus) {
-        case 'neutral':
-            return <CoreMode />;
-        case 'music':
-            return <AuditoryFlanker />;
-        case 'spatial':
-            return <GaSpatialAudioGame />;
-        case 'logic':
-            return <CodeLogicMode />;
-        case 'verbal':
-            return <VerbalMode onComplete={() => {}} />;
-        case 'math':
-            return <MathMode onComplete={() => {}} />;
-        case 'eq':
-            return <EQMode onComplete={() => {}} />;
-        default:
-            return <CoreMode />;
-    }
+    const handleModeComplete = useCallback(() => {
+        setActiveMode('menu');
+    }, []);
+
+    const renderActiveMode = () => {
+        if (activeMode === 'menu') {
+            const modesForMenu = (Object.keys(modeConfig) as GaMode[]).map(key => ({
+                key,
+                title: modeConfig[key].title,
+                Icon: modeConfig[key].Icon,
+            }));
+            return <Menu onSelectMode={handleSelectMode} modes={modesForMenu} />;
+        }
+        const { Component } = modeConfig[activeMode];
+        return <Component onComplete={handleModeComplete} />;
+    };
+
+    return (
+        <Card className="w-full max-w-3xl bg-violet-900/80 border-violet-500/30 backdrop-blur-sm text-violet-100">
+            <CardHeader className="text-center">
+                <CardTitle className="flex items-center justify-center gap-2 text-violet-300">
+                    <span className="p-2 bg-violet-500/10 rounded-md"><domainIcons.Ga className="w-6 h-6 text-violet-400" /></span>
+                    Auditory Processing Lab
+                </CardTitle>
+                <CardDescription className="text-violet-300/70">A rotating lab of exercises to sharpen your brain's ability to analyze and distinguish sounds. Wired headphones recommended for best results.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col items-center justify-center gap-6 min-h-[450px]">
+                {renderActiveMode()}
+            </CardContent>
+        </Card>
+    );
 }
