@@ -113,6 +113,12 @@ export function MentalRotationLab({ focus }: { focus: TrainingFocus }) {
     const initialState = getAdaptiveState(GAME_ID, focus);
     setAdaptiveState(initialState);
     setGameState('start');
+    // Fully reset state on focus change
+    setSessionTrials([]);
+    setPuzzle(null);
+    setSelectedOption(null);
+    setInlineFeedback({ message: '', type: '' });
+    currentTrialIndex.current = 0;
   }, [focus, getAdaptiveState]);
   
   const startNewTrial = useCallback((state: AdaptiveState) => {

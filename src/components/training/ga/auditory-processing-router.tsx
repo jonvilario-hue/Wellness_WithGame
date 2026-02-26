@@ -1,8 +1,7 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useAudioEngine } from "@/hooks/useAudioEngine";
 import { Headphones, Music, Waves, Ear, Locate, Brain, Bot } from "lucide-react";
 import { domainIcons } from "@/components/icons";
@@ -10,6 +9,8 @@ import { PitchDiscriminationModule } from './PitchDiscriminationModule';
 import { TimbreModule } from './TimbreModule';
 import { LocalizationModule } from './LocalizationModule';
 import { Menu } from './Menu';
+import { useTrainingFocus } from "@/hooks/use-training-focus";
+import { useTrainingOverride } from "@/hooks/use-training-override";
 
 type GaMode = 'pitch' | 'timing' | 'timbre' | 'recall' | 'segregation' | 'localization' | 'prosody';
 
@@ -26,6 +27,14 @@ const modeConfig: Record<GaMode, { title: string, Icon: React.ElementType, Compo
 export default function AuditoryProcessingRouter() {
     const [activeMode, setActiveMode] = useState<'menu' | GaMode>('menu');
     const { engine } = useAudioEngine();
+    const { focus: globalFocus } = useTrainingFocus();
+    const { override } = useTrainingOverride();
+    const effectiveFocus = override || globalFocus;
+
+    useEffect(() => {
+        // Reset to menu whenever the focus tab changes.
+        setActiveMode('menu');
+    }, [effectiveFocus]);
 
     const handleSelectMode = useCallback((mode: string) => {
         engine?.resumeContext();
