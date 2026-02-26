@@ -30,6 +30,7 @@ export function BooleanBlitz() {
     const [puzzle, setPuzzle] = useState<BooleanBlitzTrial | null>(null);
     const [timeLeft, setTimeLeft] = useState(5);
     const [score, setScore] = useState(0);
+    const [lastAnswerWasCorrect, setLastAnswerWasCorrect] = useState<boolean | null>(null);
 
     const trialStartTime = useRef(0);
     const trialCount = useRef(0);
@@ -46,6 +47,7 @@ export function BooleanBlitz() {
         setGameState('running');
         trialStartTime.current = Date.now();
         setTimeLeft(timeLimit / 1000);
+        setLastAnswerWasCorrect(null);
     }, [adaptiveState.currentLevel, timeLimit]);
 
     const startNewSession = useCallback(() => {
@@ -59,7 +61,7 @@ export function BooleanBlitz() {
 
     const handleTimeout = useCallback(() => {
         handleResponse(null);
-    }, []);
+    }, [handleResponse]);
 
     useEffect(() => {
         if (gameState === 'running') {
@@ -84,6 +86,7 @@ export function BooleanBlitz() {
         setGameState('feedback');
         const rtMs = Date.now() - trialStartTime.current;
         const isCorrect = answer === puzzle.correctValue;
+        setLastAnswerWasCorrect(isCorrect);
         
         if (isCorrect) setScore(s => s + 1);
 
@@ -129,8 +132,8 @@ export function BooleanBlitz() {
                         </div>
                         
                          <div className="h-8 mt-2">
-                            {gameState === 'feedback' && (
-                                isCorrect ? <Check className="w-8 h-8 text-green-400" /> : <X className="w-8 h-8 text-red-400" />
+                            {gameState === 'feedback' && lastAnswerWasCorrect !== null && (
+                                lastAnswerWasCorrect ? <Check className="w-8 h-8 text-green-400" /> : <X className="w-8 h-8 text-red-400" />
                             )}
                         </div>
 
@@ -145,4 +148,3 @@ export function BooleanBlitz() {
     );
 }
 
-    
