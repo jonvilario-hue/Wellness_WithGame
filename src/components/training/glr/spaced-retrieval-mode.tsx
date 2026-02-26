@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
@@ -15,7 +14,7 @@ import { useAudioEngine } from "@/hooks/use-audio-engine";
 import { Music2, Brain, Check, X } from "lucide-react";
 
 const GLR_GAME_ID: GameId = 'glr_fluency_storm';
-const glrPolicy = difficultyPolicies[GLR_GAME_ID];
+const glrPolicy = difficultyPolicies[GAME_ID];
 
 const icons: Record<string, React.ElementType> = {
     "harmony": Music2,
@@ -129,7 +128,6 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
         
         // Defensive guard to prevent crash on corrupted data
         if (!pair || typeof pair.word2 !== 'string') {
-            console.error("Invalid pair data encountered in recall:", pair);
             handleNext();
             return;
         }

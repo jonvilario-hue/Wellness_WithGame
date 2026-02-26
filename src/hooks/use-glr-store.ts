@@ -1,4 +1,3 @@
-
 'use client';
 
 import { create } from 'zustand';
@@ -234,7 +233,24 @@ export const useGlrStore = create<GlrState & GlrActions>()(
         })),
         {
             name: 'glr-training-storage-v4-spaced',
+            version: 1,
             storage: createJSONStorage(() => storage),
+            migrate: (persistedState: any, version: number) => {
+                if (version < 1) {
+                    if (persistedState && persistedState.spacedPairs) {
+                        const validPairs: Record<string, SpacedPair> = {};
+                        for (const key in persistedState.spacedPairs) {
+                            const pair = persistedState.spacedPairs[key];
+                            // Only keep pairs that have the correct structure
+                            if (pair && typeof pair.word1 === 'string' && typeof pair.word2 === 'string') {
+                                validPairs[key] = pair;
+                            }
+                        }
+                        persistedState.spacedPairs = validPairs;
+                    }
+                }
+                return persistedState;
+            },
         }
     )
 );
