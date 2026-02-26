@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { Suspense, useRef, useEffect } from "react";
@@ -98,29 +99,32 @@ export const GvSpatialAssemblyRenderer: React.FC<BaseRendererProps<GvSpatialAsse
           <div className="flex flex-col items-center gap-2">
             <h3 className="font-semibold text-gray-400">Which is the same shape?</h3>
             <div className="grid grid-cols-2 gap-2 w-full">
-              {puzzle.options.map((opt: any, i: number) => (
-                <Button 
-                  key={i} 
-                  variant="outline" 
-                  className={cn(
-                    "h-28 lg:h-32 p-1 bg-gray-900 border-lime-400/30 hover:bg-lime-900/50 relative",
-                    selectedAnswer?.index === i && gameState !== 'feedback' && "ring-2 ring-lime-400",
-                    gameState === 'feedback' && opt.index === puzzle.correctIndex && "bg-green-800/50 border-green-500",
-                    gameState === 'feedback' && selectedAnswer?.index === i && i !== puzzle.correctIndex && "bg-rose-800/50 border-rose-500"
-                  )}
-                  onClick={() => onEvent({ type: 'SELECT_ANSWER', option: { polycube: opt.polycube, index: i } })}
-                  disabled={gameState === 'feedback'}
-                >
-                  <Canvas camera={{ position: [4, 4, 4], fov: 50 }}>
-                     <ambientLight intensity={0.6} />
-                     <directionalLight position={[10, 10, 5]} />
-                     <Suspense fallback={null}>
-                       <PolycubeObject polycube={opt.polycube} color="#84cc16" />
-                     </Suspense>
-                     <OrbitControls enableZoom={false} enablePan={false} />
-                  </Canvas>
-                </Button>
-              ))}
+              {puzzle.options.map((opt: any, i: number) => {
+                if (!opt) return null;
+                return (
+                  <Button 
+                    key={i} 
+                    variant="outline" 
+                    className={cn(
+                      "h-28 lg:h-32 p-1 bg-gray-900 border-lime-400/30 hover:bg-lime-900/50 relative",
+                      selectedAnswer?.index === i && gameState !== 'feedback' && "ring-2 ring-lime-400",
+                      gameState === 'feedback' && opt.index === puzzle.correctIndex && "bg-green-800/50 border-green-500",
+                      gameState === 'feedback' && selectedAnswer?.index === i && i !== puzzle.correctIndex && "bg-rose-800/50 border-rose-500"
+                    )}
+                    onClick={() => onEvent({ type: 'SELECT_ANSWER', option: { polycube: opt.polycube, index: i } })}
+                    disabled={gameState === 'feedback'}
+                  >
+                    <Canvas camera={{ position: [4, 4, 4], fov: 50 }}>
+                       <ambientLight intensity={0.6} />
+                       <directionalLight position={[10, 10, 5]} />
+                       <Suspense fallback={null}>
+                         <PolycubeObject polycube={opt.polycube} color="#84cc16" />
+                       </Suspense>
+                       <OrbitControls enableZoom={false} enablePan={false} />
+                    </Canvas>
+                  </Button>
+                )
+              })}
             </div>
           </div>
         </div>
