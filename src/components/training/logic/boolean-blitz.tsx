@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -59,26 +58,6 @@ export function BooleanBlitz() {
         startNewTrial();
     }, [adaptiveState, startNewTrial, updateAdaptiveState]);
 
-    const handleTimeout = useCallback(() => {
-        handleResponse(null);
-    }, [handleResponse]);
-
-    useEffect(() => {
-        if (gameState === 'running') {
-            timerRef.current = setInterval(() => {
-                setTimeLeft(prev => {
-                    if (prev <= 0.1) {
-                        if(timerRef.current) clearInterval(timerRef.current);
-                        handleTimeout();
-                        return 0;
-                    }
-                    return prev - 1;
-                });
-            }, 1000);
-        }
-        return () => { if (timerRef.current) clearInterval(timerRef.current); };
-    }, [gameState, handleTimeout]);
-
     const handleResponse = (answer: boolean | null) => {
         if (gameState !== 'running' || !puzzle || !activeSession) return;
         if (timerRef.current) clearInterval(timerRef.current);
@@ -105,6 +84,26 @@ export function BooleanBlitz() {
             }
         }, 1500);
     };
+
+    const handleTimeout = useCallback(() => {
+        handleResponse(null);
+    }, [handleResponse]);
+
+    useEffect(() => {
+        if (gameState === 'running') {
+            timerRef.current = setInterval(() => {
+                setTimeLeft(prev => {
+                    if (prev <= 0.1) {
+                        if(timerRef.current) clearInterval(timerRef.current);
+                        handleTimeout();
+                        return 0;
+                    }
+                    return prev - 1;
+                });
+            }, 1000);
+        }
+        return () => { if (timerRef.current) clearInterval(timerRef.current); };
+    }, [gameState, handleTimeout]);
     
     if (!adaptiveState) return <Loader2 className="animate-spin" />;
 
@@ -147,4 +146,3 @@ export function BooleanBlitz() {
         </Card>
     );
 }
-
