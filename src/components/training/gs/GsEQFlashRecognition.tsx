@@ -156,7 +156,7 @@ export function GsEQFlashRecognition() {
         </CardTitle>
         <CardDescription>Classify the emotion as fast as possible. Do not respond to neutral faces.</CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-col items-center gap-6 min-h-[400px] justify-center">
+      <CardContent className="flex flex-col items-center gap-6 min-h-[500px] justify-center">
         {phase === 'start' ? (
           <Button onClick={startNewTrial} size="lg">Start</Button>
         ) : phase === 'finished' ? (
@@ -171,21 +171,39 @@ export function GsEQFlashRecognition() {
               {renderStimulus()}
             </div>
             <div className="font-mono text-muted-foreground">Flash Duration: {flashDuration}ms</div>
-             {(phase === 'response' || phase === 'feedback') && (
-              <div className="flex flex-col items-center gap-4 w-full">
-                <div className="h-8 text-xl font-bold">
-                  {feedback && <p className={cn(feedback.correct ? 'text-green-400' : 'text-red-400')}>{feedback.message}</p>}
-                </div>
-                <div className="flex flex-wrap justify-center gap-4">
-                  {puzzle?.options.map((opt, index) => (
-                    <Button key={`${opt}-${index}`} onClick={() => handleResponse(opt)} disabled={phase === 'feedback'} variant="secondary" className="h-20 w-32 text-lg font-bold capitalize">{opt}</Button>
-                  ))}
-                </div>
+             
+            <div className={cn(
+              "flex flex-col items-center gap-4 w-full",
+              (phase !== 'response' && phase !== 'feedback') && 'invisible'
+            )}>
+              <div className="h-10 text-xl font-bold">
+                {feedback && (
+                  <p className={cn(
+                    "animate-in fade-in",
+                    feedback.correct ? 'text-green-500' : 'text-destructive'
+                  )}>
+                    {feedback.message}
+                  </p>
+                )}
               </div>
-            )}
+              <div className="flex flex-wrap justify-center gap-4">
+                {puzzle?.options.map((opt, index) => (
+                  <Button
+                    key={`${opt}-${index}`}
+                    onClick={() => handleResponse(opt)}
+                    disabled={phase === 'feedback'}
+                    variant="secondary"
+                    className="h-20 w-32 text-lg font-bold capitalize"
+                  >
+                    {opt}
+                  </Button>
+                ))}
+              </div>
+            </div>
           </>
         )}
       </CardContent>
     </Card>
   );
 }
+
