@@ -122,7 +122,11 @@ export function MentalRotationLab({ focus }: { focus: TrainingFocus }) {
   }, [focus, getAdaptiveState]);
   
   const startNewTrial = useCallback((state: AdaptiveState) => {
-    setPuzzle(generatePuzzleForLevel(state.currentLevel));
+    const onRamp = state.uncertainty > 0.7;
+    const loadedLevel = onRamp
+      ? Math.max(state.levelFloor, state.currentLevel - 2)
+      : state.currentLevel;
+    setPuzzle(generatePuzzleForLevel(loadedLevel));
     setSelectedOption(null);
     setInlineFeedback({ message: '', type: '' });
     setGameState('playing');
@@ -150,6 +154,7 @@ export function MentalRotationLab({ focus }: { focus: TrainingFocus }) {
     logEvent({
         type: 'trial_complete',
         sessionId: activeSession.sessionId,
+        seq: (activeSession.trialCount || 0) + 1,
         payload: {
             id: `${activeSession.sessionId}-${currentTrialIndex.current}`,
             sessionId: activeSession.sessionId,
@@ -159,14 +164,18 @@ export function MentalRotationLab({ focus }: { focus: TrainingFocus }) {
             difficultyLevel: adaptiveState.currentLevel,
             correct: isCorrect,
             rtMs: reactionTimeMs,
-            stimulusParams: { rotationDegrees: 0, errorMarginPx: 0 },
+            stimulusParams: { 
+                baseShape: puzzle.baseShape,
+                answer: puzzle.answer,
+                options: puzzle.options
+            },
             responseType: isCorrect ? 'correct' : 'incorrect',
             stimulusOnsetTs: trialStartTime.current,
             responseTs: Date.now(),
             pausedDurationMs: 0,
             wasFallback: false
         }
-    } as Omit<TelemetryEvent, 'eventId' | 'timestamp' | 'schemaVersion' | 'seq'>);
+    } as Omit<TelemetryEvent, 'eventId' | 'timestamp' | 'schemaVersion'>);
 
 
     setSessionTrials(prev => [...prev, trialResult]);

@@ -10,7 +10,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Loader2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Keyboard, Music, Check, X, Ear, Timer, Smile, Share2 } from 'lucide-react';
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
-import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
+import type { AdaptiveState, TrialResult, GameId, TrainingFocus, TelemetryEvent } from "@/types";
 import { GameStub } from "../game-stub";
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from '@/hooks/use-training-override.tsx';
@@ -264,6 +264,7 @@ export function FocusSwitchReactor() {
     logEvent({
       type: 'trial_complete',
       sessionId: activeSession.sessionId,
+      seq: (activeSession.trialCount || 0) + 1,
       payload: {
         id: `${activeSession.sessionId}-${currentTrialIndex.current}`,
         sessionId: activeSession.sessionId,
@@ -281,7 +282,7 @@ export function FocusSwitchReactor() {
         pausedDurationMs: 0,
         wasFallback: false,
       }
-    } as any);
+    } as Omit<TelemetryEvent, 'eventId' | 'timestamp' | 'schemaVersion'>);
     
     const newState = adjustDifficulty(trialResult, state, policy);
     updateAdaptiveState(GAME_ID, currentMode, newState);

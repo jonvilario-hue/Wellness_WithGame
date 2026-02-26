@@ -42,7 +42,7 @@ type Problem = {
 };
 
 export function RapidCodeMatch() {
-  const { getAdaptiveState, updateAdaptiveState, logEvent } = usePerformanceStore();
+  const { getAdaptiveState, updateAdaptiveState, logEvent, activeSession } = usePerformanceStore();
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
   const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
   const { playSequence, resumeContext, isAudioReady } = useAudioEngine();
@@ -180,7 +180,7 @@ export function RapidCodeMatch() {
 
   const handleAnswer = useCallback((answer: number | string | boolean) => {
     const currentState = getAdaptiveState(GAME_ID, currentMode);
-    if (gameState !== 'running' || !currentState || !problem) return;
+    if (gameState !== 'running' || !currentState || !problem || !activeSession) return;
     
     setGameState('feedback');
     const reactionTimeMs = performance.now() - trialStartTime.current;
@@ -203,7 +203,7 @@ export function RapidCodeMatch() {
         telemetry = { classificationRule: 'rhythm_comparison' };
     } else if (problem.type === 'spatial_compare') {
         isCorrect = problem.isSame === answer;
-        telemetry = { classificationRule: 'spatial_comparison' };
+        telemetry = { classificationRule: 'spatial_comparison', isSame: problem.isSame };
     }
     isCorrect = isCorrect && reactionTimeMs < (mechanic_config.responseWindowMs || 5000);
 
@@ -223,6 +223,7 @@ export function RapidCodeMatch() {
     };
     logEvent({
       type: 'trial_complete',
+      sessionId: activeSession.sessionId,
       payload: {
           gameId: GAME_ID,
           focus: currentMode,
@@ -230,8 +231,8 @@ export function RapidCodeMatch() {
           correct: trialResult.correct,
           rtMs: trialResult.reactionTimeMs,
           meta: trialResult.telemetry
-      }
-    } as any);
+      } as any
+    });
     
     const newState = adjustDifficulty(trialResult, currentState, policy);
     updateAdaptiveState(GAME_ID, currentMode, newState);
@@ -251,7 +252,7 @@ export function RapidCodeMatch() {
             startNewTrial();
         }
     }, 200); // Fast transition for a Gs task
-  }, [gameState, problem, startNewTrial, updateAdaptiveState, currentMode, logEvent, getAdaptiveState]);
+  }, [gameState, problem, startNewTrial, updateAdaptiveState, currentMode, logEvent, getAdaptiveState, activeSession]);
 
   const renderContent = () => {
     if (!isComponentLoaded) {
@@ -430,4 +431,5 @@ const musicSymbolKeyPool = ['♩', '♪', '♫', '♭', '♯', '♮', '𝄞', '�
 const digits = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
     
+
 
