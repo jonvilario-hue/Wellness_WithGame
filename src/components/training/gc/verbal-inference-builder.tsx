@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useCallback, useEffect, useRef, lazy, Suspense } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef, lazy, Suspense } from "react";
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
-import { adjustDifficulty, startSession } from "@/lib/adaptive-engine";
+import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus, BaseRendererProps, TelemetryEvent } from "@/types";
 import { clozeSentences, morphologyWordPairs, spatialConcepts } from "@/data/verbal-content";
@@ -58,11 +58,6 @@ export const generatePuzzleForLevel = (level: number, focus: TrainingFocus): GcC
     
     // If the specific focus isn't defined for this level, fall back to the verbal config for this level
     if (!contentConfig || !contentConfig.params) {
-        contentConfig = levelDef.content_config['verbal'];
-    }
-
-    // If even the verbal config is missing, create a safe fallback to prevent crashes.
-    if (!contentConfig || !contentConfig.params) {
         const puzzleTemplate = {
             question: "Which word is an antonym for 'happy'?",
             options: ["Joyful", "Ecstatic", "Sad"],
@@ -72,7 +67,7 @@ export const generatePuzzleForLevel = (level: number, focus: TrainingFocus): GcC
          return {
             type: 'cloze_deletion', // give it a default type
             question: puzzleTemplate.question,
-            options: [...puzzleTemplate.options].sort(() => Math.random() - 0.5),
+            options: [...puzzleTemplate.options, puzzleTemplate.answer].sort(() => Math.random() - 0.5),
             answer: puzzleTemplate.answer,
             explanation: puzzleTemplate.explanation,
         };
@@ -134,6 +129,18 @@ export function VerbalInferenceBuilder() {
   
   const adaptiveState = getAdaptiveState(GAME_ID, currentMode);
   
+  const startNewTrial = useCallback((state: AdaptiveState) => {
+    const onRamp = state.uncertainty > 0.7;
+    const loadedLevel = onRamp
+      ? Math.max(state.levelFloor, state.currentLevel - 2)
+      : state.currentLevel;
+    
+    const newPuzzle = generatePuzzleForLevel(loadedLevel, currentMode);
+    setComponentState({ gameState: 'playing', puzzle: newPuzzle, selectedAnswer: null });
+    setFeedback(null);
+    trialStartTime.current = Date.now();
+  }, [currentMode]);
+  
   const handleEvent = useCallback((event: GcVerbalGameEvent) => {
     if (event.type === 'START_SESSION') {
         const seed = crypto.randomUUID(); // This game does not use a PRNG, but sessions require a seed.
@@ -150,7 +157,9 @@ export function VerbalInferenceBuilder() {
       startNewTrial(sessionState);
     }
     else if (event.type === 'SUBMIT_ANSWER') {
-      if (componentState.gameState !== 'playing' || !componentState.puzzle) return;
+      const { puzzle } = componentState;
+      const state = getAdaptiveState(GAME_ID, currentMode);
+      if (componentState.gameState !== 'playing' || !state || !puzzle) return;
       
       if (timerRef.current) clearTimeout(timerRef.current);
       
@@ -159,10 +168,10 @@ export function VerbalInferenceBuilder() {
       const levelPlayed = adaptiveState.currentLevel;
       
       let isCorrect = false;
-      if (componentState.puzzle.type === 'spatial_concept_map') {
+      if (puzzle.type === 'spatial_concept_map') {
         isCorrect = event.answer?.isCorrect || false;
       } else {
-        isCorrect = event.answer === (componentState.puzzle as GcVerbalPuzzle).answer;
+        isCorrect = event.answer === (puzzle as GcVerbalPuzzle).answer;
       }
 
       const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs, telemetry: { timedOut: event.answer === null } };
@@ -181,7 +190,7 @@ export function VerbalInferenceBuilder() {
                 difficultyLevel: levelPlayed,
                 correct: isCorrect,
                 rtMs: reactionTimeMs,
-                stimulusParams: { puzzleType: componentState.puzzle.type },
+                stimulusParams: { puzzleType: puzzle.type },
                 responseType: isCorrect ? 'correct' : 'incorrect',
                 stimulusOnsetTs: trialStartTime.current,
                 responseTs,
@@ -208,19 +217,6 @@ export function VerbalInferenceBuilder() {
       }, 2500);
     }
   }, [componentState.gameState, componentState.puzzle, getAdaptiveState, currentMode, adaptiveState, updateAdaptiveState, startNewTrial, startNewGameSession, completeCurrentGameSession, activeSession, logEvent]);
-
-  
-  const startNewTrial = useCallback((state: AdaptiveState) => {
-    const onRamp = state.uncertainty > 0.7;
-    const loadedLevel = onRamp
-      ? Math.max(state.levelFloor, state.currentLevel - 2)
-      : state.currentLevel;
-    
-    const newPuzzle = generatePuzzleForLevel(loadedLevel, currentMode);
-    setComponentState({ gameState: 'playing', puzzle: newPuzzle, selectedAnswer: null });
-    setFeedback(null);
-    trialStartTime.current = Date.now();
-  }, [currentMode]);
   
   useEffect(() => {
     if (componentState.gameState === 'playing') {
@@ -282,3 +278,5 @@ export function VerbalInferenceBuilder() {
       </Suspense>
   )
 }
+
+    
