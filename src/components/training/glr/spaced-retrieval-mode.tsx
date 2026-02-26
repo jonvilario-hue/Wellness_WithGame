@@ -66,7 +66,7 @@ function ActiveDistractor({ duration, onComplete }: { duration: number, onComple
 
 export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result: { score: number, trials: TrialResult[] }) => void, focus: TrainingFocus }) {
     const { introduceNewPairs, getDueReviewPairs, updatePairOnResult } = useGlrStore();
-    const { getAdaptiveState, updateAdaptiveState, logTrial, activeSession } = usePerformanceStore();
+    const { getAdaptiveState, updateAdaptiveState, logEvent, activeSession } = usePerformanceStore();
     const { playSequence, audioContext } = useAudioEngine();
     
     const [phase, setPhase] = useState<'review' | 'learn' | 'distract' | 'recall' | 'finished'>('review');
@@ -126,6 +126,14 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
         
         const reactionTimeMs = (audioContext.currentTime - trialStartTime.current) * 1000;
         const pair = (duePairs.length > 0 ? duePairs : newPairs)[currentIndex];
+        
+        // Defensive guard to prevent crash on corrupted data
+        if (!pair || typeof pair.word2 !== 'string') {
+            console.error("Invalid pair data encountered in recall:", pair);
+            handleNext();
+            return;
+        }
+
         const isCorrect = userInput.trim().toLowerCase() === pair.word2.toLowerCase();
         
         const trial: TrialResult = {
@@ -149,7 +157,7 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
             }
         };
 
-        logTrial({
+        logEvent({
             type: 'trial_complete',
             sessionId: activeSession.sessionId,
             payload: { ...trial, gameId: GLR_GAME_ID, focus } as any
@@ -196,7 +204,7 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
                         {Icon ? <Icon className="w-10 h-10" /> : <span>{pairToShow.word2}</span>}
                     </div>
                     <p className="text-sm font-mono mt-4">Pair {currentIndex + 1} of {newPairs.length}</p>
-                    <Button onClick={handleNext} className="mt-4 bg-emerald-600 hover:bg-emerald-500 text-white">Next</Button>
+                    <Button onClick={handleNext} className="mt-4 bg-emerald-600 hover:bg-emerald-500 text-white">Got it</Button>
                 </div>
             )}
             {(phase === 'recall') && pairToShow && (
