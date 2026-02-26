@@ -53,7 +53,7 @@ const generateSpatialPuzzleForLevel = (level: number, prng: PRNG) => {
     
     const size = 3;
     const grid: (SpatialObject | null)[] = Array(size * size).fill(null);
-    const missingIndex = prng.nextIntRange(0, size*size-1);
+    const missingIndex = prng.nextIntRange(0, size * size);
 
     const rowRuleAttr = prng.shuffle(['rotation', 'scale'])[0];
     const colRuleAttr = prng.shuffle(['color', 'shape'])[0];
@@ -87,6 +87,13 @@ const generateSpatialPuzzleForLevel = (level: number, prng: PRNG) => {
     
     const answer = grid[missingIndex]!;
     grid[missingIndex] = null;
+
+    if (!answer) {
+      // This is a safeguard. If grid generation is correct, this should never be hit.
+      // If it is, it prevents a crash and we can try generating a new puzzle.
+      console.error(`Invariant violation: answer is null/undefined at index ${missingIndex}. Regenerating puzzle.`);
+      return generateSpatialPuzzleForLevel(level, prng);
+    }
 
     const options: SpatialObject[] = [answer];
      while (options.length < 4) {
@@ -323,7 +330,7 @@ export function PatternMatrix() {
             const isCorrect = JSON.stringify(event.option) === JSON.stringify(puzzle.answer);
             
             const telemetry: Record<string, any> = {
-                patternLength: puzzle.grid?.length || puzzle.sequence?.length || 0,
+                patternLength: puzzle.sequence?.length || puzzle.grid?.length || 0,
                 ruleType: puzzle.params?.rule,
                 ruleShifts: puzzle.params?.ruleShifts || 0,
                 selectedAnswer: event.option,
