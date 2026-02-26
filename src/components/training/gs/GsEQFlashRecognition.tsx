@@ -153,7 +153,7 @@ export function GsEQFlashRecognition() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               {puzzle?.options.map((opt, index) => (
-                <Button key={`${opt}-${index}`} onClick={() => handleResponse(opt)} disabled={phase === 'feedback'} className="h-20 text-lg capitalize">{opt}</Button>
+                <Button key={`${opt}-${index}`} onClick={() => handleResponse(opt)} disabled={phase === 'feedback'} className="h-20 text-lg capitalize bg-orange-800/80 border border-orange-500/30 text-white hover:bg-orange-700/90 active:bg-orange-700/80 transition-colors">{opt}</Button>
               ))}
             </div>
           </div>

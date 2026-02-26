@@ -169,8 +169,8 @@ export function AuditoryStroop() {
                          {gameState === 'feedback' && <p className={cn(feedback === 'Correct!' ? 'text-green-400' : 'text-red-400')}>{feedback}</p>}
                      </div>
                      <div className="flex gap-4">
-                        <Button onClick={() => handleResponse('Low')} size="lg" className="w-32 h-16" disabled={gameState === 'feedback'}>Low</Button>
-                        <Button onClick={() => handleResponse('High')} size="lg" className="w-32 h-16" disabled={gameState === 'feedback'}>High</Button>
+                        <Button onClick={() => handleResponse('Low')} className="w-32 h-16 text-xl bg-rose-600 hover:bg-rose-500 active:bg-rose-700 transition-colors" disabled={gameState === 'feedback'}>Low</Button>
+                        <Button onClick={() => handleResponse('High')} className="w-32 h-16 text-xl bg-rose-600 hover:bg-rose-500 active:bg-rose-700 transition-colors" disabled={gameState === 'feedback'}>High</Button>
                     </div>
                 </div>
             )

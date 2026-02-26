@@ -56,8 +56,8 @@ const PitchDiscriminationModule = ({ onComplete }: { onComplete: () => void }) =
             <Button onClick={handlePlay} disabled={isPlaying}>Play Tones</Button>
             <div className="h-8 text-xl font-bold">{feedback && <p className={cn(feedback === 'Correct!' ? 'text-green-400' : 'text-rose-400')}>{feedback}</p>}</div>
             <div className="grid grid-cols-2 gap-4 w-full max-w-sm">
-                <Button onClick={() => handleAnswer('lower')} disabled={isPlaying} size="lg" className="h-24 text-xl">Lower</Button>
-                <Button onClick={() => handleAnswer('higher')} disabled={isPlaying} size="lg" className="h-24 text-xl">Higher</Button>
+                <Button onClick={() => handleAnswer('lower')} disabled={isPlaying} className="h-24 text-xl bg-violet-600 hover:bg-violet-500 active:bg-violet-700 transition-colors">Lower</Button>
+                <Button onClick={() => handleAnswer('higher')} disabled={isPlaying} className="h-24 text-xl bg-violet-600 hover:bg-violet-500 active:bg-violet-700 transition-colors">Higher</Button>
             </div>
         </div>
     );
@@ -98,7 +98,7 @@ const TimbreModule = ({ onComplete }: { onComplete: () => void }) => {
             <div className="h-8 text-xl font-bold">{feedback && <p className={cn(feedback === 'Correct!' ? 'text-green-400' : 'text-rose-400')}>{feedback}</p>}</div>
             <div className="grid grid-cols-3 gap-4 w-full max-w-md">
                 {assetsToLoad.map(assetId => (
-                    <Button key={assetId} onClick={() => handleAnswer(assetId)} size="lg" className="h-20 capitalize">{assetId.replace('instr-', '')}</Button>
+                    <Button key={assetId} onClick={() => handleAnswer(assetId)} className="h-20 capitalize text-lg bg-violet-600 hover:bg-violet-500 active:bg-violet-700 transition-colors">{assetId.replace('instr-', '')}</Button>
                 ))}
             </div>
         </div>
@@ -141,9 +141,9 @@ const LocalizationModule = ({ onComplete }: { onComplete: () => void }) => {
             <Button onClick={playSpatialSound}>Play Sound</Button>
             <div className="h-8 text-xl font-bold">{feedback && <p className={cn(feedback === 'Correct!' ? 'text-green-400' : 'text-rose-400')}>{feedback}</p>}</div>
             <div className="grid grid-cols-3 gap-4 w-full max-w-md">
-                <Button onClick={() => handleAnswer('left')} size="lg" className="h-20">Left</Button>
-                <Button onClick={() => handleAnswer('center')} size="lg" className="h-20">Center</Button>
-                <Button onClick={() => handleAnswer('right')} size="lg" className="h-20">Right</Button>
+                <Button onClick={() => handleAnswer('left')} className="h-20 text-lg bg-violet-600 hover:bg-violet-500 active:bg-violet-700 transition-colors">Left</Button>
+                <Button onClick={() => handleAnswer('center')} className="h-20 text-lg bg-violet-600 hover:bg-violet-500 active:bg-violet-700 transition-colors">Center</Button>
+                <Button onClick={() => handleAnswer('right')} className="h-20 text-lg bg-violet-600 hover:bg-violet-500 active:bg-violet-700 transition-colors">Right</Button>
             </div>
         </div>
     )
