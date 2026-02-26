@@ -69,7 +69,7 @@ const logicTokenPool = logicTokenPools.tier1;
 export function FocusSwitchReactor() {
   const { getAdaptiveState, updateAdaptiveState, logEvent, activeSession, startNewGameSession, completeCurrentGameSession } = usePerformanceStore();
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
-  const { override, setOverride } = useTrainingOverride();
+  const { override, setOverride, isLoaded: isOverrideLoaded } = useTrainingOverride();
   const { engine, isReady: isAudioReady } = useAudioEngine();
 
   const [gameState, setGameState] = useState<'loading' | 'start' | 'cueing' | 'running' | 'feedback' | 'finished'>('loading');
@@ -87,7 +87,7 @@ export function FocusSwitchReactor() {
   const deviceInfo = useRef<any>(null);
   const prngRef = useRef<PRNG | null>(null);
   
-  const isComponentLoaded = isGlobalFocusLoaded;
+  const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
   const currentMode = isComponentLoaded ? (override || globalFocus) : 'neutral';
   
   useEffect(() => {
