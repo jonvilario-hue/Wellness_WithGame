@@ -323,7 +323,7 @@ export function PatternMatrix() {
             const isCorrect = JSON.stringify(event.option) === JSON.stringify(puzzle.answer);
             
             const telemetry: Record<string, any> = {
-                patternLength: puzzle.grid.length,
+                patternLength: puzzle.grid?.length || puzzle.sequence?.length || 0,
                 ruleType: puzzle.params?.rule,
                 ruleShifts: puzzle.params?.ruleShifts || 0,
                 selectedAnswer: event.option,
