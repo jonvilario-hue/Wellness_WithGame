@@ -11,6 +11,8 @@ import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrialRecord } from "@/types";
 import { domainIcons } from "@/components/icons";
 import { cn } from "@/lib/utils";
+import { PRNG } from "@/lib/rng";
+
 
 const GAME_ID: GameId = 'ef_focus_switch';
 const policy = difficultyPolicies[GAME_ID];
@@ -22,7 +24,7 @@ type GoNoGoTrial = {
 
 export function AuditoryGoNoGo() {
     const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
-    const { playChord, resumeContext, isAudioReady, getAudioContextTime, getLatencyInfo } = useAudioEngine();
+    const { engine } = useAudioEngine();
 
     const [gameState, setGameState] = useState<'loading' | 'tutorial' | 'playing' | 'finished'>('loading');
     const [lastTrial, setLastTrial] = useState<GoNoGoTrial | null>(null);
@@ -36,10 +38,12 @@ export function AuditoryGoNoGo() {
     const trialStartTime = useRef(0);
     const sessionId = useRef<string | null>(null);
     const deviceInfo = useRef<any>(null);
+    const prng = useRef<PRNG | null>(null);
     const adaptiveState = getAdaptiveState(GAME_ID, 'music');
 
 
     const startNewTrial = useCallback(() => {
+        if (!prng.current) return;
         const isTutorial = gameState === 'tutorial';
         const level = isTutorial ? 1 : adaptiveState.currentLevel;
         const levelParams = policy.levelMap[level]?.content_config['music']?.params;
@@ -50,16 +54,18 @@ export function AuditoryGoNoGo() {
             return;
         }
 
-        const isGo = Math.random() > levelParams.nogo_probability;
+        const isGo = prng.current.nextFloat() > levelParams.nogo_probability;
         const type = isGo ? 'GO' : 'NO-GO';
         
         const goChord = [60, 64, 67]; // C Major
         const noGoChord = [60, 66];   // Tritone
         const chord = isGo ? goChord : noGoChord;
 
-        const handle = playChord(chord, 300);
-        if(handle.length > 0) {
-            trialStartTime.current = handle[0].scheduledOnset;
+        if (engine) {
+            const handle = engine.playChord(chord, 300);
+            if(handle && handle.length > 0) {
+                trialStartTime.current = handle[0].scheduledOnset;
+            }
         }
         
         setLastTrial({ type, chord });
@@ -78,12 +84,14 @@ export function AuditoryGoNoGo() {
             }
         }, levelParams.isi_ms * 0.8); // Response window is 80% of ISI
 
-    }, [gameState, adaptiveState, playChord, policy.sessionLength]);
+    }, [gameState, adaptiveState, engine, policy.sessionLength]);
 
-    const startSession = useCallback((isTutorial: boolean) => {
-        resumeContext();
-        const info = getLatencyInfo();
+    const startNewSession = useCallback((isTutorial: boolean) => {
+        if (!engine) return;
+        engine.resumeContext();
+        const info = engine.getLatencyInfo();
         deviceInfo.current = info;
+        prng.current = new PRNG(crypto.randomUUID());
         
         const sessionState = startSession(adaptiveState);
         updateAdaptiveState(GAME_ID, 'music', sessionState);
@@ -98,7 +106,7 @@ export function AuditoryGoNoGo() {
         } else {
             setGameState('playing');
         }
-    }, [resumeContext, getLatencyInfo, adaptiveState, updateAdaptiveState]);
+    }, [engine, adaptiveState, updateAdaptiveState]);
     
     useEffect(() => {
         if (gameState === 'playing' || gameState === 'tutorial') {
@@ -122,10 +130,10 @@ export function AuditoryGoNoGo() {
 
 
     const handlePress = () => {
-        if (!lastTrial || !canRespond.current) return;
+        if (!lastTrial || !canRespond.current || !engine) return;
         
         canRespond.current = false;
-        const responseTs = getAudioContextTime();
+        const responseTs = engine.getAudioContextTime();
         const rtMs = (responseTs - trialStartTime.current) * 1000;
         const isCorrect = lastTrial.type === 'GO';
         const responseType = isCorrect ? 'hit' : 'false_alarm';
@@ -135,10 +143,10 @@ export function AuditoryGoNoGo() {
     };
 
     const handleTimeout = () => {
-        if (!lastTrial || !canRespond.current) return;
+        if (!lastTrial || !canRespond.current || !engine) return;
 
         canRespond.current = false;
-        const responseTs = getAudioContextTime();
+        const responseTs = engine.getAudioContextTime();
         const rtMs = (responseTs - trialStartTime.current) * 1000;
         const isCorrect = lastTrial.type === 'NO-GO';
         const responseType = isCorrect ? 'correct_rejection' : 'miss';
@@ -166,7 +174,7 @@ export function AuditoryGoNoGo() {
                 chord: lastTrial?.chord
             },
             stimulusOnsetTs: trialStartTime.current,
-            responseTs: getAudioContextTime(),
+            responseTs: engine?.getAudioContextTime(),
             rtMs: rtMs,
             correct: isCorrect,
             responseType: responseType,
@@ -179,14 +187,14 @@ export function AuditoryGoNoGo() {
     };
     
     useEffect(() => {
-        if(isAudioReady && gameState === 'loading') {
-            startSession(true);
+        if(engine?.isReady && gameState === 'loading') {
+            startNewSession(true);
         }
-    }, [isAudioReady, gameState, startSession]);
+    }, [engine, gameState, startNewSession]);
     
     const renderContent = () => {
-        if (gameState === 'loading' && !isAudioReady) {
-            return <Button onClick={resumeContext} size="lg">Tap to Enable Audio</Button>
+        if (gameState === 'loading' && !engine?.isReady) {
+            return <Button onClick={() => engine?.resumeContext()} size="lg">Tap to Enable Audio</Button>
         }
         if (gameState === 'tutorial' || gameState === 'playing') {
              return (
@@ -198,26 +206,26 @@ export function AuditoryGoNoGo() {
                     <div className="h-8 text-xl font-bold">
                         <p className={cn(feedback === 'Good' ? 'text-green-400' : 'text-red-400')}>{feedback}</p>
                     </div>
-                    <Button onPointerDown={handlePress} className="w-48 h-48 rounded-full text-2xl bg-rose-600 hover:bg-rose-500 active:bg-rose-700">PRESS</Button>
+                    <Button onPointerDown={handlePress} className="w-48 h-48 rounded-full text-2xl">PRESS</Button>
                 </>
              )
         }
         if (gameState === 'finished') {
              return <div className="text-center">
                  <CardTitle>Session Complete</CardTitle>
-                 <Button onClick={() => startSession(true)} className="mt-4">Play Again</Button>
+                 <Button onClick={() => startNewSession(true)} className="mt-4">Play Again</Button>
              </div>
         }
     }
 
     return (
-        <Card className="w-full max-w-md text-center bg-rose-950 border-rose-500/20 text-rose-100">
+        <Card className="w-full max-w-md text-center">
             <CardHeader>
-                <CardTitle className="text-rose-300 flex items-center justify-center gap-2">
-                    <span className="p-2 bg-rose-500/10 rounded-md"><Hand className="w-6 h-6 text-rose-400" /></span>
+                <CardTitle className="flex items-center justify-center gap-2">
+                    <span className="p-2 bg-primary/10 rounded-md"><Hand className="w-6 h-6 text-primary" /></span>
                     Auditory Go/No-Go
                 </CardTitle>
-                <CardDescription className="text-rose-300/70">
+                <CardDescription>
                     <Headphones className="inline-block mr-1"/>Wired headphones recommended.
                 </CardDescription>
             </CardHeader>

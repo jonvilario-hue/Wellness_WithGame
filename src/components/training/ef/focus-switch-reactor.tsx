@@ -18,6 +18,7 @@ import { domainIcons } from "@/components/icons";
 import { useAudioEngine } from "@/hooks/useAudioEngine";
 import { FOCUS_MODE_META } from "@/lib/mode-constants";
 import { logicTokenPools } from "@/data/logic-content";
+import { PRNG } from "@/lib/rng";
 
 
 const GAME_ID: GameId = 'ef_focus_switch';
@@ -63,12 +64,12 @@ type Stimulus = {
 
 const logicKeywords = new Set(['if', 'else', 'for', 'while', 'return', 'function', 'let', 'const', 'switch', 'class']);
 const logicOperators = new Set(['==', '!=', '===', '!==', '&&', '||', '=>', '>=', '<=', '+', '-', '*', '/', '%', '**', '&', '|', '^', '~', '>>', '<<']);
-const logicTokenPool = logicTokenPools.tier2;
+const logicTokenPool = logicTokenPools.tier1;
 
 export function FocusSwitchReactor() {
   const { getAdaptiveState, updateAdaptiveState, logEvent, activeSession, startNewGameSession, completeCurrentGameSession } = usePerformanceStore();
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
-  const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
+  const { override, setOverride } = useTrainingOverride();
   const { engine, isReady: isAudioReady } = useAudioEngine();
 
   const [gameState, setGameState] = useState<'loading' | 'start' | 'cueing' | 'running' | 'feedback' | 'finished'>('loading');
@@ -84,15 +85,19 @@ export function FocusSwitchReactor() {
   const ruleRef = useRef(rule);
   const previousRuleRef = useRef(rule);
   const deviceInfo = useRef<any>(null);
+  const prngRef = useRef<PRNG | null>(null);
   
-  const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
+  const isComponentLoaded = isGlobalFocusLoaded;
   const currentMode = isComponentLoaded ? (override || globalFocus) : 'neutral';
   
   useEffect(() => {
+    // Reset the game when the focus mode changes
     if (isComponentLoaded) {
       setGameState('start');
+      setScore(0);
+      currentTrialIndex.current = 0;
     }
-  }, [isComponentLoaded]);
+  }, [currentMode, isComponentLoaded]);
   
   useEffect(() => {
     previousRuleRef.current = ruleRef.current;
@@ -100,16 +105,18 @@ export function FocusSwitchReactor() {
   }, [rule]);
 
   const generateStimulus = useCallback((): Partial<Stimulus> => {
+    if (!prngRef.current) return {};
+
     if (currentMode === 'neutral' || currentMode === 'spatial' || currentMode === 'verbal') {
         const positions: Position[] = ['top', 'bottom', 'left', 'right'];
         const arrows: ArrowDir[] = ['up', 'down', 'left', 'right'];
-        const newPosition = positions[Math.floor(Math.random() * positions.length)];
-        const newArrow = arrows[Math.floor(Math.random() * arrows.length)];
+        const newPosition = prngRef.current.shuffle(positions)[0];
+        const newArrow = prngRef.current.shuffle(arrows)[0];
         const newStimulus = { position: newPosition, arrow: newArrow };
         setStimulus(newStimulus);
         return newStimulus;
     } else if (currentMode === 'math') {
-        const newValue = Math.floor(Math.random() * 99) + 1; // 1-99
+        const newValue = prngRef.current.nextIntRange(1, 100);
         const newStimulus = { value: newValue };
         setStimulus(newStimulus);
         return newStimulus;
@@ -118,19 +125,19 @@ export function FocusSwitchReactor() {
         const params = policy.levelMap[state.currentLevel]?.content_config['music']?.params;
         if (!params) return {};
 
-        const pitch = Math.random() > 0.5 ? params.high_pitch_hz : params.low_pitch_hz;
-        const duration = Math.random() > 0.5 ? params.long_duration_ms : params.short_duration_ms;
+        const pitch = prngRef.current.nextFloat() > 0.5 ? params.high_pitch_hz : params.low_pitch_hz;
+        const duration = prngRef.current.nextFloat() > 0.5 ? params.long_duration_ms : params.short_duration_ms;
         const newStimulus = { pitch, duration };
         setStimulus(newStimulus);
         return newStimulus;
     } else if (currentMode === 'eq') {
-        const newEmotion: 'happy' | 'sad' = Math.random() > 0.5 ? 'happy' : 'sad';
-        const newGaze: 'left' | 'right' = Math.random() > 0.5 ? 'left' : 'right';
+        const newEmotion: 'happy' | 'sad' = prngRef.current.nextFloat() > 0.5 ? 'happy' : 'sad';
+        const newGaze: 'left' | 'right' = prngRef.current.nextFloat() > 0.5 ? 'left' : 'right';
         const newStimulus = { emotion: newEmotion, gaze: newGaze };
         setStimulus(newStimulus);
         return newStimulus;
     } else if (currentMode === 'logic') {
-        const token = logicTokenPool[Math.floor(Math.random() * logicTokenPool.length)];
+        const token = prngRef.current.shuffle(logicTokenPool)[0];
         const newStimulus = { value: token };
         setStimulus(newStimulus);
         return newStimulus;
@@ -139,6 +146,7 @@ export function FocusSwitchReactor() {
   }, [currentMode, getAdaptiveState]);
 
   const startNewTrial = useCallback((state: AdaptiveState) => {
+    if (!prngRef.current) return;
     const newStimulus = generateStimulus();
     
     const levelDef = policy.levelMap[state.currentLevel] || policy.levelMap[20];
@@ -161,10 +169,10 @@ export function FocusSwitchReactor() {
     let newRule = ruleRef.current;
     const switchProb = mechanic_config.switchProbability || 0.2;
     
-    if (Math.random() < switchProb) { 
+    if (prngRef.current.nextFloat() < switchProb) { 
       let tempRule = newRule;
       while (tempRule === newRule) {
-        tempRule = availableRules[Math.floor(Math.random() * availableRules.length)];
+        tempRule = prngRef.current.shuffle(availableRules)[0];
       }
       newRule = tempRule;
     }
@@ -195,10 +203,13 @@ export function FocusSwitchReactor() {
     const info = engine?.getLatencyInfo();
     deviceInfo.current = info;
 
+    const seed = crypto.randomUUID();
+    prngRef.current = new PRNG(seed);
+
     startNewGameSession({
         gameId: GAME_ID,
         focus: currentMode,
-        prngSeed: crypto.randomUUID(), // This game doesn't use a PRNG, but the session needs a seed.
+        prngSeed: seed,
         buildVersion: 'dev',
         difficultyConfig: policy,
     });
@@ -302,7 +313,7 @@ export function FocusSwitchReactor() {
   }, [gameState, getAdaptiveState, logEvent, updateAdaptiveState, currentMode, startNewTrial, stimulus, engine, activeSession, completeCurrentGameSession]);
   
   const handleAnswer = useCallback((answer: any, source: 'click' | 'keyboard') => {
-    if (gameState !== 'running' || !stimulus) return;
+    if (gameState !== 'running' || !stimulus || !prngRef.current) return;
     
     if (ruleRef.current === 'no_go') {
       processNextTurn(false, source, answer);
@@ -412,19 +423,19 @@ export function FocusSwitchReactor() {
                 return (
                     <div className="flex flex-col items-center gap-4 text-center">
                         <p className="text-muted-foreground">Audio required for this mode.</p>
-                        <Button onClick={startNewSession} size="lg" className="bg-rose-600 hover:bg-rose-500 text-white">Tap to Enable Audio & Start</Button>
+                        <Button onClick={startNewSession} size="lg">Tap to Enable Audio & Start</Button>
                     </div>
                 )
             }
             const { Icon, label } = FOCUS_MODE_META[currentMode];
           return (
             <div className="flex flex-col items-center gap-4 text-center">
-                <div className="flex flex-col items-center gap-2 text-rose-300">
+                <div className="flex flex-col items-center gap-2 text-primary mb-4">
                     <Icon className="w-10 h-10" />
                     <span className="font-semibold">{label} Mode</span>
                 </div>
-              <div className="font-mono text-lg text-rose-300">Level: {state?.currentLevel}</div>
-              <Button onClick={startNewSession} size="lg" className="bg-rose-600 hover:bg-rose-500 text-white">Focus Switch Reactor</Button>
+              <div className="font-mono text-lg text-muted-foreground">Level: {state?.currentLevel}</div>
+              <Button onClick={startNewSession} size="lg">Start</Button>
                <div className="flex items-center gap-2 text-muted-foreground mt-4">
                   <Keyboard className="w-5 h-5"/>
                   <p>Controls: Use (A / ←) and (L / →) keys for non-music modes.</p>
@@ -436,7 +447,7 @@ export function FocusSwitchReactor() {
             <div className="flex flex-col items-center gap-4">
               <CardTitle>Session Complete!</CardTitle>
               <p>Score: {score} / {policy.sessionLength}</p>
-              <Button onClick={() => setGameState('start')} size="lg" className="bg-rose-600 hover:bg-rose-500 text-white">Play Again</Button>
+              <Button onClick={() => setGameState('start')} size="lg">Play Again</Button>
             </div>
           );
         case 'cueing':
@@ -453,11 +464,11 @@ export function FocusSwitchReactor() {
             const ruleText = rule === 'pitch' ? 'PITCH' : 'DURATION';
             return (
                 <div className="flex flex-col items-center gap-4 w-full">
-                    <div className="flex justify-between w-full font-mono text-rose-200">
+                    <div className="flex justify-between w-full font-mono text-muted-foreground">
                         <span>Trial: {currentTrialIndex.current + 1} / {policy.sessionLength}</span>
                         <span>Score: {score}</span>
                     </div>
-                    <div className="relative p-8 bg-card rounded-lg w-full h-48 flex items-center justify-center">
+                    <div className="relative p-8 bg-muted rounded-lg w-full h-48 flex items-center justify-center">
                         <Ear className="w-24 h-24 text-primary opacity-20" />
                     </div>
                     <p className="text-xl mb-4 h-12 flex items-center text-center">Rule: <span className="font-bold text-primary uppercase ml-2">{ruleText}</span></p>
@@ -469,10 +480,10 @@ export function FocusSwitchReactor() {
                         )}
                     </div>
                     <div className="grid grid-cols-2 gap-4 w-full max-w-sm">
-                        <Button onClick={() => handleAnswer(rule === 'pitch' ? 'high' : 'long', 'click')} disabled={gameState === 'feedback'} variant="secondary" size="lg" className="h-20 bg-rose-900/50 border-rose-500/20 text-white hover:bg-rose-900">
+                        <Button onClick={() => handleAnswer(rule === 'pitch' ? 'high' : 'long', 'click')} disabled={gameState === 'feedback'} variant="secondary" size="lg" className="h-20">
                             {rule === 'pitch' ? 'High' : 'Long'}
                         </Button>
-                         <Button onClick={() => handleAnswer(rule === 'pitch' ? 'low' : 'short', 'click')} disabled={gameState === 'feedback'} variant="secondary" size="lg" className="h-20 bg-rose-900/50 border-rose-500/20 text-white hover:bg-rose-900">
+                         <Button onClick={() => handleAnswer(rule === 'pitch' ? 'low' : 'short', 'click')} disabled={gameState === 'feedback'} variant="secondary" size="lg" className="h-20">
                             {rule === 'pitch' ? 'Low' : 'Short'}
                         </Button>
                     </div>
@@ -483,11 +494,11 @@ export function FocusSwitchReactor() {
             const options: ('left' | 'right')[] = ['left', 'right'];
              return (
                 <div className="flex flex-col items-center gap-4 w-full">
-                    <div className="flex justify-between w-full font-mono text-rose-200">
+                    <div className="flex justify-between w-full font-mono text-muted-foreground">
                         <span>Trial: {currentTrialIndex.current + 1} / {policy.sessionLength}</span>
                         <span>Score: {score}</span>
                     </div>
-                    <div className="relative p-8 bg-card rounded-lg w-full h-48 flex items-center justify-center">
+                    <div className="relative p-8 bg-muted rounded-lg w-full h-48 flex items-center justify-center">
                          {stimulus.emotion && stimulus.gaze && (
                             <div className="text-center">
                                 <Smile className="w-24 h-24 text-primary" />
@@ -508,7 +519,7 @@ export function FocusSwitchReactor() {
                         {options.map((option) => {
                           const Icon = arrowMap[option as ArrowDir];
                           return (
-                              <Button key={option} onClick={() => handleAnswer(option, 'click')} disabled={gameState === 'feedback'} variant="secondary" size="lg" className="h-20 bg-rose-900/50 border-rose-500/20 text-white hover:bg-rose-900">
+                              <Button key={option} onClick={() => handleAnswer(option, 'click')} disabled={gameState === 'feedback'} variant="secondary" size="lg" className="h-20">
                                   <Icon className={"w-10 h-10"} />
                               </Button>
                           )
@@ -521,11 +532,11 @@ export function FocusSwitchReactor() {
            const options: ('left' | 'right')[] = ['left', 'right'];
            return (
             <div className="flex flex-col items-center gap-4 w-full">
-              <div className="flex justify-between w-full font-mono text-rose-200">
+              <div className="flex justify-between w-full font-mono text-muted-foreground">
                 <span>Trial: {currentTrialIndex.current + 1} / {policy.sessionLength}</span>
                 <span>Score: {score}</span>
               </div>
-              <div className="relative p-8 bg-card rounded-lg w-full h-48 flex items-center justify-center">
+              <div className="relative p-8 bg-muted rounded-lg w-full h-48 flex items-center justify-center">
                   <div className={cn("absolute inset-0 flex", stimulus.position ? positionClasses[stimulus.position] : 'items-center justify-center')}>
                     {(currentMode === 'neutral' || currentMode === 'spatial' || currentMode === 'verbal') && stimulus.arrow && (
                         <div className="w-20 h-20 bg-background rounded-md flex items-center justify-center">
@@ -556,7 +567,7 @@ export function FocusSwitchReactor() {
                 {options.map((option) => {
                   const Icon = arrowMap[option as ArrowDir] || (() => <span className="text-2xl">{option}</span>);
                   return (
-                      <Button key={option} onClick={() => handleAnswer(option, 'click')} disabled={gameState === 'feedback'} variant="secondary" size="lg" className="h-20 bg-rose-900/50 border-rose-500/20 text-white hover:bg-rose-900">
+                      <Button key={option} onClick={() => handleAnswer(option, 'click')} disabled={gameState === 'feedback'} variant="secondary" size="lg" className="h-20">
                           <Icon className={options.length === 4 ? "w-10 h-10" : "w-10 h-10"} />
                       </Button>
                   )
@@ -568,13 +579,13 @@ export function FocusSwitchReactor() {
   }
 
   return (
-    <Card className="w-full max-w-2xl text-center bg-rose-950 border-rose-500/20 text-rose-100">
+    <Card className="w-full max-w-2xl text-center">
       <CardHeader>
-        <CardTitle className="text-rose-300 flex items-center justify-center gap-2">
-           <span className="p-2 bg-rose-500/10 rounded-md"><domainIcons.EF className="w-6 h-6 text-rose-400" /></span>
+        <CardTitle className="flex items-center justify-center gap-2">
+           <span className="p-2 bg-primary/10 rounded-md"><domainIcons.EF className="w-6 h-6 text-primary" /></span>
            Focus Switch Reactor
         </CardTitle>
-        <CardDescription className="text-rose-300/70">Inhibition & Task-Switching Challenge. Pay attention to the rule! Wired headphones recommended for best results.</CardDescription>
+        <CardDescription>Inhibition & Task-Switching Challenge. Pay attention to the rule! Wired headphones recommended for best results.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-6 min-h-[500px] justify-center">
         {renderContent()}

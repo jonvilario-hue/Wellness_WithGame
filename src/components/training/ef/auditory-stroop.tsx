@@ -11,6 +11,7 @@ import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrialRecord } from "@/types";
 import { domainIcons } from "@/components/icons";
 import { cn } from "@/lib/utils";
+import { PRNG } from "@/lib/rng";
 
 const GAME_ID: GameId = 'ef_focus_switch';
 const policy = difficultyPolicies[GAME_ID];
@@ -23,7 +24,7 @@ type Trial = {
 
 export function AuditoryStroop() {
     const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
-    const { scheduleTone, resumeContext, isAudioReady, getAudioContextTime, getLatencyInfo } = useAudioEngine();
+    const { engine } = useAudioEngine();
 
     const [gameState, setGameState] = useState<'loading' | 'start' | 'running' | 'feedback' | 'finished'>('loading');
     const [trial, setTrial] = useState<Trial | null>(null);
@@ -34,8 +35,10 @@ export function AuditoryStroop() {
     const stimulusOnsetTs = useRef(0);
     const sessionId = useRef<string | null>(null);
     const deviceInfo = useRef<any>(null);
+    const prng = useRef<PRNG | null>(null);
     
     const startNewTrial = useCallback(() => {
+        if (!prng.current) return;
         if (trialCount.current >= policy.sessionLength) {
             setGameState('finished');
             return;
@@ -44,8 +47,8 @@ export function AuditoryStroop() {
         const state = getAdaptiveState(GAME_ID, 'music');
         const levelParams = policy.levelMap[state.currentLevel]?.content_config['music']?.params || policy.levelMap[1].content_config['music']!;
 
-        const isCongruent = Math.random() > levelParams.incongruent_ratio;
-        const word = Math.random() > 0.5 ? 'High' : 'Low';
+        const isCongruent = prng.current.nextFloat() > levelParams.incongruent_ratio;
+        const word = prng.current.nextFloat() > 0.5 ? 'High' : 'Low';
         let pitch: 'High' | 'Low';
 
         if (isCongruent) {
@@ -57,19 +60,22 @@ export function AuditoryStroop() {
         setTrial({ word, pitch, isCongruent });
         const freq = pitch === 'High' ? levelParams.high_pitch_hz : levelParams.low_pitch_hz;
         
-        const now = getAudioContextTime();
-        const handle = scheduleTone(freq, now + 0.1, 0.5);
-        if (handle) {
-            stimulusOnsetTs.current = handle.scheduledOnset;
+        if (engine) {
+            const now = engine.getAudioContextTime();
+            const handle = engine.playTone({frequency: freq, duration: 0.5, delay: 0.1});
+            if (handle) {
+                stimulusOnsetTs.current = handle.scheduledOnset;
+            }
         }
 
         trialCount.current++;
         setGameState('running');
-    }, [getAdaptiveState, scheduleTone, getAudioContextTime]);
+    }, [engine, getAdaptiveState]);
 
     const startNewSession = useCallback(() => {
-        resumeContext();
-        const info = getLatencyInfo();
+        if (!engine) return;
+        engine.resumeContext();
+        const info = engine.getLatencyInfo();
         deviceInfo.current = {
             browser: navigator.userAgent,
             sampleRate: info.sampleRate,
@@ -77,17 +83,18 @@ export function AuditoryStroop() {
             outputLatency: info.outputLatency,
         };
 
+        prng.current = new PRNG(crypto.randomUUID());
         const sessionState = startSession(getAdaptiveState(GAME_ID, 'music'));
         updateAdaptiveState(GAME_ID, 'music', sessionState);
         trialCount.current = 0;
         setSessionTrials([]);
         sessionId.current = crypto.randomUUID();
         startNewTrial();
-    }, [resumeContext, getLatencyInfo, getAdaptiveState, updateAdaptiveState, startNewTrial]);
+    }, [engine, getAdaptiveState, updateAdaptiveState, startNewTrial]);
 
     const handleResponse = (response: 'High' | 'Low') => {
-        if (!trial) return;
-        const responseTs = getAudioContextTime();
+        if (!trial || !engine) return;
+        const responseTs = engine.getAudioContextTime();
         const reactionTimeMs = (responseTs - stimulusOnsetTs.current) * 1000;
         const isCorrect = response === trial.pitch;
         
@@ -131,12 +138,12 @@ export function AuditoryStroop() {
     };
     
     useEffect(() => {
-        if(isAudioReady) setGameState('start');
-    }, [isAudioReady]);
+        if(engine?.isReady) setGameState('start');
+    }, [engine]);
 
     const renderContent = () => {
-        if (gameState === 'loading' || (gameState === 'start' && !isAudioReady)) {
-            return <Button onClick={resumeContext} size="lg">Tap to Enable Audio</Button>
+        if (gameState === 'loading' || (gameState === 'start' && !engine?.isReady)) {
+            return <Button onClick={() => engine?.resumeContext()} size="lg">Tap to Enable Audio</Button>
         }
         if (gameState === 'start') {
             return (
@@ -162,15 +169,15 @@ export function AuditoryStroop() {
                      <div className="text-center">
                         <p className="font-bold text-2xl">Identify the PITCH of the tone.</p>
                      </div>
-                     <div className="h-10 text-6xl font-bold text-rose-300">
+                     <div className="h-10 text-6xl font-bold">
                          {trial?.word}
                      </div>
                      <div className="h-10 text-xl font-bold">
                          {gameState === 'feedback' && <p className={cn(feedback === 'Correct!' ? 'text-green-400' : 'text-red-400')}>{feedback}</p>}
                      </div>
                      <div className="flex gap-4">
-                        <Button onClick={() => handleResponse('Low')} className="w-32 h-16 text-xl bg-rose-600 hover:bg-rose-500 active:bg-rose-700 transition-colors" disabled={gameState === 'feedback'}>Low</Button>
-                        <Button onClick={() => handleResponse('High')} className="w-32 h-16 text-xl bg-rose-600 hover:bg-rose-500 active:bg-rose-700 transition-colors" disabled={gameState === 'feedback'}>High</Button>
+                        <Button onClick={() => handleResponse('Low')} className="w-32 h-16 text-xl transition-colors" disabled={gameState === 'feedback'}>Low</Button>
+                        <Button onClick={() => handleResponse('High')} className="w-32 h-16 text-xl transition-colors" disabled={gameState === 'feedback'}>High</Button>
                     </div>
                 </div>
             )
@@ -178,13 +185,13 @@ export function AuditoryStroop() {
     }
 
     return (
-        <Card className="w-full max-w-md text-center bg-rose-950 border-rose-500/20 text-rose-100">
+        <Card className="w-full max-w-md text-center">
             <CardHeader>
-                <CardTitle className="text-rose-300 flex items-center justify-center gap-2">
-                    <span className="p-2 bg-rose-500/10 rounded-md"><domainIcons.EF className="w-6 h-6 text-rose-400" /></span>
+                <CardTitle className="flex items-center justify-center gap-2">
+                    <span className="p-2 bg-primary/10 rounded-md"><domainIcons.EF className="w-6 h-6 text-primary" /></span>
                     Auditory Stroop
                 </CardTitle>
-                <CardDescription className="text-rose-300/70">Ignore the word, classify the pitch. A test of auditory inhibition. Wired headphones recommended.</CardDescription>
+                <CardDescription>Ignore the word, classify the pitch. A test of auditory inhibition. Wired headphones recommended.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center gap-6 min-h-[300px] justify-center">
                 {renderContent()}
