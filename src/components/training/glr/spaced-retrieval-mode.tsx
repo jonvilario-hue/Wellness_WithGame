@@ -65,14 +65,14 @@ function ActiveDistractor({ duration, onComplete }: { duration: number, onComple
 
 
 export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result: { score: number, trials: TrialResult[] }) => void, focus: TrainingFocus }) {
-    const { addSpacedPairs, getDueReviewPairs, updatePairOnResult } = useGlrStore();
-    const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
+    const { introduceNewPairs, getDueReviewPairs, updatePairOnResult } = useGlrStore();
+    const { getAdaptiveState, updateAdaptiveState, logTrial, activeSession } = usePerformanceStore();
     const { playSequence, audioContext } = useAudioEngine();
     
     const [phase, setPhase] = useState<'review' | 'learn' | 'distract' | 'recall' | 'finished'>('review');
     const [sessionTrials, setSessionTrials] = useState<TrialResult[]>([]);
     const [duePairs, setDuePairs] = useState<SpacedPair[]>([]);
-    const [newPairs, setNewPairs] = useState<{word1: string, word2: string}[]>([]);
+    const [newPairs, setNewPairs] = useState<SpacedPair[]>([]);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [userInput, setUserInput] = useState('');
     const [feedback, setFeedback] = useState<Record<string, 'correct' | 'incorrect'>>({});
@@ -95,24 +95,14 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
             setDuePairs(pairsToReview);
             setPhase('recall');
         } else {
-            const wordList1 = realWords;
-            let wordList2 = realWords;
-            if(focus === 'music') wordList2 = Object.keys(icons);
-
-            const generated = Array.from({ length: policyParams.pairs }).map(() => {
-                const word1 = wordList1[Math.floor(Math.random() * wordList1.length)];
-                let word2 = wordList2[Math.floor(Math.random() * wordList2.length)];
-                while(word1 === word2) word2 = wordList2[Math.floor(Math.random() * wordList2.length)];
-                return { word1, word2 };
-            });
+            const generated = introduceNewPairs(focus, policyParams.pairs);
             setNewPairs(generated);
-            addSpacedPairs(generated);
             setPhase('learn');
         }
         setCurrentIndex(0);
         setSessionTrials([]);
         if (audioContext) trialStartTime.current = audioContext.currentTime;
-    }, [focus, getDueReviewPairs, addSpacedPairs, policyParams.pairs, getAdaptiveState, audioContext]);
+    }, [focus, getDueReviewPairs, introduceNewPairs, policyParams.pairs, getAdaptiveState, audioContext]);
 
     const handleNext = () => {
         const currentList = phase === 'recall' ? (duePairs.length > 0 ? duePairs : newPairs) : newPairs;
@@ -132,7 +122,7 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
     const handleRecallSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         const currentState = getAdaptiveState(GLR_GAME_ID, focus);
-        if (!currentState || !audioContext) return;
+        if (!currentState || !audioContext || !activeSession) return;
         
         const reactionTimeMs = (audioContext.currentTime - trialStartTime.current) * 1000;
         const pair = (duePairs.length > 0 ? duePairs : newPairs)[currentIndex];
@@ -160,12 +150,9 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
         };
 
         logTrial({
-            module_id: GLR_GAME_ID,
-            mode: focus,
-            levelPlayed: currentState.currentLevel,
-            isCorrect,
-            responseTime_ms: reactionTimeMs,
-            meta: trial.telemetry,
+            type: 'trial_complete',
+            sessionId: activeSession.sessionId,
+            payload: { ...trial, gameId: GLR_GAME_ID, focus } as any
         });
 
         const newState = adjustDifficulty(trial, currentState, glrPolicy);
