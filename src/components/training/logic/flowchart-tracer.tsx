@@ -48,6 +48,9 @@ const FlowchartNode = ({ node, layout }: { node: any, layout: any }) => {
 };
 
 const FlowchartEdge = ({ edge, layout }: { edge: any, layout: any }) => {
+    if (!layout.points) {
+        return null;
+    }
     const points = layout.points.map((p: any) => `${p.x},${p.y}`).join(' ');
     const arrowId = `arrow-${edge.v}-${edge.w}`;
     return (
