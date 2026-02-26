@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useCallback, useEffect, useRef, lazy, Suspense } from "react";
@@ -8,7 +7,7 @@ import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
 import { adjustDifficulty, startSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
-import type { AdaptiveState, TrialResult, GameId, TrainingFocus, BaseRendererProps } from "@/types";
+import type { AdaptiveState, TrialResult, GameId, TrainingFocus, BaseRendererProps, TelemetryEvent } from "@/types";
 import { clozeSentences, morphologyWordPairs, spatialConcepts } from "@/data/verbal-content";
 import { GameStub } from "../game-stub";
 import { RegulationArchitect } from "./regulation-architect";
@@ -59,11 +58,10 @@ export const generatePuzzleForLevel = (level: number, focus: TrainingFocus): GcC
     
     // If the specific focus isn't defined for this level, fall back to the verbal config for this level
     if (!contentConfig || !contentConfig.params) {
-      contentConfig = levelDef.content_config['verbal'];
+        contentConfig = levelDef.content_config['verbal'];
     }
 
-    // If even the verbal config is missing (which would be an error in the policy file),
-    // we need a hard fallback to prevent crashing.
+    // If even the verbal config is missing, create a safe fallback to prevent crashes.
     if (!contentConfig || !contentConfig.params) {
         const puzzleTemplate = {
             question: "Which word is an antonym for 'happy'?",
@@ -74,7 +72,7 @@ export const generatePuzzleForLevel = (level: number, focus: TrainingFocus): GcC
          return {
             type: 'cloze_deletion', // give it a default type
             question: puzzleTemplate.question,
-            options: [...puzzleTemplate.options, puzzleTemplate.answer].sort(() => Math.random() - 0.5),
+            options: [...puzzleTemplate.options].sort(() => Math.random() - 0.5),
             answer: puzzleTemplate.answer,
             explanation: puzzleTemplate.explanation,
         };
@@ -116,7 +114,7 @@ export const generatePuzzleForLevel = (level: number, focus: TrainingFocus): GcC
 };
 
 export function VerbalInferenceBuilder() {
-  const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
+  const { getAdaptiveState, updateAdaptiveState, logEvent, activeSession, startNewGameSession, completeCurrentGameSession } = usePerformanceStore();
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
   const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
   
@@ -130,8 +128,6 @@ export function VerbalInferenceBuilder() {
   const trialStartTime = useRef(0);
   const currentTrialIndex = useRef(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const correctSentenceRef = useRef('');
-  const sessionId = useRef(crypto.randomUUID());
 
   const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
   const currentMode = isComponentLoaded ? (override || globalFocus) : 'neutral';
@@ -140,6 +136,14 @@ export function VerbalInferenceBuilder() {
   
   const handleEvent = useCallback((event: GcVerbalGameEvent) => {
     if (event.type === 'START_SESSION') {
+        const seed = crypto.randomUUID(); // This game does not use a PRNG, but sessions require a seed.
+        startNewGameSession({
+            gameId: GAME_ID,
+            focus: currentMode,
+            prngSeed: seed,
+            buildVersion: 'dev',
+            difficultyConfig: policy,
+        });
       const sessionState = startSession(getAdaptiveState(GAME_ID, currentMode));
       updateAdaptiveState(GAME_ID, currentMode, sessionState);
       currentTrialIndex.current = 0;
@@ -150,7 +154,9 @@ export function VerbalInferenceBuilder() {
       
       if (timerRef.current) clearTimeout(timerRef.current);
       
-      const reactionTimeMs = Date.now() - trialStartTime.current;
+      const responseTs = Date.now();
+      const reactionTimeMs = responseTs - trialStartTime.current;
+      const levelPlayed = adaptiveState.currentLevel;
       
       let isCorrect = false;
       if (componentState.puzzle.type === 'spatial_concept_map') {
@@ -160,14 +166,30 @@ export function VerbalInferenceBuilder() {
       }
 
       const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs, telemetry: { timedOut: event.answer === null } };
-      logTrial({
-        module_id: GAME_ID,
-        mode: currentMode,
-        levelPlayed: adaptiveState.currentLevel,
-        isCorrect,
-        responseTime_ms: reactionTimeMs,
-        meta: { puzzleType: componentState.puzzle.type, }
-      } as any);
+      
+      if (activeSession) {
+          logEvent({
+            type: 'trial_complete',
+            sessionId: activeSession.sessionId,
+            seq: (activeSession.trialCount || 0) + 1,
+            payload: {
+                id: `${activeSession.sessionId}-${currentTrialIndex.current}`,
+                sessionId: activeSession.sessionId,
+                gameId: GAME_ID,
+                focus: currentMode,
+                trialIndex: currentTrialIndex.current,
+                difficultyLevel: levelPlayed,
+                correct: isCorrect,
+                rtMs: reactionTimeMs,
+                stimulusParams: { puzzleType: componentState.puzzle.type },
+                responseType: isCorrect ? 'correct' : 'incorrect',
+                stimulusOnsetTs: trialStartTime.current,
+                responseTs,
+                pausedDurationMs: 0,
+                wasFallback: false
+            }
+          } as Omit<TelemetryEvent, 'eventId' | 'timestamp' | 'schemaVersion'>);
+      }
       
       const newState = adjustDifficulty(trialResult, adaptiveState, policy);
       updateAdaptiveState(GAME_ID, currentMode, newState);
@@ -179,12 +201,13 @@ export function VerbalInferenceBuilder() {
           currentTrialIndex.current++;
           if (currentTrialIndex.current >= policy.sessionLength) {
               setComponentState(prev => ({...prev, gameState: 'finished'}));
+              completeCurrentGameSession();
           } else {
               startNewTrial(newState);
           }
       }, 2500);
     }
-  }, [componentState.gameState, componentState.puzzle, getAdaptiveState, currentMode, logTrial, adaptiveState, updateAdaptiveState]);
+  }, [componentState.gameState, componentState.puzzle, getAdaptiveState, currentMode, adaptiveState, updateAdaptiveState, startNewTrial, startNewGameSession, completeCurrentGameSession, activeSession, logEvent]);
 
   
   const startNewTrial = useCallback((state: AdaptiveState) => {
