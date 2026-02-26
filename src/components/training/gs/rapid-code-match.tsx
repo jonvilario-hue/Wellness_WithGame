@@ -138,8 +138,8 @@ export function RapidCodeMatch() {
       if(newProblem.type === 'rhythm') {
           const baseRhythm = [60, 0, 60, 0];
           const secondRhythm = newProblem.isSame ? baseRhythm : [60, 60, 0, 0];
-          playSequence(baseRhythm, 0.25, () => {
-              setTimeout(() => playSequence(secondRhythm, 0.25), 500);
+          playSequence(baseRhythm.map(n => ({ frequency: n * 10, duration: 0.1, type: 'sine'})), 250, () => {
+              setTimeout(() => playSequence(secondRhythm.map(n => ({ frequency: n * 10, duration: 0.1, type: 'sine'})), 250), 500);
           });
       }
       
@@ -169,7 +169,7 @@ export function RapidCodeMatch() {
             if (isSame) {
                 objectB = target.options.find(opt => opt.index === target.correctIndex)!.polycube;
             } else {
-                objectB = prngRef.current!.shuffle(target.options.filter(opt => opt.index !== target.correctIndex))[0].polycube;
+                objectB = prngRef.current!.shuffle(target.options.filter(opt => opt && opt.index !== target.correctIndex))[0].polycube;
             }
             return { type: 'spatial_compare', objectA, objectB, isSame };
         });
@@ -394,9 +394,9 @@ export function RapidCodeMatch() {
                 </div>
             </div>
             
-            <div className={cn("grid gap-2 justify-center max-w-md mx-auto grid-cols-5")}>
+            <div className={cn("flex flex-wrap gap-3 justify-center max-w-md mx-auto")}>
               {Object.entries(problem.keyMap!).map(([_, digit]) => (
-                <Button key={digit} onClick={() => handleAnswer(digit)} variant="secondary" size="lg" className="text-2xl h-16 bg-zinc-700 hover:bg-zinc-600 text-white" disabled={gameState === 'feedback'}>
+                <Button key={digit} onClick={() => handleAnswer(digit)} variant="secondary" size="lg" className="text-2xl h-16 w-16 bg-zinc-700 hover:bg-zinc-600 text-white" disabled={gameState === 'feedback'}>
                   {digit}
                 </Button>
               ))}
@@ -431,5 +431,6 @@ const musicSymbolKeyPool = ['♩', '♪', '♫', '♭', '♯', '♮', '𝄞', '�
 const digits = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
     
+
 
 

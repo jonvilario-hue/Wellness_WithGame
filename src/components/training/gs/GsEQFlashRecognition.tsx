@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -47,7 +48,7 @@ const generatePuzzle = (level: number, prng: PRNG): Puzzle => {
 
 export function GsEQFlashRecognition() {
   const { getAdaptiveState, updateAdaptiveState, logEvent, activeSession } = usePerformanceStore();
-  const { playSample } = useAudioEngine();
+  const { engine } = useAudioEngine();
   
   const [phase, setPhase] = useState<'start' | 'fixation' | 'stimulus' | 'mask' | 'response' | 'feedback' | 'finished'>('start');
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
@@ -83,7 +84,7 @@ export function GsEQFlashRecognition() {
     }
   }, [phase, flashDuration]);
 
-  const handleResponse = (response: Emotion | 'no-go') => {
+  const handleResponse = useCallback((response: Emotion | 'no-go') => {
     if (phase !== 'response' || !puzzle) return;
 
     const rt = performance.now() - trialStartTime.current;
@@ -128,7 +129,7 @@ export function GsEQFlashRecognition() {
 
     setPhase('feedback');
     setTimeout(startNewTrial, 1500);
-  };
+  }, [accuracyWindow, activeSession, flashDuration, getAdaptiveState, logEvent, phase, puzzle, startNewTrial, updateAdaptiveState]);
   
   useEffect(() => {
     // No-Go response timeout
@@ -151,9 +152,9 @@ export function GsEQFlashRecognition() {
             <div className="h-8 text-xl font-bold">
               {feedback && <p className={cn(feedback.correct ? 'text-green-400' : 'text-red-400')}>{feedback.message}</p>}
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-wrap justify-center gap-4">
               {puzzle?.options.map((opt, index) => (
-                <Button key={`${opt}-${index}`} onClick={() => handleResponse(opt)} disabled={phase === 'feedback'} className="h-20 text-lg capitalize bg-orange-800/80 border border-orange-500/30 text-white hover:bg-orange-700/90 active:bg-orange-700/80 transition-colors">{opt}</Button>
+                <Button key={`${opt}-${index}`} onClick={() => handleResponse(opt)} disabled={phase === 'feedback'} className="h-20 w-32 text-lg capitalize bg-orange-800/80 border border-orange-500/30 text-white hover:bg-orange-700/90 active:bg-orange-700/80 transition-colors">{opt}</Button>
               ))}
             </div>
           </div>
