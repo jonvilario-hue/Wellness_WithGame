@@ -35,28 +35,46 @@ export const generateEmotionRotationTrial = (level: number, prng: PRNG): Emotion
     // The correct answer is a true rotation
     const correctOption: EmotionRotationStimulus = { emotion: targetEmotion, rotation: rotationAngle, mirrored: false };
     
-    // The incorrect answer is a mirrored rotation
-    const incorrectOption: EmotionRotationStimulus = { emotion: targetEmotion, rotation: rotationAngle, mirrored: true };
-    
-    let options = [correctOption, incorrectOption];
-    
-    // Add foil emotions in higher tiers
-    if (params.emotionFoil && emotions.length > 1) {
-        const foilEmotion = prng.shuffle(emotions.filter(e => e !== targetEmotion))[0];
-        const foilOption: EmotionRotationStimulus = { emotion: foilEmotion, rotation: rotationAngle, mirrored: prng.nextFloat() > 0.5 };
-        options.push(foilOption);
+    let options: EmotionRotationStimulus[] = [correctOption];
+    const usedDecoys = new Set<string>([JSON.stringify(correctOption)]);
+
+    // Add the mirror image as the primary distractor
+    const mirrorOption = { ...correctOption, mirrored: true };
+    if(JSON.stringify(correctOption) !== JSON.stringify(mirrorOption)) {
+        if(options.length < 4 && !usedDecoys.has(JSON.stringify(mirrorOption))) {
+            options.push(mirrorOption);
+            usedDecoys.add(JSON.stringify(mirrorOption));
+        }
     }
-     while (options.length < params.distractorCount) {
-        const foilEmotion = prng.shuffle(emotions.filter(e => e !== targetEmotion))[0];
-        const foilRotation = prng.shuffle(angles.filter(a => a !== rotationAngle))[0];
-        const foilOption: EmotionRotationStimulus = { emotion: foilEmotion, rotation: foilRotation, mirrored: prng.nextFloat() > 0.5 };
-        if(!options.some(o => JSON.stringify(o) === JSON.stringify(foilOption))) {
-            options.push(foilOption);
+    
+    let attempts = 0;
+    while (options.length < 4 && attempts < 20) {
+        attempts++;
+        const isAngleDecoy = prng.nextFloat() > 0.5;
+        let decoy: EmotionRotationStimulus;
+
+        const availableAngles = angles.filter(a => a !== rotationAngle);
+        if (availableAngles.length === 0) { // Should not happen with current policies
+            availableAngles.push( (rotationAngle + 90) % 360 );
+        }
+        
+        if (isAngleDecoy) {
+            const decoyAngle = prng.shuffle(availableAngles)[0];
+            decoy = { ...correctOption, rotation: decoyAngle, mirrored: prng.nextFloat() > 0.5 };
+        } else {
+            const decoyEmotion = prng.shuffle(emotions.filter(e => e !== targetEmotion))[0];
+            decoy = { ...correctOption, emotion: decoyEmotion, mirrored: prng.nextFloat() > 0.5 };
+        }
+        
+        const decoyKey = JSON.stringify(decoy);
+        if (!usedDecoys.has(decoyKey)) {
+            options.push(decoy);
+            usedDecoys.add(decoyKey);
         }
     }
     
     const shuffledOptions = prng.shuffle(options);
-    const correctIndex = shuffledOptions.findIndex(opt => !opt.mirrored && opt.emotion === targetEmotion);
+    const correctIndex = shuffledOptions.findIndex(opt => opt && !opt.mirrored && opt.emotion === targetEmotion);
 
     return {
         target,
