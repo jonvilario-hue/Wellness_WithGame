@@ -12,22 +12,25 @@ import type { GwmGameState, GwmGameEvent } from './dynamic-sequence-transformer'
 import type { EQFacePuzzle } from '@/lib/gwm-stimulus-factory';
 import { FOCUS_MODE_META } from '@/lib/mode-constants';
 
-const FaceSprite = ({ stimulus, showLabel }: { stimulus: any, showLabel: boolean }) => (
-  <div className="flex flex-col items-center gap-2">
-    <div
-      aria-label={`Face showing ${stimulus.emotionCategory}`}
-      className="w-32 h-32 bg-no-repeat rounded-lg border-2 border-cyan-700"
-      style={{
-        backgroundImage: `url(${stimulus.sprite.sheetUrl})`,
-        backgroundPosition: `-${stimulus.sprite.coords.x}px -${stimulus.sprite.coords.y}px`,
-        imageRendering: 'pixelated',
-      }}
-    />
-    {showLabel && (
-      <span className="font-semibold text-cyan-200 capitalize">{stimulus.emotionCategory}</span>
-    )}
-  </div>
-);
+const FaceSprite = ({ stimulus, showLabel }: { stimulus: any, showLabel: boolean }) => {
+    if (!stimulus || !stimulus.emotionCategory || !stimulus.sprite) return null;
+    return (
+        <div className="flex flex-col items-center gap-2">
+            <div
+            aria-label={`Face showing ${stimulus.emotionCategory}`}
+            className="w-32 h-32 bg-no-repeat rounded-lg border-2 border-cyan-700"
+            style={{
+                backgroundImage: `url(${stimulus.sprite.sheetUrl})`,
+                backgroundPosition: `-${stimulus.sprite.coords.x}px -${stimulus.sprite.coords.y}px`,
+                imageRendering: 'pixelated',
+            }}
+            />
+            {showLabel && (
+            <span className="font-semibold text-cyan-200 capitalize">{stimulus.emotionCategory}</span>
+            )}
+        </div>
+    );
+};
 
 export const GwmEQRenderer: React.FC<BaseRendererProps<GwmGameState, GwmGameEvent>> = ({
   gameState,
@@ -40,6 +43,11 @@ export const GwmEQRenderer: React.FC<BaseRendererProps<GwmGameState, GwmGameEven
 }) => {
   const { gameState: phase, puzzle, userAnswer } = gameState;
   const [sequenceIndex, setSequenceIndex] = useState(0);
+
+  // Guard against rendering with incorrect puzzle type
+  if (puzzle && puzzle.type !== 'eq_face_sequence') {
+      return <div className="w-full h-full flex items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-cyan-400" /></div>;
+  }
 
   // --- Animation for sequence presentation ---
   useEffect(() => {

@@ -109,7 +109,7 @@ export default function TrainingPage() {
          </div>
        </div>
 
-      <main className="flex-1 p-4 sm:p-6 md:p-8 flex">
+      <main className="flex-1 p-4 sm:p-6 md:p-8 flex items-center justify-center">
         {isGlobalFocusLoaded ? <GameComponent /> : <Skeleton className="h-96 w-full max-w-2xl" />}
       </main>
     </div>
