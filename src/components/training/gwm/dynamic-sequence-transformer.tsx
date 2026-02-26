@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useMemo, useEffect, useCallback, useRef, lazy, Suspense } from "react";
@@ -5,7 +6,7 @@ import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
-import type { AdaptiveState, TrialResult, GameId, TrainingFocus, BaseRendererProps } from "@/types";
+import type { AdaptiveState, TrialResult, GameId, TrainingFocus, BaseRendererProps, TelemetryEvent } from "@/types";
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
 import { GameStub } from "../game-stub";
@@ -50,7 +51,7 @@ export type GwmGameEvent =
 
 // --- Logic Component ---
 export function DynamicSequenceTransformer() {
-  const { getAdaptiveState, updateAdaptiveState, logTrial } = usePerformanceStore();
+  const { getAdaptiveState, updateAdaptiveState, logEvent, activeSession, startNewGameSession, completeCurrentGameSession } = usePerformanceStore();
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
   const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
   const { resumeContext } = useAudioEngine();
@@ -66,8 +67,7 @@ export function DynamicSequenceTransformer() {
   const currentTrialIndex = useRef(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const correctSentenceRef = useRef('');
-  const sessionId = useRef(crypto.randomUUID());
-  const prngRef = useRef<PRNG>(new PRNG(sessionId.current));
+  const prngRef = useRef<PRNG>(new PRNG('initial-seed'));
 
   const isVisible = usePageVisibility();
   const pauseTimeRef = useRef<number | null>(null);
@@ -97,6 +97,7 @@ export function DynamicSequenceTransformer() {
 
   const startNewTrial = useCallback((state: AdaptiveState) => {
     const prng = prngRef.current;
+    if (!prng) return;
     
     const onRamp = state.uncertainty > 0.7;
     const loadedLevel = onRamp
@@ -163,15 +164,23 @@ export function DynamicSequenceTransformer() {
   const handleEvent = useCallback((event: GwmGameEvent) => {
     if(event.type === 'START_SESSION') {
       resumeContext();
-      const state = getAdaptiveState(GAME_ID, currentMode);
-      const newSessionId = crypto.randomUUID();
-      sessionId.current = newSessionId;
-      prngRef.current = new PRNG(newSessionId);
+      const seed = crypto.randomUUID();
+      prngRef.current = new PRNG(seed);
+      
+      startNewGameSession({
+        gameId: GAME_ID,
+        focus: currentMode,
+        prngSeed: seed,
+        buildVersion: 'dev',
+        difficultyConfig: policy
+      });
 
-      const sessionState = startSession(state);
-      updateAdaptiveState(GAME_ID, currentMode, sessionState);
+      const initialAdaptiveState = getAdaptiveState(GAME_ID, currentMode);
+      const sessionAdaptiveState = startSession(initialAdaptiveState);
+      updateAdaptiveState(GAME_ID, currentMode, sessionAdaptiveState);
+      
       currentTrialIndex.current = 0;
-      startNewTrial(sessionState);
+      startNewTrial(sessionAdaptiveState);
     } else if (event.type === 'SUBMIT_ANSWER') {
       const { puzzle } = componentState;
       const state = getAdaptiveState(GAME_ID, currentMode);
@@ -208,24 +217,28 @@ export function DynamicSequenceTransformer() {
       const levelPlayed = state.currentLevel;
       const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs, telemetry };
       
-      logTrial({
-        id: `${sessionId.current}-${currentTrialIndex.current}`,
-        sessionId: sessionId.current!,
-        gameId: GAME_ID,
-        trialIndex: currentTrialIndex.current,
-        seq: currentTrialIndex.current,
-        difficultyLevel: levelPlayed,
-        stimulusOnsetTs: trialStartTime.current,
-        responseTs,
-        rtMs: reactionTimeMs,
-        correct: isCorrect,
-        responseType: isCorrect ? 'correct' : 'incorrect',
-        stimulusParams: telemetry,
-        timestamp: Date.now(),
-        pausedDurationMs: pausedDurationRef.current,
-        wasFallback: false,
-        schemaVersion: 2,
-      } as any);
+      if (activeSession) {
+          logEvent({
+            type: 'trial_complete',
+            sessionId: activeSession.sessionId,
+            payload: {
+              id: `${activeSession.sessionId}-${currentTrialIndex.current}`,
+              sessionId: activeSession.sessionId,
+              gameId: GAME_ID,
+              focus: currentMode,
+              trialIndex: currentTrialIndex.current,
+              difficultyLevel: levelPlayed,
+              correct: isCorrect,
+              rtMs: reactionTimeMs,
+              stimulusParams: telemetry,
+              responseType: isCorrect ? 'correct' : 'incorrect',
+              stimulusOnsetTs: trialStartTime.current,
+              responseTs: responseTs,
+              pausedDurationMs: pausedDurationRef.current,
+              wasFallback: false
+            }
+          } as Omit<TelemetryEvent, 'eventId' | 'timestamp' | 'schemaVersion' | 'seq'>);
+      }
       
       const newState = adjustDifficulty(trialResult, state, policy);
       updateAdaptiveState(GAME_ID, currentMode, newState);
@@ -236,12 +249,13 @@ export function DynamicSequenceTransformer() {
           currentTrialIndex.current++;
           if(currentTrialIndex.current >= policy.sessionLength) {
               setComponentState(prev => ({...prev, gameState: 'finished'}));
+              completeCurrentGameSession();
           } else {
               startNewTrial(newState);
           }
       }, 2500);
     }
-  }, [componentState, getAdaptiveState, updateAdaptiveState, startNewTrial, currentMode, logTrial, resumeContext]);
+  }, [componentState, getAdaptiveState, updateAdaptiveState, startNewTrial, currentMode, logEvent, resumeContext, activeSession, startNewGameSession, completeCurrentGameSession]);
 
   if (!isComponentLoaded) {
       return <div className="w-full max-w-2xl min-h-[400px] flex items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
