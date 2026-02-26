@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -131,7 +132,7 @@ export default function TrainingPage() {
          </div>
        </div>
 
-      <main className="flex-1 p-4 sm:p-6 md:p-8 flex items-center justify-center">
+      <main className="flex-1 p-4 sm:p-6 md:p-8 flex">
         {isGlobalFocusLoaded && GameComponent ? <GameComponent /> : <Skeleton className="h-96 w-full max-w-2xl" />}
       </main>
     </div>
