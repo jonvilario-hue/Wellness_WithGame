@@ -1,3 +1,4 @@
+
 'use client';
 
 import { create } from 'zustand';
@@ -115,7 +116,11 @@ export const useGlrStore = create<GlrState & GlrActions>()(
                     tier = get().logicTierUnlocked;
                     const allLogicPairsInTier = tier === 1 ? logicPairsTier1 : tier === 2 ? [...logicPairsTier1, ...logicPairsTier2] : allLogicPairs;
                     const unlearnedPairs = allLogicPairsInTier.filter(p => !existingPairs[`logic-${p.stimulus}`]);
-                    newPairs = unlearnedPairs.slice(0, count);
+                    newPairs = unlearnedPairs.slice(0, count).map(p => ({
+                        word1: p.stimulus,
+                        word2: p.meaning,
+                        hint: p.hint
+                    }));
                 } else {
                     const shuffledWords = [...realWords].sort(() => 0.5 - Math.random());
                     let i = 0;

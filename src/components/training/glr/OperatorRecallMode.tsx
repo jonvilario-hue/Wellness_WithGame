@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import type { TrainingFocus, AdaptiveState, TrialResult, GameId } from "@/types";
 import { useGlrStore, type SpacedPair } from "@/hooks/use-glr-store";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
+import { realWords } from "@/data/verbal-content";
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import { Loader2, Brain, Check, X, Sparkles } from "lucide-react";
@@ -20,14 +21,16 @@ const glrPolicy = difficultyPolicies[GLR_GAME_ID];
 const generateDistractors = (correctMeaning: string, allPairs: SpacedPair[], prng: PRNG): string[] => {
     const potentialDistractors = allPairs.filter(p => p && p.word2 && p.word2 !== correctMeaning);
 
-    if (potentialDistractors.length === 0) {
-        return [];
+    if (potentialDistractors.length < 3) {
+        // Not enough unique distractors, return what we have
+        return potentialDistractors.map(p => p.word2);
     }
 
     const shuffled = prng.shuffle(potentialDistractors);
     const distractors = new Set<string>();
     
     for (const pair of shuffled) {
+        if (!pair) continue; // Defensive check
         if (distractors.size < 3) {
             distractors.add(pair.word2);
         } else {
