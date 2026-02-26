@@ -70,7 +70,7 @@ export function FocusSwitchReactor() {
   const { getAdaptiveState, updateAdaptiveState, logEvent, activeSession, startNewGameSession, completeCurrentGameSession } = usePerformanceStore();
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
   const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
-  const { playNote, scheduleTone, resumeContext, isAudioReady, getAudioContextTime, getLatencyInfo } = useAudioEngine();
+  const { engine, isReady: isAudioReady } = useAudioEngine();
 
   const [gameState, setGameState] = useState<'loading' | 'start' | 'cueing' | 'running' | 'feedback' | 'finished'>('loading');
   
@@ -178,8 +178,8 @@ export function FocusSwitchReactor() {
         const csi = contentConfig.params?.csi_ms || 1000;
         setTimeout(() => {
             const stimulusToPlay = newStimulus;
-            if(stimulusToPlay.pitch && stimulusToPlay.duration) {
-                const handle = scheduleTone(stimulusToPlay.pitch, getAudioContextTime(), stimulusToPlay.duration / 1000);
+            if(stimulusToPlay.pitch && stimulusToPlay.duration && engine) {
+                const handle = engine.playTone({frequency: stimulusToPlay.pitch, duration: stimulusToPlay.duration / 1000});
                 if (handle) stimulusOnsetTs.current = handle.scheduledOnset;
             }
             setGameState('running');
@@ -187,13 +187,13 @@ export function FocusSwitchReactor() {
 
     } else {
         setGameState('running');
-        stimulusOnsetTs.current = getAudioContextTime();
+        stimulusOnsetTs.current = engine?.getAudioContextTime() || 0;
     }
-  }, [generateStimulus, currentMode, getAudioContextTime, scheduleTone]);
+  }, [generateStimulus, currentMode, engine]);
 
   const startNewSession = useCallback(() => {
-    resumeContext();
-    const info = getLatencyInfo();
+    engine?.resumeContext();
+    const info = engine?.getLatencyInfo();
     deviceInfo.current = info;
 
     startNewGameSession({
@@ -211,14 +211,14 @@ export function FocusSwitchReactor() {
     ruleSwitchCounter.current = 0;
     setScore(0);
     startNewTrial(sessionState);
-  }, [startNewTrial, resumeContext, updateAdaptiveState, currentMode, getAdaptiveState, getLatencyInfo, startNewGameSession]);
+  }, [startNewTrial, engine, updateAdaptiveState, currentMode, getAdaptiveState, startNewGameSession]);
 
   const processNextTurn = useCallback((correct: boolean, source: 'click' | 'keyboard' | 'timeout', responseValue?: any) => {
     const state = getAdaptiveState(GAME_ID, currentMode);
     if ((gameState !== 'running' && gameState !== 'cueing') || !state || !activeSession) return;
 
     setGameState('feedback');
-    const responseTs = getAudioContextTime();
+    const responseTs = engine?.getAudioContextTime() || 0;
     const levelPlayed = state.currentLevel;
     const reactionTimeMs = (responseTs - stimulusOnsetTs.current) * 1000;
     if (correct) {
@@ -299,7 +299,7 @@ export function FocusSwitchReactor() {
             startNewTrial(newState);
         }
     }, 1500);
-  }, [gameState, getAdaptiveState, logEvent, updateAdaptiveState, currentMode, startNewTrial, stimulus, getAudioContextTime, activeSession, completeCurrentGameSession]);
+  }, [gameState, getAdaptiveState, logEvent, updateAdaptiveState, currentMode, startNewTrial, stimulus, engine, activeSession, completeCurrentGameSession]);
   
   const handleAnswer = useCallback((answer: any, source: 'click' | 'keyboard') => {
     if (gameState !== 'running' || !stimulus) return;
