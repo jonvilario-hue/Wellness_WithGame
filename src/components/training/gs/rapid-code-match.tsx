@@ -10,7 +10,7 @@ import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
 import { getFailureFeedback } from "@/lib/feedback-system";
-import { Loader2 } from "lucide-react";
+import { Loader2, Zap } from "lucide-react";
 import { adjustDifficulty, startSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { TrialResult, GameId } from "@/types";
@@ -30,6 +30,11 @@ const GsSpatialRenderer = lazy(() => import('./GsSpatialRenderer'));
 const GAME_ID: GameId = 'gs_rapid_code';
 const policy = difficultyPolicies[GAME_ID];
 
+const symbolKeyPool = ['★', '●', '▲', '■', '◆', '✚', '❤', '⚡', '☺'];
+const mathSymbolKeyPool = ['+', '−', '×', '÷', '%', '∑', '√', '∞', '='];
+const musicSymbolKeyPool = ['♩', '♪', '♫', '♭', '♯', '♮', '𝄞', '𝄢', '𝄡'];
+const digits = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+
 type Problem = {
     type: 'lexical' | 'symbol' | 'rhythm' | 'spatial_compare';
     stimulus: any;
@@ -40,11 +45,6 @@ type Problem = {
     objectA?: Polycube;
     objectB?: Polycube;
 };
-
-const symbolKeyPool = ['★', '●', '▲', '■', '◆', '✚', '❤', '⚡', '☺'];
-const mathSymbolKeyPool = ['+', '−', '×', '÷', '%', '∑', '√', '∞', '='];
-const musicSymbolKeyPool = ['♩', '♪', '♫', '♭', '♯', '♮', '𝄞', '𝄢', '𝄡'];
-const digits = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 export function RapidCodeMatch() {
   const { getAdaptiveState, updateAdaptiveState, logEvent, activeSession } = usePerformanceStore();
@@ -112,9 +112,6 @@ export function RapidCodeMatch() {
 
   useEffect(() => {
     if (isComponentLoaded) {
-      // On initial load or mode change, reset the game to its start screen.
-      // This prevents rendering with stale state (e.g., a 'spatial' problem
-      // when the mode has switched to 'neutral').
       setGameState('start');
       setProblem(null);
       currentTrialIndex.current = 0;
@@ -172,7 +169,7 @@ export function RapidCodeMatch() {
             const objectA = target.target;
             let objectB: Polycube;
             if (isSame) {
-                objectB = target.options.find(opt => opt.index === target.correctIndex)!.polycube;
+                objectB = target.options.find(opt => opt && opt.index === target.correctIndex)!.polycube;
             } else {
                 objectB = prngRef.current!.shuffle(target.options.filter(opt => opt && opt.index !== target.correctIndex))[0].polycube;
             }
@@ -256,157 +253,176 @@ export function RapidCodeMatch() {
         } else {
             startNewTrial();
         }
-    }, 200); // Fast transition for a Gs task
+    }, 200);
   }, [gameState, problem, startNewTrial, updateAdaptiveState, currentMode, logEvent, getAdaptiveState, activeSession]);
-
-  const renderContent = () => {
-    if (!isComponentLoaded) {
-      return (
+  
+  if (!isComponentLoaded) {
+    return (
+        <Card>
             <CardContent className="flex flex-col items-center gap-6 min-h-[500px] justify-center">
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
             </CardContent>
-      );
-    }
-    
-    // --- Mode Routing ---
-    if (currentMode === 'logic') return <BooleanBlitz />;
-    if (currentMode === 'eq') return <GsEQFlashRecognition />;
-    if (currentMode === 'spatial') {
-        const score = currentTrialIndex.current - mistakes.current;
-        return (
-                <CardContent>
-                    {gameState === 'start' && <Button onClick={startNewSession} size="lg">Start</Button>}
-                    {gameState === 'finished' && <p>Finished!</p>}
-                    {(gameState === 'running' || gameState === 'feedback') && problem && (
-                        <Suspense fallback={<Loader2 className="w-12 h-12 animate-spin"/>}>
-                            <GsSpatialRenderer
-                                trial={problem as any}
-                                onResponse={handleAnswer}
-                                timeLeft={60} // Placeholder
-                                score={score}
-                            />
-                        </Suspense>
-                    )}
-                </CardContent>
-        );
-    }
-
-    // --- Default UI for other modes (neutral, math, verbal, music) ---
-    const state = getAdaptiveState(GAME_ID, currentMode);
-    
-    return (
-            <CardContent className="flex flex-col items-center gap-6 min-h-[500px] justify-center">
-                 {(() => {
-                    if (gameState === 'start') {
-                        const { Icon, label } = FOCUS_MODE_META[currentMode];
-                        return (
-                            <div className="flex flex-col items-center gap-4">
-                              <div className="flex flex-col items-center gap-2 text-primary mb-4">
-                                <Icon className="w-10 h-10" />
-                                <span className="font-semibold">{label} Mode</span>
-                              </div>
-                              <div className="font-mono text-lg text-muted-foreground">Level: {state?.currentLevel}</div>
-                              <Button onClick={startNewSession} size="lg">Start Session</Button>
-                            </div>
-                          );
-                    }
-                    if (gameState === 'finished') {
-                      const accuracy = currentTrialIndex.current > 0 ? ((currentTrialIndex.current - mistakes.current) / currentTrialIndex.current) : 0;
-                      const score = (currentTrialIndex.current - mistakes.current);
-                      return (
-                        <div className="flex flex-col items-center gap-4">
-                          <CardTitle>Game Over!</CardTitle>
-                          <p className="text-xl">Score: {score}</p>
-                          <p>Accuracy: {isNaN(accuracy) ? 'N/A' : (accuracy * 100).toFixed(0) + '%'}</p>
-                          <Button onClick={() => setGameState('start')} size="lg">Play Again</Button>
-                        </div>
-                      );
-                    }
-                    if (!problem) return <Loader2 className="animate-spin"/>;
-                    
-                    const score = (currentTrialIndex.current - mistakes.current);
-
-                    if (problem.type === 'lexical') {
-                        return (
-                            <div className="w-full">
-                                <div className="flex justify-between w-full text-lg font-mono mb-4">
-                                    <span>Score: {score}</span>
-                                    <span>Trial: {currentTrialIndex.current + 1} / {policy.sessionLength}</span>
-                                </div>
-                                <div className="relative mb-6 h-24 flex flex-col items-center justify-center">
-                                    <p className="text-5xl font-bold text-foreground mb-4">{problem.stimulus}</p>
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <Button onClick={() => handleAnswer(false)} variant="secondary" size="lg" className="text-2xl h-32">PSEUDOWORD</Button>
-                                    <Button onClick={() => handleAnswer(true)} variant="secondary" size="lg" className="text-2xl h-32">REAL WORD</Button>
-                                </div>
-                            </div>
-                        )
-                    }
-                    
-                    if (problem.type === 'rhythm') {
-                         return (
-                            <div className="w-full">
-                                <div className="flex justify-between w-full text-lg font-mono mb-4">
-                                    <span>Score: {score}</span>
-                                    <span>Trial: {currentTrialIndex.current + 1} / {policy.sessionLength}</span>
-                                </div>
-                                <div className="relative mb-6 h-24 flex flex-col items-center justify-center">
-                                    <p className="text-2xl font-bold text-foreground mb-4">Are the rhythms the same or different?</p>
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <Button onClick={() => handleAnswer(false)} variant="secondary" size="lg" className="text-2xl h-32">Different</Button>
-                                    <Button onClick={() => handleAnswer(true)} variant="secondary" size="lg" className="text-2xl h-32">Same</Button>
-                                </div>
-                            </div>
-                        )
-                    }
-
-                    // Symbol Problem
-                    if (problem.type === 'symbol') {
-                        return (
-                          <div className="w-full">
-                            <div className="flex justify-between w-full text-lg font-mono mb-4">
-                                <span>Score: {score}</span>
-                                <span>Trial: {currentTrialIndex.current + 1} / {policy.sessionLength}</span>
-                            </div>
-                            
-                            <div className="flex justify-center gap-4 p-3 bg-muted rounded-lg mb-6 flex-wrap">
-                              {Object.entries(problem.keyMap!).map(([symbol, digit]) => (
-                                <div key={symbol} className="flex flex-col items-center p-2">
-                                  <span className="text-3xl font-bold text-primary">{symbol}</span>
-                                  <span className="text-xl font-mono">{digit}</span>
-                                </div>
-                              ))}
-                            </div>
-
-                            <div className="h-6 text-sm font-semibold mb-2">
-                              {inlineFeedback.message && (
-                                <p className={cn("animate-in fade-in", inlineFeedback.type === 'success' ? 'text-green-500' : 'text-red-500')}>
-                                  {inlineFeedback.message}
-                                </p>
-                              )}
-                            </div>
-
-                            <div className="relative inline-block mb-6 h-24 flex items-center justify-center">
-                                <div className="text-8xl font-extrabold text-primary">
-                                    {problem.stimulus}
-                                </div>
-                            </div>
-                            
-                            <div className={cn("flex flex-wrap gap-3 justify-center max-w-md mx-auto")}>
-                              {Object.entries(problem.keyMap!).map(([_, digit]) => (
-                                <Button key={digit} onClick={() => handleAnswer(digit)} variant="secondary" size="lg" className="text-2xl h-16 w-16" disabled={gameState === 'feedback'}>
-                                  {digit}
-                                </Button>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                    }
-                    
-                    return <Loader2 className="animate-spin"/>;
-                })()}
-            </CardContent>
+        </Card>
     );
+  }
+  
+  if (currentMode === 'logic') return <BooleanBlitz />;
+  if (currentMode === 'eq') return <GsEQFlashRecognition />;
+  if (currentMode === 'spatial') {
+      const score = currentTrialIndex.current - mistakes.current;
+      return (
+              <Card>
+                  <CardHeader>
+                      <CardTitle className="flex items-center justify-center gap-2">
+                          <span className="p-2 bg-primary/10 rounded-md"><Zap className="w-6 h-6 text-primary" /></span>
+                          Rapid Spatial Match
+                      </CardTitle>
+                      <CardDescription>Are the two rotating shapes the same, or different?</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                      {gameState === 'start' && <Button onClick={startNewSession} size="lg">Start</Button>}
+                      {gameState === 'finished' && <div className="text-center"> <p className="text-2xl font-bold">Finished!</p> <p>Score: {score}</p> <Button onClick={startNewSession} className="mt-4">Play Again</Button></div>}
+                      {(gameState === 'running' || gameState === 'feedback') && problem && (
+                          <Suspense fallback={<Loader2 className="w-12 h-12 animate-spin"/>}>
+                              <GsSpatialRenderer
+                                  trial={problem as any}
+                                  onResponse={handleAnswer}
+                                  timeLeft={60} // Placeholder
+                                  score={score}
+                              />
+                          </Suspense>
+                      )}
+                  </CardContent>
+              </Card>
+      );
+  }
+
+  const state = getAdaptiveState(GAME_ID, currentMode);
+  
+  return (
+    <Card className="w-full max-w-md">
+      <CardHeader className="text-center">
+          <CardTitle className="flex items-center justify-center gap-2">
+              <span className="p-2 bg-primary/10 rounded-md"><domainIcons.Gs className="w-6 h-6 text-primary" /></span>
+              Rapid Code Match
+          </CardTitle>
+          <CardDescription>
+              Match the symbol to its number as fast as you can. The key changes periodically!
+              {currentMode === 'music' && ' Wired headphones recommended.'}
+          </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col items-center gap-6 min-h-[500px] justify-center">
+           {(() => {
+              if (gameState === 'start') {
+                  const { Icon, label } = FOCUS_MODE_META[currentMode];
+                  return (
+                      <div className="flex flex-col items-center gap-4">
+                        <div className="flex flex-col items-center gap-2 text-primary mb-4">
+                          <Icon className="w-10 h-10" />
+                          <span className="font-semibold">{label} Mode</span>
+                        </div>
+                        <div className="font-mono text-lg text-muted-foreground">Level: {state?.currentLevel}</div>
+                        <Button onClick={startNewSession} size="lg">Start Session</Button>
+                      </div>
+                    );
+              }
+              if (gameState === 'finished') {
+                const accuracy = currentTrialIndex.current > 0 ? ((currentTrialIndex.current - mistakes.current) / currentTrialIndex.current) : 0;
+                const score = (currentTrialIndex.current - mistakes.current);
+                return (
+                  <div className="flex flex-col items-center gap-4">
+                    <CardTitle>Game Over!</CardTitle>
+                    <p className="text-xl">Score: {score}</p>
+                    <p>Accuracy: {isNaN(accuracy) ? 'N/A' : (accuracy * 100).toFixed(0) + '%'}</p>
+                    <Button onClick={() => setGameState('start')} size="lg">Play Again</Button>
+                  </div>
+                );
+              }
+              if (!problem) return <Loader2 className="animate-spin"/>;
+              
+              const score = (currentTrialIndex.current - mistakes.current);
+
+              if (problem.type === 'lexical') {
+                  return (
+                      <div className="w-full">
+                          <div className="flex justify-between w-full text-lg font-mono mb-4">
+                              <span>Score: {score}</span>
+                              <span>Trial: {currentTrialIndex.current + 1} / {policy.sessionLength}</span>
+                          </div>
+                          <div className="relative mb-6 h-24 flex flex-col items-center justify-center">
+                              <p className="text-5xl font-bold text-foreground mb-4">{problem.stimulus}</p>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                              <Button onClick={() => handleAnswer(false)} variant="secondary" size="lg" className="text-2xl h-32">PSEUDOWORD</Button>
+                              <Button onClick={() => handleAnswer(true)} variant="secondary" size="lg" className="text-2xl h-32">REAL WORD</Button>
+                          </div>
+                      </div>
+                  )
+              }
+              
+              if (problem.type === 'rhythm') {
+                   return (
+                      <div className="w-full">
+                          <div className="flex justify-between w-full text-lg font-mono mb-4">
+                              <span>Score: {score}</span>
+                              <span>Trial: {currentTrialIndex.current + 1} / {policy.sessionLength}</span>
+                          </div>
+                          <div className="relative mb-6 h-24 flex flex-col items-center justify-center">
+                              <p className="text-2xl font-bold text-foreground mb-4">Are the rhythms the same or different?</p>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                              <Button onClick={() => handleAnswer(false)} variant="secondary" size="lg" className="text-2xl h-32">Different</Button>
+                              <Button onClick={() => handleAnswer(true)} variant="secondary" size="lg" className="text-2xl h-32">Same</Button>
+                          </div>
+                      </div>
+                  )
+              }
+
+              if (problem.type === 'symbol') {
+                  return (
+                    <div className="w-full">
+                      <div className="flex justify-between w-full text-lg font-mono mb-4">
+                          <span>Score: {score}</span>
+                          <span>Trial: {currentTrialIndex.current + 1} / {policy.sessionLength}</span>
+                      </div>
+                      
+                      <div className="flex justify-center gap-4 p-3 bg-muted rounded-lg mb-6 flex-wrap">
+                        {Object.entries(problem.keyMap!).map(([symbol, digit]) => (
+                          <div key={symbol} className="flex flex-col items-center p-2">
+                            <span className="text-3xl font-bold text-primary">{symbol}</span>
+                            <span className="text-xl font-mono">{digit}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="h-6 text-sm font-semibold mb-2">
+                        {inlineFeedback.message && (
+                          <p className={cn("animate-in fade-in", inlineFeedback.type === 'success' ? 'text-green-500' : 'text-red-500')}>
+                            {inlineFeedback.message}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="relative inline-block mb-6 h-24 flex items-center justify-center">
+                          <div className="text-8xl font-extrabold text-primary">
+                              {problem.stimulus}
+                          </div>
+                      </div>
+                      
+                      <div className={cn("flex flex-wrap gap-3 justify-center max-w-md mx-auto")}>
+                        {Object.entries(problem.keyMap!).map(([_, digit]) => (
+                          <Button key={digit} onClick={() => handleAnswer(digit)} variant="secondary" size="lg" className="text-2xl h-16 w-16" disabled={gameState === 'feedback'}>
+                            {digit}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+              }
+              
+              return <Loader2 className="animate-spin"/>;
+          })()}
+      </CardContent>
+    </Card>
+  );
 }
