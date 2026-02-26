@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from 'react';
@@ -51,7 +52,9 @@ export const GcVerbalRenderer: React.FC<BaseRendererProps<GcVerbalGameState, GcV
         </div>
       );
     }
-    if (!puzzle) return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
+    if (!puzzle || !puzzle.options) {
+        return <Loader2 className="h-12 w-12 animate-spin text-primary" />;
+    }
 
     return (
       <>
