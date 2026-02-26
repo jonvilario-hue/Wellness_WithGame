@@ -1,6 +1,256 @@
 {
-  "manifestVersion": "1.0.4",
+  "manifestVersion": "1.0.0",
   "assets": [
+    {
+      "id": "piano-c3",
+      "path": "tones/piano/C3.mp3",
+      "duration": 1500,
+      "category": ["Gf", "Ga"],
+      "tags": ["piano", "tone", "C3"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 48000
+    },
+    {
+      "id": "piano-cs3",
+      "path": "tones/piano/Cs3.mp3",
+      "duration": 1500,
+      "category": ["Gf", "Ga"],
+      "tags": ["piano", "tone", "C#3"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 48000
+    },
+    {
+      "id": "piano-d3",
+      "path": "tones/piano/D3.mp3",
+      "duration": 1500,
+      "category": ["Gf", "Ga"],
+      "tags": ["piano", "tone", "D3"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 48000
+    },
+    {
+      "id": "piano-ds3",
+      "path": "tones/piano/Ds3.mp3",
+      "duration": 1500,
+      "category": ["Gf", "Ga"],
+      "tags": ["piano", "tone", "D#3"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 48000
+    },
+    {
+      "id": "piano-e3",
+      "path": "tones/piano/E3.mp3",
+      "duration": 1500,
+      "category": ["Gf", "Ga"],
+      "tags": ["piano", "tone", "E3"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 48000
+    },
+    {
+      "id": "piano-f3",
+      "path": "tones/piano/F3.mp3",
+      "duration": 1500,
+      "category": ["Gf", "Ga"],
+      "tags": ["piano", "tone", "F3"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 48000
+    },
+    {
+      "id": "piano-fs3",
+      "path": "tones/piano/Fs3.mp3",
+      "duration": 1500,
+      "category": ["Gf", "Ga"],
+      "tags": ["piano", "tone", "F#3"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 48000
+    },
+    {
+      "id": "piano-g3",
+      "path": "tones/piano/G3.mp3",
+      "duration": 1500,
+      "category": ["Gf", "Ga"],
+      "tags": ["piano", "tone", "G3"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 48000
+    },
+    {
+      "id": "piano-gs3",
+      "path": "tones/piano/Gs3.mp3",
+      "duration": 1500,
+      "category": ["Gf", "Ga"],
+      "tags": ["piano", "tone", "G#3"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 48000
+    },
+    {
+      "id": "piano-a3",
+      "path": "tones/piano/A3.mp3",
+      "duration": 1500,
+      "category": ["Gf", "Ga"],
+      "tags": ["piano", "tone", "A3"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 48000
+    },
+    {
+      "id": "piano-as3",
+      "path": "tones/piano/As3.mp3",
+      "duration": 1500,
+      "category": ["Gf", "Ga"],
+      "tags": ["piano", "tone", "A#3"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 48000
+    },
+    {
+      "id": "piano-b3",
+      "path": "tones/piano/B3.mp3",
+      "duration": 1500,
+      "category": ["Gf", "Ga"],
+      "tags": ["piano", "tone", "B3"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 48000
+    },
+    {
+      "id": "perc-kick",
+      "path": "tones/percussion/kick.mp3",
+      "duration": 200,
+      "category": ["Gf", "Gq"],
+      "tags": ["percussion", "kick"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 8000
+    },
+    {
+      "id": "perc-snare",
+      "path": "tones/percussion/snare.mp3",
+      "duration": 200,
+      "category": ["Gf", "Gq"],
+      "tags": ["percussion", "snare"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 8000
+    },
+    {
+      "id": "perc-hihat",
+      "path": "tones/percussion/hihat.mp3",
+      "duration": 150,
+      "category": ["Gf", "Gq"],
+      "tags": ["percussion", "hihat"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 6000
+    },
+    {
+      "id": "perc-click",
+      "path": "tones/percussion/click.wav",
+      "duration": 50,
+      "category": ["Gf", "Gq"],
+      "tags": ["percussion", "metronome", "click"],
+      "format": "wav",
+      "sampleRate": 44100,
+      "fileSize": 5000
+    },
+    {
+      "id": "word-en-apple",
+      "path": "speech/words/en/apple.mp3",
+      "duration": 500,
+      "category": ["Gc"],
+      "tags": ["speech", "word", "english"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 16000
+    },
+    {
+      "id": "word-en-banana",
+      "path": "speech/words/en/banana.mp3",
+      "duration": 600,
+      "category": ["Gc"],
+      "tags": ["speech", "word", "english"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 18000
+    },
+    {
+      "id": "sentence-01-happy-f1",
+      "path": "speech/sentences/happy/s01_happy_f1.mp3",
+      "duration": 2500,
+      "category": ["EF"],
+      "tags": ["speech", "sentence", "emotion", "happy", "female-1"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 64000
+    },
+    {
+      "id": "vocalization-laugh-01",
+      "path": "emotions/vocalizations/laugh-01.mp3",
+      "duration": 3000,
+      "category": ["EF"],
+      "tags": ["emotion", "vocalization", "happy", "laugh"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 72000
+    },
+    {
+      "id": "noise-babble-01",
+      "path": "noise/babble-01.mp3",
+      "duration": 60000,
+      "category": ["Gc"],
+      "tags": ["noise", "ambient", "babble"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 960000
+    },
+    {
+      "id": "melody-easy-01",
+      "path": "melodies/easy/melody-01.mp3",
+      "duration": 5000,
+      "category": ["Ga"],
+      "tags": ["melody", "easy"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 128000
+    },
+    {
+      "id": "instr-piano",
+      "path": "tones/piano/C4.mp3",
+      "duration": 1500,
+      "category": ["Gf", "Glr"],
+      "tags": ["instrument", "identity", "piano"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 48000
+    },
+    {
+      "id": "instr-drum",
+      "path": "tones/percussion/kick.mp3",
+      "duration": 200,
+      "category": ["Gf", "Glr"],
+      "tags": ["instrument", "identity", "drum"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 8000
+    },
+    {
+      "id": "instr-bell",
+      "path": "tones/synth/bell.mp3",
+      "duration": 1000,
+      "category": ["Gf", "Glr"],
+      "tags": ["instrument", "identity", "bell"],
+      "format": "mp3",
+      "sampleRate": 44100,
+      "fileSize": 32000
+    },
     {
       "id": "phoneme-ba",
       "path": "ga-game/verbal/phoneme-ba.mp3",
@@ -102,65 +352,47 @@
       "fileSize": 15000
     },
     {
-      "id": "phrase-happy-1", "path": "ga-game/eq/phrase-happy-1.mp3", "duration": 2, "category": ["Ga", "eq"], "tags": { "basic_emotion": "happy", "intensity": 1, "transcript": "I can't believe it." }, "format": "mp3", "sampleRate": 44100, "fileSize": 48000
+      "id": "phrase-happy-1", "path": "ga-game/eq/phrase-happy-1.mp3", "duration": 2000, "category": ["Ga", "eq"], "tags": { "basic_emotion": "happy", "intensity": 1, "transcript": "I can't believe it." }, "format": "mp3", "sampleRate": 44100, "fileSize": 48000
     },
     {
-      "id": "phrase-happy-2", "path": "ga-game/eq/phrase-happy-2.mp3", "duration": 2, "category": ["Ga", "eq"], "tags": { "basic_emotion": "happy", "intensity": 2, "transcript": "I can't believe it." }, "format": "mp3", "sampleRate": 44100, "fileSize": 48000
+      "id": "phrase-happy-2", "path": "ga-game/eq/phrase-happy-2.mp3", "duration": 2000, "category": ["Ga", "eq"], "tags": { "basic_emotion": "happy", "intensity": 2, "transcript": "I can't believe it." }, "format": "mp3", "sampleRate": 44100, "fileSize": 48000
     },
     {
-      "id": "phrase-happy-3", "path": "ga-game/eq/phrase-happy-3.mp3", "duration": 2, "category": ["Ga", "eq"], "tags": { "basic_emotion": "happy", "intensity": 3, "transcript": "I can't believe it." }, "format": "mp3", "sampleRate": 44100, "fileSize": 48000
+      "id": "phrase-happy-3", "path": "ga-game/eq/phrase-happy-3.mp3", "duration": 2000, "category": ["Ga", "eq"], "tags": { "basic_emotion": "happy", "intensity": 3, "transcript": "I can't believe it." }, "format": "mp3", "sampleRate": 44100, "fileSize": 48000
     },
     {
-      "id": "phrase-sad-1", "path": "ga-game/eq/phrase-sad-1.mp3", "duration": 2.2, "category": ["Ga", "eq"], "tags": { "basic_emotion": "sad", "intensity": 1, "transcript": "We need to talk." }, "format": "mp3", "sampleRate": 44100, "fileSize": 52000
+      "id": "phrase-sad-1", "path": "ga-game/eq/phrase-sad-1.mp3", "duration": 2200, "category": ["Ga", "eq"], "tags": { "basic_emotion": "sad", "intensity": 1, "transcript": "We need to talk." }, "format": "mp3", "sampleRate": 44100, "fileSize": 52000
     },
     {
-      "id": "phrase-sad-2", "path": "ga-game/eq/phrase-sad-2.mp3", "duration": 2.2, "category": ["Ga", "eq"], "tags": { "basic_emotion": "sad", "intensity": 2, "transcript": "We need to talk." }, "format": "mp3", "sampleRate": 44100, "fileSize": 52000
+      "id": "phrase-sad-2", "path": "ga-game/eq/phrase-sad-2.mp3", "duration": 2200, "category": ["Ga", "eq"], "tags": { "basic_emotion": "sad", "intensity": 2, "transcript": "We need to talk." }, "format": "mp3", "sampleRate": 44100, "fileSize": 52000
     },
     {
-      "id": "phrase-sad-3", "path": "ga-game/eq/phrase-sad-3.mp3", "duration": 2.2, "category": ["Ga", "eq"], "tags": { "basic_emotion": "sad", "intensity": 3, "transcript": "We need to talk." }, "format": "mp3", "sampleRate": 44100, "fileSize": 52000
+      "id": "phrase-sad-3", "path": "ga-game/eq/phrase-sad-3.mp3", "duration": 2200, "category": ["Ga", "eq"], "tags": { "basic_emotion": "sad", "intensity": 3, "transcript": "We need to talk." }, "format": "mp3", "sampleRate": 44100, "fileSize": 52000
     },
     {
-      "id": "phrase-angry-1", "path": "ga-game/eq/phrase-angry-1.mp3", "duration": 1.8, "category": ["Ga", "eq"], "tags": { "basic_emotion": "angry", "intensity": 1, "transcript": "What did you do?" }, "format": "mp3", "sampleRate": 44100, "fileSize": 44000
+      "id": "phrase-angry-1", "path": "ga-game/eq/phrase-angry-1.mp3", "duration": 1800, "category": ["Ga", "eq"], "tags": { "basic_emotion": "angry", "intensity": 1, "transcript": "What did you do?" }, "format": "mp3", "sampleRate": 44100, "fileSize": 44000
     },
     {
-      "id": "phrase-angry-2", "path": "ga-game/eq/phrase-angry-2.mp3", "duration": 1.8, "category": ["Ga", "eq"], "tags": { "basic_emotion": "angry", "intensity": 2, "transcript": "What did you do?" }, "format": "mp3", "sampleRate": 44100, "fileSize": 44000
+      "id": "phrase-angry-2", "path": "ga-game/eq/phrase-angry-2.mp3", "duration": 1800, "category": ["Ga", "eq"], "tags": { "basic_emotion": "angry", "intensity": 2, "transcript": "What did you do?" }, "format": "mp3", "sampleRate": 44100, "fileSize": 44000
     },
     {
-      "id": "phrase-angry-3", "path": "ga-game/eq/phrase-angry-3.mp3", "duration": 1.8, "category": ["Ga", "eq"], "tags": { "basic_emotion": "angry", "intensity": 3, "transcript": "What did you do?" }, "format": "mp3", "sampleRate": 44100, "fileSize": 44000
+      "id": "phrase-angry-3", "path": "ga-game/eq/phrase-angry-3.mp3", "duration": 1800, "category": ["Ga", "eq"], "tags": { "basic_emotion": "angry", "intensity": 3, "transcript": "What did you do?" }, "format": "mp3", "sampleRate": 44100, "fileSize": 44000
     },
     {
-      "id": "phrase-calm-1", "path": "ga-game/eq/phrase-calm-1.mp3", "duration": 2.1, "category": ["Ga", "eq"], "tags": { "basic_emotion": "calm", "intensity": 1, "transcript": "Everything is fine." }, "format": "mp3", "sampleRate": 44100, "fileSize": 50000
+      "id": "phrase-calm-1", "path": "ga-game/eq/phrase-calm-1.mp3", "duration": 2100, "category": ["Ga", "eq"], "tags": { "basic_emotion": "calm", "intensity": 1, "transcript": "Everything is fine." }, "format": "mp3", "sampleRate": 44100, "fileSize": 50000
     },
     {
-      "id": "phrase-calm-2", "path": "ga-game/eq/phrase-calm-2.mp3", "duration": 2.1, "category": ["Ga", "eq"], "tags": { "basic_emotion": "calm", "intensity": 2, "transcript": "Everything is fine." }, "format": "mp3", "sampleRate": 44100, "fileSize": 50000
+      "id": "phrase-calm-2", "path": "ga-game/eq/phrase-calm-2.mp3", "duration": 2100, "category": ["Ga", "eq"], "tags": { "basic_emotion": "calm", "intensity": 2, "transcript": "Everything is fine." }, "format": "mp3", "sampleRate": 44100, "fileSize": 50000
     },
     {
-      "id": "phrase-calm-3", "path": "ga-game/eq/phrase-calm-3.mp3", "duration": 2.1, "category": ["Ga", "eq"], "tags": { "basic_emotion": "calm", "intensity": 3, "transcript": "Everything is fine." }, "format": "mp3", "sampleRate": 44100, "fileSize": 50000
+      "id": "phrase-calm-3", "path": "ga-game/eq/phrase-calm-3.mp3", "duration": 2100, "category": ["Ga", "eq"], "tags": { "basic_emotion": "calm", "intensity": 3, "transcript": "Everything is fine." }, "format": "mp3", "sampleRate": 44100, "fileSize": 50000
     },
     {
-      "id": "phrase-surprised-1", "path": "ga-game/eq/phrase-surprised-1.mp3", "duration": 1.5, "category": ["Ga", "eq"], "tags": { "basic_emotion": "surprised", "intensity": 2, "transcript": "Wow, look at that!" }, "format": "mp3", "sampleRate": 44100, "fileSize": 38000
+      "id": "phrase-surprised-1", "path": "ga-game/eq/phrase-surprised-1.mp3", "duration": 1500, "category": ["Ga", "eq"], "tags": { "basic_emotion": "surprised", "intensity": 2, "transcript": "Wow, look at that!" }, "format": "mp3", "sampleRate": 44100, "fileSize": 38000
     },
     {
-      "id": "phrase-sarcastic-1", "path": "ga-game/eq/phrase-sarcastic-1.mp3", "duration": 2.3, "category": ["Ga", "eq"], "tags": { "basic_emotion": "contempt", "pragmatic_intent": "sarcasm", "intensity": 2, "transcript": "Oh, that's just great." }, "format": "mp3", "sampleRate": 44100, "fileSize": 54000
-    },
-    {
-      "id": "eq-sprite-main",
-      "path": "sprites/eq_audio_sprite.mp3",
-      "isSprite": true
-    },
-    {
-      "id": "sarcasm-1-sprite",
-      "spriteId": "eq-sprite-main",
-      "offset": 0,
-      "duration": 2.3,
-      "tags": {"basic_emotion": "contempt"}
-    },
-     {
-      "id": "happy-1-sprite",
-      "spriteId": "eq-sprite-main",
-      "offset": 2.5,
-      "duration": 2.0,
-      "tags": {"basic_emotion": "happy"}
+      "id": "phrase-sarcastic-1", "path": "ga-game/eq/phrase-sarcastic-1.mp3", "duration": 2300, "category": ["Ga", "eq"], "tags": { "basic_emotion": "contempt", "pragmatic_intent": "sarcasm", "intensity": 2, "transcript": "Oh, that's just great." }, "format": "mp3", "sampleRate": 44100, "fileSize": 54000
     }
   ]
 }
+    
