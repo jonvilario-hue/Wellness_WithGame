@@ -1,15 +1,14 @@
-
 'use client';
 
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { getSuccessFeedback, getFailureFeedback } from "@/lib/feedback-system";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Loader2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Keyboard, Music, Check, X, Ear, Timer, Smile, Share2 } from 'lucide-react';
-import { adjustDifficulty, startSession } from "@/lib/adaptive-engine";
+import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { AdaptiveState, TrialResult, GameId, TrainingFocus } from "@/types";
 import { GameStub } from "../game-stub";
