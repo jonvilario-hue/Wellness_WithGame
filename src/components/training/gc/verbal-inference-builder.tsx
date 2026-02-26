@@ -188,7 +188,12 @@ export function VerbalInferenceBuilder() {
 
   useEffect(() => {
     if (isComponentLoaded) {
-      setComponentState(prev => ({...prev, gameState: 'start'}));
+      // When mode changes, reset the entire game state to avoid rendering with stale data.
+      setComponentState({ 
+        gameState: 'start',
+        puzzle: null,
+        selectedAnswer: null,
+      });
     }
   }, [isComponentLoaded, currentMode]);
   
