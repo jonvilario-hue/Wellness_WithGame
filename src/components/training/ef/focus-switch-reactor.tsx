@@ -18,7 +18,8 @@ import { useTrainingOverride } from '@/hooks/use-training-override.tsx';
 import { domainIcons } from "@/components/icons";
 import { useAudioEngine } from "@/hooks/useAudioEngine";
 import { FOCUS_MODE_META } from "@/lib/mode-constants";
-import { logicTokenPools, efCategories } from '@/data/logic-content';
+import { logicTokenPools } from '@/data/logic-content';
+import { efCategories } from '@/data/verbal-content';
 import { PRNG } from "@/lib/rng";
 
 
