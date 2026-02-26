@@ -142,9 +142,9 @@ export function GsEQFlashRecognition() {
 
   const renderDisplay = () => {
     switch (phase) {
-      case 'fixation': return <div className="text-6xl text-orange-400">+</div>;
-      case 'stimulus': return <div className="text-6xl font-bold capitalize text-orange-300">{puzzle?.target}</div>;
-      case 'mask': return <div className="text-8xl bg-gray-600 w-32 h-32 rounded-lg"></div>;
+      case 'fixation': return <div className="text-6xl text-primary">+</div>;
+      case 'stimulus': return <div className="text-6xl font-bold capitalize text-primary">{puzzle?.target}</div>;
+      case 'mask': return <div className="text-8xl bg-muted w-32 h-32 rounded-lg"></div>;
       case 'response':
       case 'feedback':
         return (
@@ -154,7 +154,7 @@ export function GsEQFlashRecognition() {
             </div>
             <div className="flex flex-wrap justify-center gap-4">
               {puzzle?.options.map((opt, index) => (
-                <Button key={`${opt}-${index}`} onClick={() => handleResponse(opt)} disabled={phase === 'feedback'} className="h-20 w-32 text-lg font-bold capitalize bg-orange-800/80 border border-orange-500/30 text-white hover:bg-orange-700/90 active:bg-orange-700/80 transition-colors">{opt}</Button>
+                <Button key={`${opt}-${index}`} onClick={() => handleResponse(opt)} disabled={phase === 'feedback'} variant="secondary" className="h-20 w-32 text-lg font-bold capitalize">{opt}</Button>
               ))}
             </div>
           </div>
@@ -164,13 +164,13 @@ export function GsEQFlashRecognition() {
   };
 
   return (
-    <Card className="w-full max-w-md text-center bg-orange-950 border-orange-500/20 text-orange-100">
+    <Card className="w-full max-w-md text-center">
       <CardHeader>
-        <CardTitle className="text-orange-300 flex items-center justify-center gap-2">
-            <span className="p-2 bg-orange-500/10 rounded-md"><Zap className="w-6 h-6 text-orange-400" /></span>
+        <CardTitle className="flex items-center justify-center gap-2">
+            <span className="p-2 bg-primary/10 rounded-md"><Zap className="w-6 h-6 text-primary" /></span>
             Affective Go/No-Go
         </CardTitle>
-        <CardDescription className="text-orange-300/70">Classify the emotion as fast as possible. Do not respond to neutral faces.</CardDescription>
+        <CardDescription>Classify the emotion as fast as possible. Do not respond to neutral faces.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-6 min-h-[400px] justify-center">
         {phase === 'start' ? (
@@ -183,10 +183,10 @@ export function GsEQFlashRecognition() {
             </div>
         ) : (
           <>
-            <div className="w-full h-48 flex items-center justify-center bg-gray-800/50 rounded-lg">
+            <div className="w-full h-48 flex items-center justify-center bg-muted/50 rounded-lg">
               {renderDisplay()}
             </div>
-            <div className="font-mono text-orange-200">Flash Duration: {flashDuration}ms</div>
+            <div className="font-mono text-muted-foreground">Flash Duration: {flashDuration}ms</div>
           </>
         )}
       </CardContent>
