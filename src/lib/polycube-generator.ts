@@ -28,12 +28,20 @@ const getNeighbors = (cube: Cube): Cube[] => {
   ];
 };
 
+const areCubesEqual = (c1: Cube, c2: Cube): boolean => {
+    if (!c1 || !c2) return false;
+    return c1.x === c2.x && c1.y === c2.y && c1.z === c2.z;
+}
+
 const createPolycube = (size: number, prng: PRNG): Polycube => {
+  if (size <= 0) return [];
   const polycube: Polycube = [{ x: 0, y: 0, z: 0 }];
+  if (size === 1) return polycube;
+
   let openSet = getNeighbors({ x: 0, y: 0, z: 0 });
 
   while (polycube.length < size) {
-    if (openSet.length === 0) break; // Should not happen with valid size
+    if (openSet.length === 0) break; 
     const newCubeIndex = prng.nextIntRange(0, openSet.length);
     const newCube = openSet.splice(newCubeIndex, 1)[0];
 
@@ -41,9 +49,10 @@ const createPolycube = (size: number, prng: PRNG): Polycube => {
     const newNeighbors = getNeighbors(newCube);
 
     openSet.push(...newNeighbors);
+    // Filter out duplicates and cubes already in the polycube
     openSet = openSet.filter((c1, index, self) => 
-        !polycube.some(c2 => c1.x === c2.x && c1.y === c2.y && c1.z === c2.z) &&
-        index === self.findIndex(c2 => c1.x === c2.x && c1.y === c2.y && c1.z === c2.z)
+        !polycube.some(c2 => areCubesEqual(c1, c2)) &&
+        index === self.findIndex(c2 => areCubesEqual(c1, c2))
     );
   }
   return polycube;
@@ -57,6 +66,7 @@ const mirrorX = (p: Polycube): Polycube => p.map(c => ({ x: -c.x, y: c.y, z: c.z
 
 // Center the polycube around the origin
 const normalizePolycube = (p: Polycube): Polycube => {
+    if (!p || p.length === 0) return [];
     const center = p.reduce((acc, c) => ({x: acc.x + c.x, y: acc.y + c.y, z: acc.z + c.z}), {x:0, y:0, z:0});
     center.x /= p.length;
     center.y /= p.length;
@@ -64,15 +74,10 @@ const normalizePolycube = (p: Polycube): Polycube => {
     return p.map(c => ({ x: c.x - center.x, y: c.y - center.y, z: c.z - center.z }));
 };
 
-const areCubesEqual = (c1: Cube, c2: Cube): boolean => {
-    if (!c1 || !c2) return false;
-    return c1.x === c2.x && c1.y === c2.y && c1.z === c2.z;
-}
-
 const arePolycubesEqual = (p1: Polycube, p2: Polycube): boolean => {
-    if (p1.length !== p2.length) return false;
-    const key1 = p1.map(c => `${c.x},${c.y},${c.z}`).sort().join(';');
-    const key2 = p2.map(c => `${c.x},${c.y},${c.z}`).sort().join(';');
+    if (!p1 || !p2 || p1.length !== p2.length) return false;
+    const key1 = p1.map(c => `${c.x.toFixed(2)},${c.y.toFixed(2)},${c.z.toFixed(2)}`).sort().join(';');
+    const key2 = p2.map(c => `${c.x.toFixed(2)},${c.y.toFixed(2)},${c.z.toFixed(2)}`).sort().join(';');
     return key1 === key2;
 }
 
@@ -108,7 +113,7 @@ export const generateSpatialGvRotationTrial = (level: number, pieceCount: number
     let nearMiss = [...baseShape];
     const cubeToRemoveIndex = prng.nextIntRange(0, nearMiss.length);
     nearMiss.splice(cubeToRemoveIndex, 1);
-    if(nearMiss.length > 0) { // Ensure there's a cube left to find neighbors for
+    if(nearMiss.length > 0) { 
         const neighbors = getNeighbors(nearMiss[prng.nextIntRange(0, nearMiss.length)])
             .filter(n => !nearMiss.some(c => areCubesEqual(n, c)));
         if(neighbors.length > 0) {
@@ -129,7 +134,7 @@ export const generateSpatialGvRotationTrial = (level: number, pieceCount: number
   }
 
   const finalOptions = prng.shuffle(options.map((polycube, index) => ({ polycube: normalizePolycube(polycube), index: index })));
-  const finalCorrectIndex = finalOptions.findIndex(opt => opt.index === correctIndex);
+  const finalCorrectIndex = finalOptions.findIndex(opt => opt && opt.index === correctIndex);
 
   return {
     tier: level,
