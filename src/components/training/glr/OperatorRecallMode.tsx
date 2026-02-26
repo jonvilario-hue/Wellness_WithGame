@@ -18,13 +18,23 @@ const GLR_GAME_ID: GameId = 'glr_fluency_storm';
 const glrPolicy = difficultyPolicies[GLR_GAME_ID];
 
 const generateDistractors = (correctMeaning: string, allPairs: SpacedPair[], prng: PRNG): string[] => {
+    const potentialDistractors = allPairs.filter(p => p && p.word2 && p.word2 !== correctMeaning);
+
+    if (potentialDistractors.length === 0) {
+        return [];
+    }
+
+    const shuffled = prng.shuffle(potentialDistractors);
     const distractors = new Set<string>();
-    while (distractors.size < 3) {
-        const randomPair = prng.shuffle(allPairs)[0];
-        if (randomPair.meaning !== correctMeaning) {
-            distractors.add(randomPair.meaning);
+    
+    for (const pair of shuffled) {
+        if (distractors.size < 3) {
+            distractors.add(pair.word2);
+        } else {
+            break;
         }
     }
+    
     return Array.from(distractors);
 };
 
@@ -38,6 +48,7 @@ export function OperatorRecallMode({ onComplete, focus }: { onComplete: (result:
     const [currentIndex, setCurrentIndex] = useState(0);
     const [feedback, setFeedback] = useState<{ pairId: string, correct: boolean } | null>(null);
     const [score, setScore] = useState(0);
+    const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
 
     const trialStartTime = useRef(0);
     const prngRef = useRef<PRNG | null>(null);
@@ -76,6 +87,7 @@ export function OperatorRecallMode({ onComplete, focus }: { onComplete: (result:
         const reactionTimeMs = Date.now() - trialStartTime.current;
         trialStartTime.current = Date.now();
 
+        setSelectedAnswer(answer);
         updatePairOnResult(pair.id, isCorrect);
         if(isCorrect) setScore(s => s + 1);
         setFeedback({ pairId: pair.id, correct: isCorrect });
@@ -86,7 +98,7 @@ export function OperatorRecallMode({ onComplete, focus }: { onComplete: (result:
             telemetry: { 
                 stimulus: pair.word1, 
                 strengthBefore: pair.strength, 
-                intervalBefore: pair.intervalStage 
+                intervalStage: pair.intervalStage 
             }
         };
         setSessionTrials(prev => [...prev, trialResult]);
