@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -139,27 +138,12 @@ export function GsEQFlashRecognition() {
     }
   }, [phase, puzzle, handleResponse]);
 
-
-  const renderDisplay = () => {
+  const renderStimulus = () => {
     switch (phase) {
       case 'fixation': return <div className="text-6xl text-primary">+</div>;
       case 'stimulus': return <div className="text-6xl font-bold capitalize text-primary">{puzzle?.target}</div>;
-      case 'mask': return <div className="text-8xl bg-muted w-32 h-32 rounded-lg"></div>;
-      case 'response':
-      case 'feedback':
-        return (
-          <div className="flex flex-col items-center gap-4 w-full">
-            <div className="h-8 text-xl font-bold">
-              {feedback && <p className={cn(feedback.correct ? 'text-green-400' : 'text-red-400')}>{feedback.message}</p>}
-            </div>
-            <div className="flex flex-wrap justify-center gap-4">
-              {puzzle?.options.map((opt, index) => (
-                <Button key={`${opt}-${index}`} onClick={() => handleResponse(opt)} disabled={phase === 'feedback'} variant="secondary" className="h-20 w-32 text-lg font-bold capitalize">{opt}</Button>
-              ))}
-            </div>
-          </div>
-        );
-      default: return null;
+      case 'mask': return <div className="text-8xl bg-muted w-32 h-32 rounded-lg" />;
+      default: return <div className="w-32 h-32" />; // Empty placeholder
     }
   };
 
@@ -184,9 +168,21 @@ export function GsEQFlashRecognition() {
         ) : (
           <>
             <div className="w-full h-48 flex items-center justify-center bg-muted/50 rounded-lg">
-              {renderDisplay()}
+              {renderStimulus()}
             </div>
             <div className="font-mono text-muted-foreground">Flash Duration: {flashDuration}ms</div>
+             {(phase === 'response' || phase === 'feedback') && (
+              <div className="flex flex-col items-center gap-4 w-full">
+                <div className="h-8 text-xl font-bold">
+                  {feedback && <p className={cn(feedback.correct ? 'text-green-400' : 'text-red-400')}>{feedback.message}</p>}
+                </div>
+                <div className="flex flex-wrap justify-center gap-4">
+                  {puzzle?.options.map((opt, index) => (
+                    <Button key={`${opt}-${index}`} onClick={() => handleResponse(opt)} disabled={phase === 'feedback'} variant="secondary" className="h-20 w-32 text-lg font-bold capitalize">{opt}</Button>
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
       </CardContent>
