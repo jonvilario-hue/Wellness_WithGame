@@ -73,7 +73,7 @@ const GfSpatialRenderer: React.FC<BaseRendererProps<PatternMatrixState, PatternM
       );
     }
     
-    if (!puzzle) return <Loader2 className="animate-spin text-blue-400"/>;
+    if (!puzzle || puzzle.type !== 'spatial') return <Loader2 className="animate-spin text-blue-400"/>;
 
     return (
       <div className="flex flex-col items-center gap-4 w-full h-full">
