@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
@@ -17,7 +18,7 @@ import { useTrainingOverride } from '@/hooks/use-training-override.tsx';
 import { domainIcons } from "@/components/icons";
 import { useAudioEngine } from "@/hooks/useAudioEngine";
 import { FOCUS_MODE_META } from "@/lib/mode-constants";
-import { logicTokenPools } from "@/data/logic-content";
+import { logicTokenPools, efCategories } from '@/data/logic-content';
 import { PRNG } from "@/lib/rng";
 
 
@@ -52,7 +53,7 @@ type Stimulus = {
     // Neutral
     position?: Position;
     arrow?: ArrowDir;
-    // Math, Logic
+    // Math, Logic, Verbal
     value?: number | string;
     // Music
     pitch?: number;
@@ -75,7 +76,7 @@ export function FocusSwitchReactor() {
   const [gameState, setGameState] = useState<'loading' | 'start' | 'cueing' | 'running' | 'feedback' | 'finished'>('loading');
   
   const [score, setScore] = useState(0);
-  const [rule, setRule] = useState<NeutralRule | MathRule | MusicRule | EqRule | LogicRule>('position');
+  const [rule, setRule] = useState<NeutralRule | MathRule | MusicRule | EqRule | LogicRule | 'rhyme' | 'category'>('position');
   const [stimulus, setStimulus] = useState<Partial<Stimulus>>({});
   const [inlineFeedback, setInlineFeedback] = useState({ message: '', type: '' });
 
@@ -107,12 +108,24 @@ export function FocusSwitchReactor() {
   const generateStimulus = useCallback((): Partial<Stimulus> => {
     if (!prngRef.current) return {};
 
-    if (currentMode === 'neutral' || currentMode === 'spatial' || currentMode === 'verbal') {
+    if (currentMode === 'neutral' || currentMode === 'spatial') {
         const positions: Position[] = ['top', 'bottom', 'left', 'right'];
         const arrows: ArrowDir[] = ['up', 'down', 'left', 'right'];
         const newPosition = prngRef.current.shuffle(positions)[0];
         const newArrow = prngRef.current.shuffle(arrows)[0];
         const newStimulus = { position: newPosition, arrow: newArrow };
+        setStimulus(newStimulus);
+        return newStimulus;
+    } else if (currentMode === 'verbal') {
+        const wordPool = [
+            ...efCategories.isAnimate,
+            ...efCategories.isObject,
+            ...efCategories.rhymesWithCat,
+            ...efCategories.rhymesWithDog,
+        ];
+        const uniqueWords = [...new Set(wordPool)];
+        const word = prngRef.current.shuffle(uniqueWords)[0];
+        const newStimulus = { value: word };
         setStimulus(newStimulus);
         return newStimulus;
     } else if (currentMode === 'math') {
@@ -151,17 +164,19 @@ export function FocusSwitchReactor() {
     
     const levelDef = policy.levelMap[state.currentLevel] || policy.levelMap[20];
     const { mechanic_config } = levelDef;
-    const contentConfig = levelDef.content_config[currentMode];
-    if (!contentConfig) return;
+    
+    let contentConfig = levelDef.content_config[currentMode];
+    // Fallback to neutral if the specific focus mode isn't defined for this level
+    if (!contentConfig) {
+        contentConfig = levelDef.content_config['neutral'];
+    }
+    if (!contentConfig) return; // Should not happen if neutral is always defined
 
     let availableRules: any[] = [];
     if (currentMode === 'music') {
         availableRules = ['pitch', 'duration'];
-    } else if (currentMode === 'eq' || currentMode === 'logic') {
-        availableRules = contentConfig.params?.rules as any[] || [];
-    }
-    else {
-        availableRules = contentConfig.params?.rules as any[] || [];
+    } else if (contentConfig.params?.rules) {
+        availableRules = contentConfig.params.rules;
     }
     
     if (mechanic_config.noGo) availableRules.push('no_go');
@@ -349,11 +364,20 @@ export function FocusSwitchReactor() {
             targetSide = 'left'; // It IS an operator
         }
         isCorrect = (answer === targetSide);
+    } else if (currentMode === 'verbal') {
+        let isMatch = false;
+        if (ruleRef.current === 'category') {
+            isMatch = efCategories.isObject.includes(stimulus.value as string);
+        } else if (ruleRef.current === 'rhyme') {
+            isMatch = efCategories.rhymesWithCat.includes(stimulus.value as string);
+        }
+        const targetSide = isMatch ? 'left' : 'right';
+        isCorrect = (answer === targetSide);
     }
     else {
-      // Logic for neutral/math/spatial/verbal modes...
+      // Logic for neutral/math/spatial modes...
       let targetSide = 'left';
-      if (currentMode === 'neutral' || currentMode === 'spatial' || currentMode === 'verbal') {
+      if (currentMode === 'neutral' || currentMode === 'spatial') {
           const correctDir: Record<Position, ArrowDir> = { top: 'up', bottom: 'down', left: 'left', right: 'right' };
           if (ruleRef.current === 'position') targetSide = correctDir[stimulus.position!] === 'up' || correctDir[stimulus.position!] === 'left' ? 'left' : 'right';
           else targetSide = stimulus.arrow === 'up' || stimulus.arrow === 'left' ? 'left' : 'right';
@@ -391,7 +415,7 @@ export function FocusSwitchReactor() {
 
   const getRuleText = () => {
       let text = '';
-      if (currentMode === 'neutral' || currentMode === 'spatial' || currentMode === 'verbal') {
+      if (currentMode === 'neutral' || currentMode === 'spatial') {
         if (rule === 'position') text = 'Respond to the SHAPE\'S LOCATION';
         else if (rule === 'arrow') text = 'Respond to the ARROW\'S DIRECTION';
       } else if (currentMode === 'math') {
@@ -406,6 +430,9 @@ export function FocusSwitchReactor() {
       } else if (currentMode === 'logic') {
         if (rule === 'is_keyword') text = 'KEYWORD: Yes (LEFT) or No (RIGHT)?';
         else if (rule === 'is_operator') text = 'OPERATOR: Yes (LEFT) or No (RIGHT)?';
+      } else if (currentMode === 'verbal') {
+        if (rule === 'category') text = 'Is it an OBJECT? (LEFT for YES)';
+        else if (rule === 'rhyme') text = 'Does it rhyme with CAT? (LEFT for YES)';
       }
       if (rule === 'no_go') text = "DON'T RESPOND";
       return <span className="font-bold text-primary uppercase">{text}</span>;
@@ -537,23 +564,29 @@ export function FocusSwitchReactor() {
                 <span>Score: {score}</span>
               </div>
               <div className="relative p-8 bg-muted rounded-lg w-full h-48 flex items-center justify-center">
-                  <div className={cn("absolute inset-0 flex", stimulus.position ? positionClasses[stimulus.position] : 'items-center justify-center')}>
-                    {(currentMode === 'neutral' || currentMode === 'spatial' || currentMode === 'verbal') && stimulus.arrow && (
-                        <div className="w-20 h-20 bg-background rounded-md flex items-center justify-center">
-                            {React.createElement(arrowMap[stimulus.arrow], { className: "w-16 h-16 text-primary" })}
-                        </div>
-                    )}
-                    {currentMode === 'math' && stimulus.value !== undefined && (
-                        <div className="text-7xl font-bold text-primary">
+                    {currentMode === 'verbal' && stimulus.value !== undefined ? (
+                         <div className="text-6xl font-bold text-primary font-mono">
                             {stimulus.value}
                         </div>
-                    )}
-                     {currentMode === 'logic' && stimulus.value !== undefined && (
-                        <div className="text-5xl font-mono font-bold text-primary">
-                            {stimulus.value}
+                    ) : (
+                        <div className={cn("absolute inset-0 flex", stimulus.position ? positionClasses[stimulus.position] : 'items-center justify-center')}>
+                            {(currentMode === 'neutral' || currentMode === 'spatial') && stimulus.arrow && (
+                                <div className="w-20 h-20 bg-background rounded-md flex items-center justify-center">
+                                    {React.createElement(arrowMap[stimulus.arrow], { className: "w-16 h-16 text-primary" })}
+                                </div>
+                            )}
+                            {currentMode === 'math' && stimulus.value !== undefined && (
+                                <div className="text-7xl font-bold text-primary">
+                                    {stimulus.value}
+                                </div>
+                            )}
+                            {currentMode === 'logic' && stimulus.value !== undefined && (
+                                <div className="text-5xl font-mono font-bold text-primary">
+                                    {stimulus.value}
+                                </div>
+                            )}
                         </div>
                     )}
-                  </div>
               </div>
               <p className="text-xl mb-4 h-12 flex items-center text-center">Rule: {getRuleText()}</p>
                <div className="h-6 text-sm font-semibold">
