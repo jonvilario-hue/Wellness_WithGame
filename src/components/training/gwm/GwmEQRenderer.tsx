@@ -44,11 +44,6 @@ export const GwmEQRenderer: React.FC<BaseRendererProps<GwmGameState, GwmGameEven
   const { gameState: phase, puzzle, userAnswer } = gameState;
   const [sequenceIndex, setSequenceIndex] = useState(0);
 
-  // Guard against rendering with incorrect puzzle type
-  if (puzzle && puzzle.type !== 'eq_face_sequence') {
-      return <div className="w-full h-full flex items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-cyan-400" /></div>;
-  }
-
   // --- Animation for sequence presentation ---
   useEffect(() => {
     if (phase === 'memorizing' && puzzle?.type === 'eq_face_sequence') {
