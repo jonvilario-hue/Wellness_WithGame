@@ -21,6 +21,10 @@ export const getLayoutedElements = (nodes: DagreNode[], edges: DagreEdge[]): Lay
     return {
         nodes: g.nodes().map(v => {
             const node = g.node(v);
+            if (!node || typeof node.x === 'undefined') {
+                console.warn(`Dagre layout failed for node ID: ${v}. Defaulting position.`);
+                return { id: v, x: 0, y: 0 };
+            }
             return { id: v, x: node.x, y: node.y };
         }),
         edges: g.edges()
