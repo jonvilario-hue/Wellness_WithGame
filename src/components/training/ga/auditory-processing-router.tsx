@@ -11,12 +11,13 @@ import { LocalizationModule } from './LocalizationModule';
 import { Menu } from './Menu';
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
+import { RhythmJudgmentModule } from "./RhythmJudgmentModule";
 
 type GaMode = 'pitch' | 'timing' | 'timbre' | 'recall' | 'segregation' | 'localization' | 'prosody';
 
 const modeConfig: Record<GaMode, { title: string, Icon: React.ElementType, Component: React.FC<{ onComplete: () => void }> }> = {
     pitch: { title: "Pitch", Icon: Waves, Component: PitchDiscriminationModule },
-    timing: { title: "Timing", Icon: Music, Component: () => <p>Timing Module WIP</p> },
+    timing: { title: "Rhythm", Icon: Music, Component: RhythmJudgmentModule },
     timbre: { title: "Timbre", Icon: Ear, Component: TimbreModule },
     recall: { title: "Melody Recall", Icon: Brain, Component: () => <p>Melody Recall WIP</p> },
     segregation: { title: "Segregation", Icon: Bot, Component: () => <p>Segregation Module WIP</p> },
