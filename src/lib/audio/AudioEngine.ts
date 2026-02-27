@@ -35,6 +35,10 @@ export type ToneConfig = {
     onEnd?: () => void;
 };
 
+export function midiToFreq(midi: number): number {
+  return 440 * Math.pow(2, (midi - 69) / 12);
+}
+
 export class AudioEngine {
   public audioContext: AudioContext | null = null;
   private masterGain: GainNode | null = null;

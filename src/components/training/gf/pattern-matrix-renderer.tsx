@@ -9,12 +9,13 @@ import { Loader2, PieChart, Music } from "lucide-react";
 import type { AdaptiveState, BaseRendererProps } from "@/types";
 import { domainIcons } from '@/components/icons';
 import type { PatternMatrixState, PatternMatrixEvent } from "./pattern-matrix";
-import { useAudioEngine } from '@/hooks/use-audio-engine';
+import { useAudioEngine } from '@/hooks/useAudioEngine';
+import { midiToFreq } from '@/lib/audio/AudioEngine';
 import { FOCUS_MODE_META } from '@/lib/mode-constants';
 
 const ElementComponent = ({ element }: { element: any }) => {
     if (!element) return null;
-    const { playNote } = useAudioEngine();
+    const { engine } = useAudioEngine();
 
     if (element.type === 'verbal') {
         return <div className="text-2xl font-semibold text-blue-300">{element.value}</div>;
@@ -26,7 +27,12 @@ const ElementComponent = ({ element }: { element: any }) => {
       return <div className={cn("text-4xl font-bold text-blue-300")}>{element.value}</div>;
     }
      if (element.type === 'music') {
-        return <Button variant="ghost" onClick={() => playNote(element.notes[0], 'sine', 300)}><Music className="text-3xl font-bold text-blue-300" /></Button>
+        const play = () => {
+            if (!engine) return;
+            const freq = midiToFreq(element.notes[0]);
+            engine.playTone({ frequency: freq, duration: 0.3, type: 'sine' });
+        }
+        return <Button variant="ghost" onClick={play}><Music className="text-3xl font-bold text-blue-300" /></Button>
     }
 
     // Default Neutral Element
