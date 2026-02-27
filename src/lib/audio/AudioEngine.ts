@@ -1,8 +1,5 @@
 
 'use client';
-import type { AssetId } from '@/types';
-import { AudioSampleManager } from './AudioSampleManager';
-import type { AssetUrlResolver } from './types';
 
 // Define a handle to control playback
 export interface PlaybackHandle {
@@ -38,37 +35,37 @@ export type ToneConfig = {
     onEnd?: () => void;
 };
 
-
-// Default resolver for local assets.
-const defaultLocalAssetResolver: AssetUrlResolver = (assetId, assetPath) => {
-  return `/audio-assets/${assetPath}`;
-};
-
 export class AudioEngine {
   public audioContext: AudioContext | null = null;
-  public sampleManager: AudioSampleManager | null = null;
   private masterGain: GainNode | null = null;
+  private compressor: DynamicsCompressorNode | null = null;
   private activeSources: Set<AudioScheduledSourceNode> = new Set();
   public isReady: boolean = false;
   public isSpeechSupported: boolean = false;
 
   constructor() {
     if (typeof window !== 'undefined') {
-      this.init();
-    }
-  }
+      try {
+        this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        this.masterGain = this.audioContext.createGain();
+        this.compressor = this.audioContext.createDynamicsCompressor();
+        
+        // Basic limiter settings
+        this.compressor.threshold.setValueAtTime(-6.0, this.audioContext.currentTime);
+        this.compressor.knee.setValueAtTime(3.0, this.audioContext.currentTime);
+        this.compressor.ratio.setValueAtTime(12.0, this.audioContext.currentTime);
+        this.compressor.attack.setValueAtTime(0.001, this.audioContext.currentTime);
+        this.compressor.release.setValueAtTime(0.1, this.audioContext.currentTime);
 
-  private init() {
-    try {
-      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      this.masterGain = this.audioContext.createGain();
-      this.masterGain.connect(this.audioContext.destination);
-      this.sampleManager = new AudioSampleManager(this.audioContext, defaultLocalAssetResolver);
-      this.isSpeechSupported = 'speechSynthesis' in window;
-      this.isReady = true;
-      console.log('[AudioEngine] Initialized successfully.');
-    } catch (e) {
-      console.error('[AudioEngine] Web Audio API is not supported in this browser.', e);
+        this.masterGain.connect(this.compressor);
+        this.compressor.connect(this.audioContext.destination);
+
+        this.isSpeechSupported = 'speechSynthesis' in window;
+        // Do not set isReady here. Wait for resumeContext.
+        console.log('[AudioEngine] Initialized but suspended.');
+      } catch (e) {
+        console.error('[AudioEngine] Web Audio API is not supported in this browser.', e);
+      }
     }
   }
 
@@ -76,6 +73,9 @@ export class AudioEngine {
     if (this.audioContext && this.audioContext.state === 'suspended') {
       await this.audioContext.resume();
       console.log('[AudioEngine] AudioContext resumed.');
+    }
+    if (this.audioContext?.state === 'running') {
+        this.isReady = true;
     }
   }
 
@@ -92,71 +92,8 @@ export class AudioEngine {
       }
   }
 
-  public async playSample(assetId: AssetId, config: PlaybackConfig = {}): Promise<PlaybackHandle | null> {
-    if (!this.isReady || !this.sampleManager || !this.audioContext || !this.masterGain) return null;
-    await this.resumeContext();
-
-    const assetInfo = this.sampleManager.getAssetInfo(assetId);
-    const buffer = await this.sampleManager.getAsset(assetId);
-    if (!buffer) {
-        console.error(`[AudioEngine] Could not load or generate asset for ${assetId}`);
-        return null;
-    }
-
-    const source = this.audioContext.createBufferSource();
-    source.buffer = buffer;
-    source.playbackRate.value = config.playbackRate ?? 1.0;
-    source.loop = config.loop ?? false;
-
-    const gainNode = this.audioContext!.createGain();
-    gainNode.gain.value = config.volume ?? 1;
-
-    let finalNode: AudioNode = gainNode;
-
-    if (config.pan !== undefined) {
-        const panner = this.audioContext.createStereoPanner();
-        panner.pan.setValueAtTime(config.pan, this.audioContext.currentTime);
-        gainNode.connect(panner);
-        finalNode = panner;
-    }
-    
-    source.connect(finalNode);
-    finalNode.connect(this.masterGain);
-
-    const scheduledOnset = this.audioContext.currentTime + (config.delay ?? 0);
-    // Use offset/duration from manifest if it's a sprite, otherwise use config
-    const startOffset = assetInfo?.offset ?? config.startOffset ?? 0;
-    const duration = assetInfo?.duration ?? config.duration;
-
-    source.start(scheduledOnset, startOffset);
-    
-    if (duration) {
-        source.stop(scheduledOnset + duration);
-    }
-    
-    this.activeSources.add(source);
-
-    const handle: PlaybackHandle = {
-        stop: () => {
-            try { source.stop(); } catch(e) {}
-        },
-        sourceNode: source,
-        scheduledOnset: scheduledOnset
-    };
-
-    source.onended = () => {
-        source.disconnect();
-        finalNode.disconnect();
-        this.activeSources.delete(source);
-        config.onEnd?.();
-    };
-    
-    return handle;
-  }
-
   public playTone(config: ToneConfig): TonePlaybackHandle | null {
     if (!this.isReady || !this.audioContext || !this.masterGain) return null;
-    this.resumeContext();
     
     const { frequency, duration, volume = 0.5, type = 'sine', pan = 0, delay = 0, onEnd } = config;
 
@@ -200,124 +137,42 @@ export class AudioEngine {
 
     return handle;
   }
-
-  public playPinkNoise(duration: number, gain: number): PlaybackHandle | null {
-    if (!this.audioContext || !this.masterGain) return null;
-    this.resumeContext();
-
-    const bufferSize = this.audioContext.sampleRate * duration;
-    const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
-    const output = buffer.getChannelData(0);
-
-    // Voss-McCartney algorithm for pink noise
-    let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
-    for (let i = 0; i < bufferSize; i++) {
-        const white = Math.random() * 2 - 1;
-        b0 = 0.99886 * b0 + white * 0.0555179;
-        b1 = 0.99332 * b1 + white * 0.0750759;
-        b2 = 0.96900 * b2 + white * 0.1538520;
-        b3 = 0.86650 * b3 + white * 0.3104856;
-        b4 = 0.55000 * b4 + white * 0.5329522;
-        b5 = -0.7616 * b5 - white * 0.0168980;
-        output[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
-        output[i] *= 0.11; // roughly compensate for gain
-        b6 = white * 0.115926;
-    }
-
-    const source = this.audioContext.createBufferSource();
-    source.buffer = buffer;
-
-    const gainNode = this.audioContext.createGain();
-    gainNode.gain.value = gain;
-
-    source.connect(gainNode);
-    gainNode.connect(this.masterGain);
-    
-    const scheduledOnset = this.audioContext.currentTime;
-    source.start(scheduledOnset);
-    source.stop(scheduledOnset + duration);
-
-    this.activeSources.add(source);
-
-    const handle: PlaybackHandle = {
-        stop: () => { try { source.stop(); } catch(e) {} },
-        sourceNode: source,
-        scheduledOnset
-    };
-
-    source.onended = () => {
-        source.disconnect();
-        gainNode.disconnect();
-        this.activeSources.delete(source);
-    };
-    
-    return handle;
-  }
   
-    public playSpeechShapedNoise(duration: number, gain: number): PlaybackHandle | null {
-        if (!this.audioContext || !this.masterGain) return null;
-        this.resumeContext();
+  public playComplexTone(partials: { frequency: number, volume: number, type?: OscillatorType }[], duration: number, config: PlaybackConfig = {}): PlaybackHandle[] | null {
+    if (!this.isReady || !this.audioContext || !this.masterGain) return null;
+    const handles: TonePlaybackHandle[] = [];
+    
+    partials.forEach(partial => {
+        const handle = this.playTone({
+            frequency: partial.frequency,
+            duration,
+            volume: partial.volume * (config.volume ?? 1),
+            type: partial.type || 'sine',
+            pan: config.pan,
+            delay: config.delay,
+        });
+        if(handle) handles.push(handle);
+    });
 
-        const bufferSize = this.audioContext.sampleRate * duration;
-        const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
-        const output = buffer.getChannelData(0);
-
-        // Generate white noise
-        for (let i = 0; i < bufferSize; i++) {
-            output[i] = Math.random() * 2 - 1;
+    if (config.onEnd) {
+        if(handles.length > 0) {
+            handles[0].sourceNode.addEventListener('ended', config.onEnd, { once: true });
+        } else {
+            setTimeout(config.onEnd, duration * 1000);
         }
-
-        const whiteNoiseSource = this.audioContext.createBufferSource();
-        whiteNoiseSource.buffer = buffer;
-        whiteNoiseSource.loop = true;
-
-        // Create a bandpass filter to shape the noise into something more speech-like
-        const bandpassFilter = this.audioContext.createBiquadFilter();
-        bandpassFilter.type = 'bandpass';
-        bandpassFilter.frequency.value = 1500; // Center frequency in the middle of human speech range
-        bandpassFilter.Q.value = 0.5; // A moderate quality factor
-
-        const gainNode = this.audioContext.createGain();
-        gainNode.gain.value = gain;
-
-        whiteNoiseSource.connect(bandpassFilter);
-        bandpassFilter.connect(gainNode);
-        gainNode.connect(this.masterGain);
-
-        const scheduledOnset = this.audioContext.currentTime;
-        whiteNoiseSource.start(scheduledOnset);
-        whiteNoiseSource.stop(scheduledOnset + duration);
-
-        this.activeSources.add(whiteNoiseSource);
-
-        const handle: PlaybackHandle = {
-            stop: () => { try { whiteNoiseSource.stop(); } catch (e) { } },
-            sourceNode: whiteNoiseSource,
-            scheduledOnset
-        };
-
-        whiteNoiseSource.onended = () => {
-            whiteNoiseSource.disconnect();
-            bandpassFilter.disconnect();
-            gainNode.disconnect();
-            this.activeSources.delete(whiteNoiseSource);
-        };
-
-        return handle;
     }
+    
+    return handles;
+  }
 
-  public async playSequence(items: (AssetId | ToneConfig)[], intervalMs: number, onEnd?: () => void) {
-      if (!this.isReady || !this.audioContext || !this.sampleManager) return;
+  public async playSequence(items: ToneConfig[], intervalMs: number, onEnd?: () => void) {
+      if (!this.isReady || !this.audioContext) return;
       await this.resumeContext();
 
       let time = this.audioContext.currentTime;
       for (const item of items) {
           const delay = time > this.audioContext.currentTime ? time - this.audioContext.currentTime : 0;
-          if(typeof item === 'string') {
-              this.playSample(item, { delay });
-          } else {
-              this.playTone({ ...item, delay });
-          }
+          this.playTone({ ...item, delay });
           time += intervalMs / 1000;
       }
       

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,171 +7,80 @@ import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useAudioEngine, type ToneConfig } from "@/hooks/useAudioEngine";
 import { Headphones, Music, Waves, Ear, Locate, Brain, Bot, Loader2, RefreshCw } from "lucide-react";
 import { domainIcons } from "@/components/icons";
-import { usePreloadAssets } from "@/hooks/usePreloadAssets";
-import type { AssetId } from "@/types";
 import { cn } from "@/lib/utils";
-import { Input } from "@/components/ui/input";
+import { PRNG } from '@/lib/rng';
 
-// --- Existing Modules ---
-import { PitchDiscriminationModule } from './PitchDiscriminationModule';
-import { RhythmJudgmentModule } from './RhythmJudgmentModule';
-import { Menu } from './Menu';
+// --- Procedural Modules ---
 
-
-// --- NEW & REVISED MODULES ---
-
-const MelodyRecallModule = ({ onComplete }: { onComplete: () => void }) => {
+const PitchDiscriminationModule = ({ onComplete }: { onComplete: () => void }) => {
     const { engine } = useAudioEngine();
-    const notes = useMemo(() => [
-        { name: 'C', midi: 60 }, { name: 'D', midi: 62 }, { name: 'E', midi: 64 }, 
-        { name: 'G', midi: 67 }, { name: 'A', midi: 69 }
-    ], []);
-    const [sequence, setSequence] = useState<number[]>([]);
-    const [userSequence, setUserSequence] = useState<number[]>([]);
-    const [gameState, setGameState] = useState<'playing' | 'recalling' | 'feedback'>('playing');
     const [feedback, setFeedback] = useState('');
-
-    const startNewTrial = useCallback(() => {
-        const newSequence = Array.from({ length: 4 }, () => notes[Math.floor(Math.random() * notes.length)].midi);
-        setSequence(newSequence);
-        setUserSequence([]);
-        setFeedback('');
-        setGameState('playing');
-        if (engine) {
-            engine.playSequence(newSequence.map(n => ({ frequency: engine.midiToFreq(n), duration: 0.3 })), 400, () => setGameState('recalling'));
-        }
-    }, [engine, notes]);
-
-    useEffect(() => {
-        startNewTrial();
-    }, [startNewTrial]);
-
-    const handleNoteClick = (note: number) => {
-        if (gameState !== 'recalling') return;
-        setUserSequence(prev => [...prev, note]);
-    };
-    
-    const checkAnswer = () => {
-        if(gameState !== 'recalling') return;
-        const isCorrect = JSON.stringify(userSequence) === JSON.stringify(sequence);
-        setFeedback(isCorrect ? 'Correct!' : 'Incorrect.');
-        setGameState('feedback');
-        setTimeout(() => onComplete(), 2000);
-    }
-
-    return (
-        <div className="flex flex-col items-center gap-4 w-full">
-            <p className="font-semibold text-lg">{gameState === 'playing' ? 'Memorize the melody...' : 'Recall the melody.'}</p>
-            <div className="h-10 text-xl font-bold">{feedback && <p className={cn(feedback === 'Correct!' ? 'text-green-400' : 'text-rose-400')}>{feedback}</p>}</div>
-            <div className="flex gap-2">
-                {notes.map(note => (
-                    <Button key={note.midi} onClick={() => handleNoteClick(note.midi)} disabled={gameState !== 'recalling'}>{note.name}</Button>
-                ))}
-            </div>
-             <div className="h-12 p-2 border rounded-md min-w-[200px] text-center">{userSequence.map(n => notes.find(nt => nt.midi === n)?.name).join(' - ')}</div>
-            <Button onClick={checkAnswer} disabled={gameState !== 'recalling' || userSequence.length === 0}>Submit</Button>
-        </div>
-    );
-};
-
-const SpeechInNoiseModule = ({ onComplete }: { onComplete: () => void }) => {
-    const { engine } = useAudioEngine();
-    const words = useMemo(() => ["apple", "table", "river", "house", "window", "pencil"], []);
-    const [targetWord, setTargetWord] = useState('');
-    const [userInput, setUserInput] = useState('');
-    const [feedback, setFeedback] = useState('');
-
-    const startNewTrial = useCallback(() => {
-        if (!engine) return;
-        const newWord = words[Math.floor(Math.random() * words.length)];
-        setTargetWord(newWord);
-        setUserInput('');
-        setFeedback('');
-
-        engine.playSpeechShapedNoise?.(2, 0.4);
-        setTimeout(() => engine.speak(newWord), 500);
-    }, [engine, words]);
-
-    useEffect(() => {
-        startNewTrial();
-    }, [startNewTrial]);
-    
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        const isCorrect = userInput.trim().toLowerCase() === targetWord.toLowerCase();
-        setFeedback(isCorrect ? 'Correct!' : `Incorrect. The word was "${targetWord}".`);
-        setTimeout(() => onComplete(), 2000);
-    }
-
-    return (
-        <div className="flex flex-col items-center gap-4 w-full">
-            <p className="font-semibold text-lg">What word did you hear in the noise?</p>
-            <Button onClick={startNewTrial}>Replay</Button>
-            <div className="h-8 text-xl font-bold">{feedback && <p className={cn(feedback.includes('Incorrect') ? 'text-rose-400' : 'text-green-400')}>{feedback}</p>}</div>
-            <form onSubmit={handleSubmit} className="flex gap-2">
-                <Input value={userInput} onChange={e => setUserInput(e.target.value)} autoFocus/>
-                <Button type="submit">Submit</Button>
-            </form>
-        </div>
-    )
-}
-
-const ProsodyContourModule = ({ onComplete }: { onComplete: () => void }) => {
-    const { engine } = useAudioEngine();
     const [isPlaying, setIsPlaying] = useState(false);
-    const answerRef = useRef<'rising' | 'falling' | null>(null);
+    const answerRef = useRef<'higher' | 'lower'>('higher');
+    const prngRef = useRef(new PRNG('pitch-seed'));
 
-    const playContour = useCallback(() => {
+    const handlePlay = useCallback(() => {
         if (!engine || isPlaying) return;
         setIsPlaying(true);
-        const isRising = Math.random() > 0.5;
-        answerRef.current = isRising ? 'rising' : 'falling';
-        const sequence: ToneConfig[] = isRising
-            ? [{freq: 200}, {freq: 250}, {freq: 300}, {freq: 350}].map(c => ({...c, duration: 0.1, type: 'sine'}))
-            : [{freq: 350}, {freq: 300}, {freq: 250}, {freq: 200}].map(c => ({...c, duration: 0.1, type: 'sine'}));
-        engine.playSequence(sequence, 100, () => setIsPlaying(false));
+        setFeedback('');
+
+        const isHigher = prngRef.current.nextFloat() > 0.5;
+        answerRef.current = isHigher ? 'higher' : 'lower';
+        
+        const baseFreq = 440; // A4
+        const differenceInCents = 100; // 1 semitone
+        const comparisonFreq = baseFreq * Math.pow(2, (isHigher ? differenceInCents : -differenceInCents) / 1200);
+
+        engine.playTone({ frequency: baseFreq, duration: 0.4, type: 'sine' });
+        setTimeout(() => {
+            engine.playTone({ frequency: comparisonFreq, duration: 0.4, type: 'sine', onEnd: () => setIsPlaying(false) });
+        }, 800);
     }, [engine, isPlaying]);
 
-    useEffect(() => { playContour() }, [playContour]);
-
-    const handleAnswer = (choice: 'rising' | 'falling') => {
-        if (choice === answerRef.current) onComplete();
-        else {
-            alert('Incorrect!');
-            onComplete();
-        }
+    const handleAnswer = (userChoice: 'higher' | 'lower') => {
+        if (isPlaying) return;
+        const isCorrect = userChoice === answerRef.current;
+        setFeedback(isCorrect ? 'Correct!' : 'Incorrect.');
+        setTimeout(() => onComplete(), 1500);
     };
-    
+
+    useEffect(() => { handlePlay() }, [handlePlay]);
+
     return (
-        <div className="flex flex-col items-center gap-4 w-full">
-            <p className="font-semibold text-lg">Did the tone rise or fall?</p>
-            <Button onClick={playContour} disabled={isPlaying}>Replay</Button>
-            <div className="grid grid-cols-2 gap-4">
-                <Button onClick={() => handleAnswer('rising')} disabled={isPlaying}>Rising</Button>
-                <Button onClick={() => handleAnswer('falling')} disabled={isPlaying}>Falling</Button>
+        <div className="flex flex-col items-center gap-4 w-full text-violet-200">
+            <p className="font-semibold text-lg">Was the second tone higher or lower?</p>
+            <Button onClick={handlePlay} disabled={isPlaying}><RefreshCw className="mr-2 h-4 w-4"/> Replay</Button>
+            <div className="h-8 text-xl font-bold">{feedback && <p className={cn(feedback === 'Correct!' ? 'text-green-400' : 'text-rose-400')}>{feedback}</p>}</div>
+            <div className="grid grid-cols-2 gap-4 w-full max-w-sm">
+                <Button onClick={() => handleAnswer('lower')} disabled={isPlaying} className="h-24 text-xl">Lower</Button>
+                <Button onClick={() => handleAnswer('higher')} disabled={isPlaying} className="h-24 text-xl">Higher</Button>
             </div>
         </div>
-    )
+    );
 };
 
 const SpectralDiscriminationModule = ({ onComplete }: { onComplete: () => void }) => {
     const { engine } = useAudioEngine();
     const [isPlaying, setIsPlaying] = useState(false);
     const answerRef = useRef<'same' | 'different' | null>(null);
+    const prngRef = useRef(new PRNG('spectral-seed'));
 
     const playComplexTones = useCallback(() => {
         if (!engine?.audioContext || isPlaying) return;
         setIsPlaying(true);
-        const isSame = Math.random() > 0.5;
+        const isSame = prngRef.current.nextFloat() > 0.5;
         answerRef.current = isSame ? 'same' : 'different';
 
         const fundamental = 220; // A3
         const harmonics = [1, 2, 3, 4, 5, 6];
         
-        const playToneSet = (harmonicsToPlay: number[]) => {
-            harmonicsToPlay.forEach(h => {
-                engine.playTone({ frequency: fundamental * h, duration: 1, volume: 0.2 / h, type: 'sine' });
-            });
+        const playToneSet = (partials: number[]) => {
+            const partialConfigs = partials.map(h => ({
+                frequency: fundamental * h,
+                volume: 0.2 / h,
+                type: 'sine' as OscillatorType,
+            }));
+           engine.playComplexTone(partialConfigs, 1.0);
         };
         
         playToneSet(harmonics); // Play full tone
@@ -179,7 +89,7 @@ const SpectralDiscriminationModule = ({ onComplete }: { onComplete: () => void }
             if (isSame) {
                 playToneSet(harmonics);
             } else {
-                const removedHarmonic = harmonics[Math.floor(Math.random() * (harmonics.length -1)) + 1];
+                const removedHarmonic = harmonics[prngRef.current.nextIntRange(1, harmonics.length)];
                 playToneSet(harmonics.filter(h => h !== removedHarmonic));
             }
             setTimeout(() => setIsPlaying(false), 1100);
@@ -187,20 +97,24 @@ const SpectralDiscriminationModule = ({ onComplete }: { onComplete: () => void }
 
     }, [engine, isPlaying]);
     
-    useEffect(() => { playComplexTones() }, []);
+    useEffect(() => { playComplexTones() }, [playComplexTones]);
     
     const handleAnswer = (choice: 'same' | 'different') => {
-        if(choice === answerRef.current) alert('Correct!'); else alert('Incorrect!');
-        onComplete();
+        if(choice === answerRef.current) setFeedback('Correct!')
+        else setFeedback('Incorrect.');
+        setTimeout(onComplete, 1500);
     };
+    
+    const [feedback, setFeedback] = useState('');
 
     return (
          <div className="flex flex-col items-center gap-4 w-full">
             <p className="font-semibold text-lg">Are the two complex tones the same or different?</p>
-            <Button onClick={playComplexTones} disabled={isPlaying}>Replay</Button>
-            <div className="grid grid-cols-2 gap-4">
-                <Button onClick={() => handleAnswer('same')} disabled={isPlaying}>Same</Button>
-                <Button onClick={() => handleAnswer('different')} disabled={isPlaying}>Different</Button>
+            <Button onClick={playComplexTones} disabled={isPlaying}><RefreshCw className="mr-2 h-4 w-4"/> Replay</Button>
+             <div className="h-8 text-xl font-bold">{feedback && <p className={cn(feedback === 'Correct!' ? 'text-green-400' : 'text-rose-400')}>{feedback}</p>}</div>
+            <div className="grid grid-cols-2 gap-4  w-full max-w-sm">
+                <Button onClick={() => handleAnswer('same')} disabled={isPlaying} className="h-24 text-xl">Same</Button>
+                <Button onClick={() => handleAnswer('different')} disabled={isPlaying} className="h-24 text-xl">Different</Button>
             </div>
         </div>
     )
@@ -208,29 +122,26 @@ const SpectralDiscriminationModule = ({ onComplete }: { onComplete: () => void }
 
 const EnhancedLocalizationModule = ({ onComplete }: { onComplete: () => void }) => {
     const { engine } = useAudioEngine();
-    const assetsToLoad: AssetId[] = useMemo(() => ['perc-click'], []);
-    const { isLoading } = usePreloadAssets(assetsToLoad);
     const [feedback, setFeedback] = useState('');
     const answerRef = useRef<number>(0);
     const positions = useMemo(() => [-0.9, -0.45, 0, 0.45, 0.9], []);
+    const prngRef = useRef(new PRNG('localization-seed'));
 
     const playSpatialSound = useCallback(() => {
-        if (!engine || isLoading) return;
-        const randomIndex = Math.floor(Math.random() * positions.length);
+        if (!engine) return;
+        const randomIndex = prngRef.current.nextIntRange(0, positions.length);
         answerRef.current = randomIndex;
-        engine.playSample('perc-click', { pan: positions[randomIndex] });
+        engine.playTone({ frequency: 880, duration: 0.15, type: 'sine', pan: positions[randomIndex], volume: 0.6 });
         setFeedback('');
-    }, [engine, isLoading, positions]);
+    }, [engine, positions]);
     
-    useEffect(() => { if (!isLoading) playSpatialSound(); }, [isLoading, playSpatialSound]);
+    useEffect(() => { playSpatialSound(); }, [playSpatialSound]);
 
     const handleAnswer = (choiceIndex: number) => {
         const isCorrect = choiceIndex === answerRef.current;
         setFeedback(isCorrect ? 'Correct!' : 'Incorrect.');
         setTimeout(() => onComplete(), 1500);
     };
-
-    if (isLoading) return <Loader2 className="animate-spin" />;
 
     return (
          <div className="flex flex-col items-center gap-4 w-full">
@@ -246,32 +157,58 @@ const EnhancedLocalizationModule = ({ onComplete }: { onComplete: () => void }) 
     )
 };
 
-// --- Main Router Component ---
 
-type GaMode = 'pitch' | 'timing' | 'timbre' | 'recall' | 'segregation' | 'localization' | 'prosody';
+// --- Menu & Router ---
+const Menu = ({ onSelectMode, modes }: { onSelectMode: (mode: GaMode) => void, modes: any[] }) => (
+  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-center w-full max-w-2xl">
+    {modes.map(mode => {
+      const { Icon, title, key } = mode;
+      return (
+        <Card key={key} className="bg-violet-900 hover:bg-violet-800 transition-colors cursor-pointer" onClick={() => onSelectMode(key)}>
+          <CardContent className="p-4 flex flex-col items-center justify-center gap-2">
+            <Icon className="w-8 h-8 text-violet-400" />
+            <p className="font-semibold text-violet-100">{title}</p>
+          </CardContent>
+        </Card>
+      );
+    })}
+  </div>
+);
 
-const modeConfig: Record<GaMode, { title: string, Icon: React.ElementType, Component: React.FC<{ onComplete: () => void }> }> = {
+type GaMode = 'pitch' | 'timbre' | 'localization' | 'rhythm' | 'memory' | 'speech' | 'prosody';
+
+const modeConfig: Record<string, { title: string, Icon: React.ElementType, Component: React.FC<{ onComplete: () => void }> }> = {
     pitch: { title: "Pitch", Icon: Waves, Component: PitchDiscriminationModule },
-    timing: { title: "Rhythm", Icon: Music, Component: RhythmJudgmentModule },
     timbre: { title: "Timbre", Icon: Ear, Component: SpectralDiscriminationModule },
-    recall: { title: "Melody Recall", Icon: Brain, Component: MelodyRecallModule },
-    segregation: { title: "Segregation", Icon: Bot, Component: SpeechInNoiseModule },
     localization: { title: "Localization", Icon: Locate, Component: EnhancedLocalizationModule },
-    prosody: { title: "Prosody", Icon: Headphones, Component: ProsodyContourModule },
+    rhythm: { title: "Rhythm", Icon: Music, Component: () => <p>Rhythm Module WIP</p> },
+    memory: { title: "Memory", Icon: Brain, Component: () => <p>Memory Module WIP</p> },
+    speech: { title: "Speech", Icon: Bot, Component: () => <p>Speech Module WIP</p> },
 };
 
 export default function AuditoryProcessingRouter() {
+    const { engine, isReady, initializeAudio } = useAudioEngine();
     const [activeMode, setActiveMode] = useState<'menu' | GaMode>('menu');
-    const { engine } = useAudioEngine();
 
     const handleSelectMode = useCallback((mode: GaMode) => {
-        engine?.resumeContext();
         setActiveMode(mode);
-    }, [engine]);
+    }, []);
 
     const handleModeComplete = useCallback(() => {
         setActiveMode('menu');
     }, []);
+    
+    if (!isReady) {
+        return (
+             <Card className="w-full max-w-3xl bg-violet-900/80 border-violet-500/30 backdrop-blur-sm text-violet-100">
+                 <CardContent className="flex flex-col items-center justify-center gap-4 min-h-[450px]">
+                    <h2 className="text-2xl font-bold">Enable Audio</h2>
+                    <p className="text-muted-foreground text-center">Click the button below to start the audio engine for the Auditory Lab.</p>
+                    <Button onClick={initializeAudio} size="lg"><Headphones className="mr-2"/> Enable Audio</Button>
+                 </CardContent>
+             </Card>
+        )
+    }
 
     const renderActiveMode = () => {
         if (activeMode === 'menu') {
@@ -280,7 +217,7 @@ export default function AuditoryProcessingRouter() {
                 title: modeConfig[key].title,
                 Icon: modeConfig[key].Icon,
             }));
-            return <Menu onSelectMode={handleSelectMode as any} modes={modesForMenu} />;
+            return <Menu onSelectMode={handleSelectMode} modes={modesForMenu} />;
         }
         const { Component } = modeConfig[activeMode];
         return <Component onComplete={handleModeComplete} />;
