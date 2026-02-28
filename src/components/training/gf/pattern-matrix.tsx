@@ -12,7 +12,8 @@ import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { TrialResult, GameId, AdaptiveState, BaseRendererProps } from "@/types";
 import { GameStub } from "../game-stub";
 import { RuleInductionEngine } from '../logic/rule-induction-engine';
-import { useAudioEngine } from "@/hooks/use-audio-engine";
+import { useAudioEngine } from "@/hooks/useAudioEngine";
+import { midiToFreq } from '@/lib/audio/AudioEngine';
 import { generateAnalogyProblem } from "@/lib/verbal-stimulus-factory";
 import { PatternMatrixRenderer } from "./pattern-matrix-renderer";
 import { PRNG } from '@/lib/rng';
@@ -259,7 +260,7 @@ export function PatternMatrix() {
     const { getAdaptiveState, updateAdaptiveState, logEvent, activeSession, startNewGameSession, completeCurrentGameSession } = usePerformanceStore();
     const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
     const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
-    const { playSequence, resumeContext, isAudioReady } = useAudioEngine();
+    const { engine } = useAudioEngine();
 
     const [componentState, setComponentState] = useState<PatternMatrixState>({
         gameState: 'loading',
@@ -302,15 +303,15 @@ export function PatternMatrix() {
     }, [currentMode, getAdaptiveState]);
     
      useEffect(() => {
-        if (componentState.gameState === 'playing' && componentState.puzzle && componentState.puzzle.type === 'music') {
+        if (engine && componentState.gameState === 'playing' && componentState.puzzle && componentState.puzzle.type === 'music') {
             const allNotes = componentState.puzzle.grid.filter(Boolean).map((p: any) => p.notes[0]);
-            playSequence(allNotes, 0.3);
+            engine.playSequence(allNotes.map((note: number) => ({ frequency: midiToFreq(note), duration: 0.3, type: 'sine' })), 400);
         }
-    }, [componentState.gameState, componentState.puzzle, playSequence]);
+    }, [engine, componentState.gameState, componentState.puzzle]);
     
     const handleEvent = useCallback((event: PatternMatrixEvent) => {
         if (event.type === 'START_SESSION') {
-            if (currentMode === 'music') resumeContext();
+            if (currentMode === 'music') engine?.resumeContext();
             
             const seed = crypto.randomUUID();
             prngRef.current = new PRNG(seed);
@@ -383,7 +384,7 @@ export function PatternMatrix() {
                 }
             }, 2000);
         }
-    }, [componentState, getAdaptiveState, activeSession, logEvent, startNewTrial, updateAdaptiveState, currentMode, playSequence, resumeContext, startNewGameSession, completeCurrentGameSession]);
+    }, [componentState, getAdaptiveState, activeSession, logEvent, startNewTrial, updateAdaptiveState, currentMode, engine, startNewGameSession, completeCurrentGameSession]);
 
     const renderLoading = () => (
         <div className="w-full max-w-md h-[500px] flex items-center justify-center">
