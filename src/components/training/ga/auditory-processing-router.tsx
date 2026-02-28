@@ -11,6 +11,8 @@ import { cn } from "@/lib/utils";
 import { PRNG } from '@/lib/rng';
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
+import { usePreloadAssets } from "@/hooks/usePreloadAssets";
+import type { AssetId } from '@/types';
 
 
 // --- Procedural Modules ---
@@ -22,7 +24,7 @@ const PitchDiscriminationModule = ({ onComplete }: { onComplete: () => void }) =
     const answerRef = useRef<'higher' | 'lower'>('higher');
     const prngRef = useRef(new PRNG('pitch-seed'));
 
-    const handlePlay = useCallback(() => {
+    const playTrialAudio = useCallback(() => {
         if (!engine || isPlaying) return;
         setIsPlaying(true);
         setFeedback('');
@@ -47,12 +49,15 @@ const PitchDiscriminationModule = ({ onComplete }: { onComplete: () => void }) =
         setTimeout(() => onComplete(), 1500);
     };
 
-    useEffect(() => { handlePlay() }, [handlePlay]);
+    useEffect(() => {
+        playTrialAudio();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     return (
         <div className="flex flex-col items-center gap-4 w-full text-violet-200">
             <p className="font-semibold text-lg">Was the second tone higher or lower?</p>
-            <Button onClick={handlePlay} disabled={isPlaying}><RefreshCw className="mr-2 h-4 w-4"/> Replay</Button>
+            <Button onClick={playTrialAudio} disabled={isPlaying}><RefreshCw className="mr-2 h-4 w-4"/> Replay</Button>
             <div className="h-8 text-xl font-bold">{feedback && <p className={cn(feedback === 'Correct!' ? 'text-green-400' : 'text-rose-400')}>{feedback}</p>}</div>
             <div className="grid grid-cols-2 gap-4 w-full max-w-sm">
                 <Button onClick={() => handleAnswer('lower')} disabled={isPlaying} className="h-24 text-xl">Lower</Button>
@@ -65,50 +70,59 @@ const PitchDiscriminationModule = ({ onComplete }: { onComplete: () => void }) =
 const SpectralDiscriminationModule = ({ onComplete }: { onComplete: () => void }) => {
     const { engine } = useAudioEngine();
     const [isPlaying, setIsPlaying] = useState(false);
+    const [feedback, setFeedback] = useState('');
     const answerRef = useRef<'same' | 'different' | null>(null);
     const prngRef = useRef(new PRNG('spectral-seed'));
 
     const playComplexTones = useCallback(() => {
         if (!engine?.audioContext || isPlaying) return;
         setIsPlaying(true);
+        setFeedback('');
+
         const isSame = prngRef.current.nextFloat() > 0.5;
         answerRef.current = isSame ? 'same' : 'different';
 
         const fundamental = 220; // A3
         const harmonics = [1, 2, 3, 4, 5, 6];
         
-        const playToneSet = (partials: number[]) => {
+        const playToneSet = (partials: number[], onEnd?: () => void) => {
             const partialConfigs = partials.map(h => ({
                 frequency: fundamental * h,
                 volume: 0.2 / h,
                 type: 'sine' as OscillatorType,
             }));
-           engine.playComplexTone(partialConfigs, 1.0);
+           const handles = engine.playComplexTone(partialConfigs, 1.0);
+           if (onEnd && handles && handles.length > 0) {
+               handles[0].sourceNode.addEventListener('ended', onEnd, { once: true });
+           } else if (onEnd) {
+               setTimeout(onEnd, 1000);
+           }
         };
         
         playToneSet(harmonics); // Play full tone
         
         setTimeout(() => {
             if (isSame) {
-                playToneSet(harmonics);
+                playToneSet(harmonics, () => setIsPlaying(false));
             } else {
                 const removedHarmonic = harmonics[prngRef.current.nextIntRange(1, harmonics.length)];
-                playToneSet(harmonics.filter(h => h !== removedHarmonic));
+                playToneSet(harmonics.filter(h => h !== removedHarmonic), () => setIsPlaying(false));
             }
-            setTimeout(() => setIsPlaying(false), 1100);
         }, 1500);
 
     }, [engine, isPlaying]);
     
-    useEffect(() => { playComplexTones() }, [playComplexTones]);
+    useEffect(() => { 
+        playComplexTones();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
     
     const handleAnswer = (choice: 'same' | 'different') => {
+        if (isPlaying) return;
         if(choice === answerRef.current) setFeedback('Correct!')
         else setFeedback('Incorrect.');
         setTimeout(onComplete, 1500);
     };
-    
-    const [feedback, setFeedback] = useState('');
 
     return (
          <div className="flex flex-col items-center gap-4 w-full">
@@ -126,21 +140,31 @@ const SpectralDiscriminationModule = ({ onComplete }: { onComplete: () => void }
 const EnhancedLocalizationModule = ({ onComplete }: { onComplete: () => void }) => {
     const { engine } = useAudioEngine();
     const [feedback, setFeedback] = useState('');
+    const [isPlaying, setIsPlaying] = useState(false);
     const answerRef = useRef<number>(0);
     const positions = useMemo(() => [-0.9, -0.45, 0, 0.45, 0.9], []);
     const prngRef = useRef(new PRNG('localization-seed'));
 
     const playSpatialSound = useCallback(() => {
-        if (!engine) return;
+        if (!engine || isPlaying) return;
+        setIsPlaying(true);
         const randomIndex = prngRef.current.nextIntRange(0, positions.length);
         answerRef.current = randomIndex;
-        engine.playTone({ frequency: 880, duration: 0.15, type: 'sine', pan: positions[randomIndex], volume: 0.6 });
+        engine.playTone({ 
+            frequency: 880, 
+            duration: 0.15, 
+            type: 'sine', 
+            pan: positions[randomIndex], 
+            volume: 0.6,
+            onEnd: () => setIsPlaying(false)
+        });
         setFeedback('');
-    }, [engine, positions]);
+    }, [engine, isPlaying, positions]);
     
     useEffect(() => { playSpatialSound(); }, [playSpatialSound]);
 
     const handleAnswer = (choiceIndex: number) => {
+        if (isPlaying) return;
         const isCorrect = choiceIndex === answerRef.current;
         setFeedback(isCorrect ? 'Correct!' : 'Incorrect.');
         setTimeout(() => onComplete(), 1500);
@@ -149,11 +173,11 @@ const EnhancedLocalizationModule = ({ onComplete }: { onComplete: () => void }) 
     return (
          <div className="flex flex-col items-center gap-4 w-full">
             <p className="font-semibold text-lg">Where did the sound come from?</p>
-            <Button onClick={playSpatialSound}><RefreshCw className="mr-2 h-4 w-4"/> Replay</Button>
+            <Button onClick={playSpatialSound} disabled={isPlaying}><RefreshCw className="mr-2 h-4 w-4"/> Replay</Button>
             <div className="h-8 text-xl font-bold">{feedback && <p className={cn(feedback === 'Correct!' ? 'text-green-400' : 'text-rose-400')}>{feedback}</p>}</div>
             <div className="grid grid-cols-5 gap-2 w-full max-w-lg">
                 {positions.map((_, index) => (
-                    <Button key={index} onClick={() => handleAnswer(index)} className="h-16 text-lg">{index + 1}</Button>
+                    <Button key={index} onClick={() => handleAnswer(index)} disabled={isPlaying} className="h-16 text-lg">{index + 1}</Button>
                 ))}
             </div>
         </div>
