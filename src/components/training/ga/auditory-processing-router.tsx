@@ -9,6 +9,9 @@ import { Headphones, Music, Waves, Ear, Locate, Brain, Bot, Loader2, RefreshCw }
 import { domainIcons } from "@/components/icons";
 import { cn } from "@/lib/utils";
 import { PRNG } from '@/lib/rng';
+import { useTrainingFocus } from "@/hooks/use-training-focus";
+import { useTrainingOverride } from "@/hooks/use-training-override";
+
 
 // --- Procedural Modules ---
 
@@ -189,6 +192,15 @@ const modeConfig: Record<string, { title: string, Icon: React.ElementType, Compo
 export default function AuditoryProcessingRouter() {
     const { engine, isReady, initializeAudio } = useAudioEngine();
     const [activeMode, setActiveMode] = useState<'menu' | GaMode>('menu');
+    const { focus: globalFocus } = useTrainingFocus();
+    const { override } = useTrainingOverride();
+    const effectiveFocus = override || globalFocus;
+
+    useEffect(() => {
+        // When the focus tab changes, reset the lab to its menu.
+        setActiveMode('menu');
+    }, [effectiveFocus]);
+
 
     const handleSelectMode = useCallback((mode: GaMode) => {
         setActiveMode(mode);
@@ -197,6 +209,16 @@ export default function AuditoryProcessingRouter() {
     const handleModeComplete = useCallback(() => {
         setActiveMode('menu');
     }, []);
+    
+    useEffect(() => {
+        // This effect runs whenever the activeMode changes.
+        // The returned function is a cleanup function. It will run
+        // BEFORE the effect runs the next time (e.g., when a new mode is selected)
+        // and also when the component unmounts.
+        return () => {
+            engine?.stopAll();
+        }
+    }, [activeMode, engine]);
     
     if (!isReady) {
         return (
