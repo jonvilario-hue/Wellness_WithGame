@@ -44,17 +44,17 @@ const PitchDiscriminationModule = ({ onComplete }: { onComplete: () => void }) =
         }, 800);
     }, [engine, isPlaying]);
 
+    useEffect(() => {
+        playTrialAudio();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     const handleAnswer = (userChoice: 'higher' | 'lower') => {
         if (isPlaying) return;
         const isCorrect = userChoice === answerRef.current;
         setFeedback(isCorrect ? 'Correct!' : 'Incorrect.');
         setTimeout(() => onComplete(), 1500);
     };
-
-    useEffect(() => {
-        playTrialAudio();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
 
     return (
         <div className="flex flex-col items-center gap-4 w-full text-violet-200">
@@ -107,7 +107,9 @@ const SpectralDiscriminationModule = ({ onComplete }: { onComplete: () => void }
             if (isSame) {
                 playToneSet(harmonics, () => setIsPlaying(false));
             } else {
-                const removedHarmonic = harmonics[prngRef.current.nextIntRange(1, harmonics.length)];
+                // Ensure a more prominent harmonic is removed to make the difference perceptible.
+                const removableHarmonics = [2, 3, 4]; // Remove 2nd, 3rd, or 4th harmonic
+                const removedHarmonic = removableHarmonics[prngRef.current.nextIntRange(0, removableHarmonics.length)];
                 playToneSet(harmonics.filter(h => h !== removedHarmonic), () => setIsPlaying(false));
             }
         }, 1500);
