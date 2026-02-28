@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,7 +17,7 @@ import MathMode from "./MathMode";
 
 
 // ──────────────────────────────────────────────
-// Procedural Modules (keep all existing ones as-is)
+// Procedural Modules
 // ──────────────────────────────────────────────
 
 const PitchDiscriminationModule = ({ onComplete }: { onComplete: () => void }) => {
@@ -45,9 +46,9 @@ const PitchDiscriminationModule = ({ onComplete }: { onComplete: () => void }) =
     }, [engine, isPlaying]);
 
     useEffect(() => {
-        playTrialAudio();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+        const timer = setTimeout(playTrialAudio, 500); // Add small delay
+        return () => clearTimeout(timer);
+    }, [playTrialAudio]);
 
     const handleAnswer = (userChoice: 'higher' | 'lower') => {
         if (isPlaying) return;
@@ -93,10 +94,12 @@ const SpectralDiscriminationModule = ({ onComplete }: { onComplete: () => void }
                 volume: 0.2 / h,
                 type: 'sine' as OscillatorType,
             }));
-           const handles = engine.playComplexTone(partialConfigs, 1.0);
+           const handles = engine.playComplexTone(partials, 1.0);
            if (onEnd && handles && handles.length > 0) {
+               // Use the first oscillator's onended event as a proxy for the group
                handles[0].sourceNode.addEventListener('ended', onEnd, { once: true });
            } else if (onEnd) {
+               // Fallback timer if handle is null
                setTimeout(onEnd, 1000);
            }
         };
@@ -117,9 +120,9 @@ const SpectralDiscriminationModule = ({ onComplete }: { onComplete: () => void }
     }, [engine, isPlaying]);
     
     useEffect(() => { 
-        playComplexTones();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+        const timer = setTimeout(playComplexTones, 500);
+        return () => clearTimeout(timer);
+    }, [playComplexTones]);
     
     const handleAnswer = (choice: 'same' | 'different') => {
         if (isPlaying) return;
@@ -143,52 +146,109 @@ const SpectralDiscriminationModule = ({ onComplete }: { onComplete: () => void }
 
 const EnhancedLocalizationModule = ({ onComplete }: { onComplete: () => void }) => {
     const { engine } = useAudioEngine();
-    const [feedback, setFeedback] = useState('');
     const [isPlaying, setIsPlaying] = useState(false);
-    const answerRef = useRef<number>(0);
-    const positions = useMemo(() => [-0.9, -0.45, 0, 0.45, 0.9], []);
-    const prngRef = useRef(new PRNG('localization-seed'));
+    const [targetPan, setTargetPan] = useState<number>(0);
+    const [feedback, setFeedback] = useState<string>('');
+    const [score, setScore] = useState(0);
+    const prngRef = useRef(new PRNG('spatial-seed'));
 
-    const playSpatialSound = useCallback(() => {
+    // Define 5 discrete positions for clarity
+    const positions = [
+        { label: "Far Left", value: -1.0 },
+        { label: "Left", value: -0.5 },
+        { label: "Center", value: 0 },
+        { label: "Right", value: 0.5 },
+        { label: "Far Right", value: 1.0 },
+    ];
+
+    const playStimulus = useCallback(() => {
         if (!engine || isPlaying) return;
         setIsPlaying(true);
-        const randomIndex = prngRef.current.nextIntRange(0, positions.length);
-        answerRef.current = randomIndex;
-        engine.playTone({
-            frequency: 880,
-            duration: 0.15,
-            type: 'sine',
-            pan: positions[randomIndex],
-            volume: 0.6,
-            onEnd: () => setIsPlaying(false)
-        });
         setFeedback('');
+
+        // Pick a random position
+        const randomIndex = Math.floor(prngRef.current.nextFloat() * positions.length);
+        const selectedPosition = positions[randomIndex];
+        setTargetPan(selectedPosition.value);
+
+        // Play tone with panning
+        engine.playTone({
+            frequency: 440, // A4
+            type: 'sawtooth', // Richer harmonics help localization
+            duration: 0.5,
+            pan: selectedPosition.value, 
+            onEnd: () => setIsPlaying(false),
+        });
     }, [engine, isPlaying, positions]);
 
+    // Initial play
     useEffect(() => {
-        playSpatialSound();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+        const timer = setTimeout(() => playStimulus(), 500);
+        return () => clearTimeout(timer);
+    }, [playStimulus]);
 
-    const handleAnswer = (choiceIndex: number) => {
+    const handleGuess = (guessValue: number) => {
         if (isPlaying) return;
-        const isCorrect = choiceIndex === answerRef.current;
-        setFeedback(isCorrect ? 'Correct!' : 'Incorrect.');
-        setTimeout(() => onComplete(), 1500);
+
+        const isCorrect = Math.abs(guessValue - targetPan) < 0.1;
+
+        if (isCorrect) {
+            setFeedback('Correct! You found the source.');
+            setScore(s => s + 1);
+            setTimeout(() => playStimulus(), 1000); // Auto-advance
+        } else {
+            setFeedback('Missed. Try again!');
+        }
     };
 
     return (
-         <div className="flex flex-col items-center gap-4 w-full">
-            <p className="font-semibold text-lg">Where did the sound come from?</p>
-            <Button onClick={playSpatialSound} disabled={isPlaying}><RefreshCw className="mr-2 h-4 w-4"/> Replay</Button>
-            <div className="h-8 text-xl font-bold">{feedback && <p className={cn(feedback === 'Correct!' ? 'text-green-400' : 'text-rose-400')}>{feedback}</p>}</div>
-            <div className="grid grid-cols-5 gap-2 w-full max-w-lg">
-                {positions.map((_, index) => (
-                    <Button key={index} onClick={() => handleAnswer(index)} disabled={isPlaying} className="h-16 text-lg">{index + 1}</Button>
+        <div className="flex flex-col items-center gap-6 w-full max-w-md">
+            <div className="text-center space-y-2">
+                <h3 className="text-xl font-bold flex items-center justify-center gap-2">
+                    <Locate className="w-5 h-5" /> Sound Source
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                    Where did the sound come from? (Headphones Required)
+                </p>
+            </div>
+
+            <div className="h-8 font-semibold text-lg">
+                {feedback && (
+                    <span className={feedback.startsWith('Correct') ? "text-green-400" : "text-rose-400"}>
+                        {feedback}
+                    </span>
+                )}
+            </div>
+
+            <div className="grid grid-cols-5 gap-2 w-full">
+                {positions.map((pos) => (
+                    <Button
+                        key={pos.label}
+                        variant="outline"
+                        className="h-24 flex flex-col gap-2 border-violet-500/50 hover:bg-violet-500/20"
+                        onClick={() => handleGuess(pos.value)}
+                        disabled={isPlaying}
+                    >
+                        <div className={cn(
+                            "w-3 h-3 rounded-full bg-violet-400",
+                            pos.value === 0 ? "self-center" : (pos.value < 0 ? "self-start" : "self-end")
+                        )} />
+                        <span className="text-xs">{pos.label}</span>
+                    </Button>
                 ))}
             </div>
+
+            <div className="flex gap-4 mt-4">
+                <Button onClick={playStimulus} disabled={isPlaying} variant="secondary">
+                    <RefreshCw className="mr-2 h-4 w-4" /> Replay Sound
+                </Button>
+            </div>
+            
+            <div className="text-xs text-muted-foreground mt-2">
+                Score: {score}
+            </div>
         </div>
-    )
+    );
 };
 
 
@@ -204,14 +264,13 @@ const PatternSequencingModule = ({ onComplete }: { onComplete: () => void }) => 
         setIsPlaying(true);
         setFeedback('');
 
-        // Play an ascending/descending pattern, ask what comes next
         const baseFreq = 300;
         const stepUp = prngRef.current.nextFloat() > 0.5;
         answerRef.current = stepUp ? 1 : 0;
 
         const freqs = stepUp
-            ? [baseFreq, baseFreq * 1.25, baseFreq * 1.5] // ascending
-            : [baseFreq * 1.5, baseFreq * 1.25, baseFreq]; // descending
+            ? [baseFreq, baseFreq * 1.25, baseFreq * 1.5]
+            : [baseFreq * 1.5, baseFreq * 1.25, baseFreq];
 
         freqs.forEach((freq, i) => {
             setTimeout(() => {
@@ -225,10 +284,10 @@ const PatternSequencingModule = ({ onComplete }: { onComplete: () => void }) => 
         });
     }, [engine, isPlaying]);
 
-    useEffect(() => {
-        playPattern();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    useEffect(() => { 
+        const timer = setTimeout(playPattern, 500);
+        return () => clearTimeout(timer);
+    }, [playPattern]);
 
     const handleAnswer = (choice: number) => {
         if (isPlaying) return;
@@ -286,8 +345,7 @@ const SpeechProcessingModule = ({ onComplete }: { onComplete: () => void }) => {
     useEffect(() => {
         const timer = setTimeout(playVowelSound, 500);
         return () => clearTimeout(timer);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [playVowelSound]);
 
     const handleAnswer = (choice: Vowel) => {
         if (isPlaying) return;
@@ -319,10 +377,6 @@ const SpeechProcessingModule = ({ onComplete }: { onComplete: () => void }) => {
 };
 
 
-// ──────────────────────────────────────────────
-// THE KEY FIX: Map each tab directly to one game
-// ──────────────────────────────────────────────
-
 const FOCUS_TO_GAME: Record<TrainingFocus, {
     title: string;
     Icon: React.ElementType;
@@ -338,10 +392,6 @@ const FOCUS_TO_GAME: Record<TrainingFocus, {
 };
 
 
-// ──────────────────────────────────────────────
-// Router — no more menu, just render the right game
-// ──────────────────────────────────────────────
-
 export default function AuditoryProcessingRouter() {
     const { engine, isReady, initializeAudio } = useAudioEngine();
     const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
@@ -350,7 +400,6 @@ export default function AuditoryProcessingRouter() {
     const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
     const effectiveFocus = isComponentLoaded ? (override || globalFocus) : 'neutral';
 
-    // Get the game for the current tab
     const currentGame = FOCUS_TO_GAME[effectiveFocus] || FOCUS_TO_GAME.neutral;
 
     useEffect(() => {
@@ -394,10 +443,9 @@ export default function AuditoryProcessingRouter() {
             </CardHeader>
             <CardContent className="flex flex-col items-center justify-center gap-6 min-h-[450px]">
                 <currentGame.Component onComplete={() => { 
-                    // This logic can be expanded to automatically move to the next game in a sequence
-                    // For now, it does nothing, and the user can switch tabs manually.
                  }} />
             </CardContent>
         </Card>
     );
 }
+
