@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,12 +10,10 @@ import { Loader2, Check, X, AlertTriangle, Smile, Frown, Angry, Meh, AlertCircle
 import { cn } from "@/lib/utils";
 
 // --- Types and Constants ---
-const TRIALS_PER_ROUND = 20;
-const MAX_LEVEL = 5;
+const TRIALS_PER_ROUND = 10;
 
 type Emotion = 'happy' | 'sad' | 'angry' | 'calm' | 'surprised' | 'sarcastic';
 const emotionsLevel1: Emotion[] = ['happy', 'sad', 'angry', 'calm'];
-const emotionsLevel4: Emotion[] = [...emotionsLevel1, 'surprised', 'sarcastic'];
 
 const EMOTION_CONFIG: Record<Emotion, { icon: React.ElementType }> = {
     happy: { icon: Smile },
@@ -27,10 +24,8 @@ const EMOTION_CONFIG: Record<Emotion, { icon: React.ElementType }> = {
     sarcastic: { icon: ThumbsDown },
 };
 
-const ALL_ASSETS: AssetId[] = (Object.keys(EMOTION_CONFIG) as Emotion[]).flatMap(e => [1,2,3].map(i => `phrase-${e}-${i}` as AssetId)).filter(id => !id.includes('undefined'));
-
-
-type TaskType = 'classification' | 'comparison';
+// Only one asset is available in the manifest, so we'll use that.
+const ALL_ASSETS: AssetId[] = ['sentence-01-happy-f1' as AssetId];
 
 type ClassificationPuzzle = {
     type: 'classification';
@@ -39,14 +34,7 @@ type ClassificationPuzzle = {
     options: Emotion[];
 };
 
-type ComparisonPuzzle = {
-    type: 'comparison';
-    lowIntensityAsset: AssetId;
-    highIntensityAsset: AssetId;
-    isFirstStronger: boolean;
-};
-
-type Puzzle = ClassificationPuzzle | ComparisonPuzzle;
+type Puzzle = ClassificationPuzzle;
 
 type GameState = {
     phase: 'loading' | 'error' | 'idle' | 'playing' | 'feedback' | 'summary';
@@ -55,7 +43,6 @@ type GameState = {
     score: number;
     puzzle: Puzzle | null;
     feedback: { correct: boolean, message: string } | null;
-    loadingProgress: number;
     loadingError: string | null;
 };
 
@@ -74,14 +61,13 @@ const initialState: GameState = {
     score: 0,
     puzzle: null,
     feedback: null,
-    loadingProgress: 0,
     loadingError: null,
 };
 
 function gameReducer(state: GameState, action: GameAction): GameState {
      switch (action.type) {
         case 'START_ROUND':
-            return { ...initialState, phase: 'loading', loadingProgress: 0, loadingError: null };
+            return { ...initialState, phase: 'loading', loadingError: null };
         case 'ASSETS_LOADED':
             return { ...state, phase: 'idle' };
         case 'ASSET_LOAD_ERROR':
@@ -101,45 +87,43 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     }
 }
 
-const generatePuzzle = (level: number, lastTask: TaskType): Puzzle => {
-    const taskType: TaskType = level === 1 ? 'classification' : (lastTask === 'classification' ? 'comparison' : 'classification');
-    const emotionPool = level < 4 ? emotionsLevel1 : emotionsLevel4;
+const generatePuzzle = (level: number): Puzzle => {
+    // This game is now very simple due to asset limitations.
+    // It will always ask to identify the 'happy' tone.
+    const emotionPool: Emotion[] = ['happy', 'sad', 'angry', 'calm'];
+    const correctEmotion = 'happy';
+    const assetId = 'sentence-01-happy-f1' as AssetId;
     
-    if (taskType === 'classification') {
-        const correctEmotion = emotionPool[Math.floor(Math.random() * emotionPool.length)];
-        const intensity = Math.floor(Math.random() * 3) + 1;
-        const assetId = `phrase-${correctEmotion}-${intensity}` as AssetId;
-        
-        const options = new Set<Emotion>([correctEmotion]);
-        while(options.size < 4) {
-            options.add(emotionPool[Math.floor(Math.random() * emotionPool.length)]);
-        }
-        return { type: 'classification', assetId, correctEmotion, options: Array.from(options).sort(() => 0.5 - Math.random()) };
-    } else { // comparison
-        const emotion = emotionPool[Math.floor(Math.random() * emotionPool.length)];
-        const intensities = [1,2,3].sort(() => 0.5 - Math.random());
-        const lowIntensityAsset = `phrase-${emotion}-${intensities[0]}` as AssetId;
-        const highIntensityAsset = `phrase-${emotion}-${intensities[1]}` as AssetId;
-        const isFirstStronger = Math.random() > 0.5;
-        return { type: 'comparison', lowIntensityAsset, highIntensityAsset, isFirstStronger };
+    const options = new Set<Emotion>([correctEmotion]);
+    const distractors = emotionPool.filter(e => e !== correctEmotion);
+    while (options.size < 4 && distractors.length > 0) {
+        distractors.sort(() => Math.random() - 0.5); // shuffle distractors
+        options.add(distractors.pop()!);
     }
-};
 
+    return { 
+        type: 'classification', 
+        assetId, 
+        correctEmotion, 
+        options: Array.from(options).sort(() => 0.5 - Math.random()) 
+    };
+};
 
 export default function EQMode({ onComplete }: { onComplete: () => void }) {
     const [state, dispatch] = useReducer(gameReducer, initialState);
     const { engine } = useAudioEngine();
-    // Re-enable preloading based on the fixed manifest
-    const { isLoading, progress } = usePreloadAssets(ALL_ASSETS);
+    const { isLoading, progress, error: preloadError } = usePreloadAssets(ALL_ASSETS);
     const correctStreak = useRef(0);
 
     useEffect(() => {
         if(state.phase === 'loading') {
-            if (!isLoading && progress === 1) {
+            if (preloadError) {
+                dispatch({ type: 'ASSET_LOAD_ERROR', error: preloadError });
+            } else if (!isLoading && progress === 1) {
                 dispatch({ type: 'ASSETS_LOADED' });
             }
         }
-    }, [isLoading, progress, state.phase]);
+    }, [isLoading, progress, preloadError, state.phase]);
     
     useEffect(() => {
         return () => {
@@ -155,54 +139,30 @@ export default function EQMode({ onComplete }: { onComplete: () => void }) {
              return;
         }
 
-        const puzzle = generatePuzzle(state.level, state.puzzle?.type ?? 'comparison');
+        const puzzle = generatePuzzle(state.level);
         dispatch({ type: 'SET_PUZZLE', puzzle });
 
         if (!engine) return;
         engine.stopAll();
-        
-        const snr = state.level === 3 ? 10 : state.level === 4 ? 6 : state.level === 5 ? 3 : Infinity;
-        if(isFinite(snr) && engine.playSpeechShapedNoise) {
-            const gain = Math.pow(10, -snr / 20);
-            engine.playSpeechShapedNoise(4, gain);
-        }
 
-        const duration = state.level === 5 ? 1.5 : undefined;
-        if (puzzle.type === 'classification') {
-            engine.playSample(puzzle.assetId, { duration });
-        } else {
-            const first = puzzle.isFirstStronger ? puzzle.highIntensityAsset : puzzle.lowIntensityAsset;
-            const second = puzzle.isFirstStronger ? puzzle.lowIntensityAsset : puzzle.highIntensityAsset;
-            engine.playSample(first, { duration });
-            setTimeout(() => engine.playSample(second, { duration }), 2500);
-        }
-    }, [state.level, state.puzzle?.type, engine, state.trialCount, onComplete]);
+        engine.playSample(puzzle.assetId);
+    }, [state.level, engine, state.trialCount, onComplete]);
 
-    const handleAnswer = (answer: Emotion | 'first' | 'second') => {
+    const handleAnswer = (answer: Emotion) => {
         if (state.phase !== 'playing' || !state.puzzle) return;
         let isCorrect = false;
         let message = "Incorrect.";
 
-        if (state.puzzle.type === 'classification') {
-            isCorrect = answer === state.puzzle.correctEmotion;
-             if (!isCorrect) message = `Incorrect. The emotion was ${state.puzzle.correctEmotion}.`
-        } else {
-            const correctAns = state.puzzle.isFirstStronger ? 'first' : 'second';
-            isCorrect = answer === correctAns;
-            if (!isCorrect) message = `Incorrect. The ${correctAns} speaker was more intense.`
-        }
+        isCorrect = answer === state.puzzle.correctEmotion;
+        if (!isCorrect) message = `Incorrect. The emotion was ${state.puzzle.correctEmotion}.`
         
         dispatch({ type: 'SUBMIT_ANSWER', correct: isCorrect, message: isCorrect ? 'Correct!' : message });
         
+        // This is a simplified version, a real staircase would be in the adaptive engine
         if (isCorrect) {
             correctStreak.current++;
-            if (correctStreak.current >= 2) {
-                //dispatch({ type: 'LEVEL_UP' });
-                correctStreak.current = 0;
-            }
         } else {
             correctStreak.current = 0;
-            //dispatch({ type: 'LEVEL_DOWN' });
         }
 
         setTimeout(() => startNextTrial(), 2500);
@@ -229,23 +189,16 @@ export default function EQMode({ onComplete }: { onComplete: () => void }) {
                 {(state.phase === 'playing' || state.phase === 'feedback') && state.puzzle && (
                      <div className="w-full flex flex-col items-center gap-4">
                         <div className="w-full flex justify-between font-mono text-sm"><p>Trial: {state.trialCount + 1}/{TRIALS_PER_ROUND}</p><p>Level: {state.level}</p></div>
-                        <p className="font-semibold text-lg h-12">{state.puzzle.type === 'classification' ? 'What emotion did you hear?' : 'Which speaker was more intense?'}</p>
+                        <p className="font-semibold text-lg h-12">What emotion did you hear?</p>
                         
                         <div className="h-10 text-xl font-bold">{state.feedback && <p className={cn(state.feedback.correct ? 'text-green-400' : 'text-rose-400')}>{state.feedback.message}</p>}</div>
                         
-                        {state.puzzle.type === 'classification' ? (
-                            <div className="grid grid-cols-2 gap-3">
-                                {state.puzzle.options.map(emotion => {
-                                    const Icon = EMOTION_CONFIG[emotion]?.icon || Smile;
-                                    return <Button key={emotion} onClick={() => handleAnswer(emotion)} disabled={state.phase === 'feedback'} className="h-20 text-lg flex items-center gap-2 capitalize"><Icon /> {emotion}</Button>
-                                })}
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-2 gap-4 w-full max-w-sm">
-                                <Button onClick={() => handleAnswer('first')} disabled={state.phase==='feedback'} className="h-24 text-2xl">First was stronger</Button>
-                                <Button onClick={() => handleAnswer('second')} disabled={state.phase==='feedback'} className="h-24 text-2xl">Second was stronger</Button>
-                            </div>
-                        )}
+                        <div className="grid grid-cols-2 gap-3">
+                            {state.puzzle.options.map(emotion => {
+                                const Icon = EMOTION_CONFIG[emotion]?.icon || Smile;
+                                return <Button key={emotion} onClick={() => handleAnswer(emotion)} disabled={state.phase === 'feedback'} className="h-20 text-lg flex items-center gap-2 capitalize"><Icon /> {emotion}</Button>
+                            })}
+                        </div>
                     </div>
                 )}
             </CardContent>
