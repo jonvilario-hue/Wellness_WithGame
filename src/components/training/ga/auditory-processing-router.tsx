@@ -12,6 +12,7 @@ import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
 import type { TrainingFocus } from '@/types';
 import EQMode from "./EQMode";
+import MathMode from "./MathMode";
 
 
 // ──────────────────────────────────────────────
@@ -262,7 +263,7 @@ const FOCUS_TO_GAME: Record<TrainingFocus, {
     Component: React.FC<{ onComplete: () => void }>;
 }> = {
     neutral: { title: "Pitch Discrimination", Icon: Waves, Component: PitchDiscriminationModule },
-    math:    { title: "Rhythm Patterns",      Icon: Music, Component: () => <p>Rhythm Module WIP</p> },
+    math:    { title: "Rhythm Patterns",      Icon: Music, Component: MathMode },
     music:   { title: "Timbre Analysis",      Icon: Ear,   Component: SpectralDiscriminationModule },
     verbal:  { title: "Speech Processing",    Icon: Bot,   Component: () => <p>Speech Module WIP</p> },
     spatial: { title: "Sound Localization",   Icon: Locate, Component: EnhancedLocalizationModule },
