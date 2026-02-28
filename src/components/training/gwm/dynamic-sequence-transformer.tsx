@@ -11,7 +11,7 @@ import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
 import { GameStub } from "../game-stub";
 import { StateMachineTracer } from "../logic/state-machine-tracer";
-import { useAudioEngine } from "@/hooks/use-audio-engine";
+import { useAudioEngine } from "@/hooks/useAudioEngine";
 import { ComplexSpanTask } from "./ComplexSpanTask";
 import { generateVerbalSequence, applyVerbalTransformation } from "@/lib/verbal-stimulus-factory";
 import { generateCorsiBlockTrial, type CorsiBlockPuzzle } from "@/lib/gwm-spatial-stimulus-factory";
@@ -221,6 +221,7 @@ export function DynamicSequenceTransformer() {
           logEvent({
             type: 'trial_complete',
             sessionId: activeSession.sessionId,
+            seq: (activeSession.trialCount || 0) + 1,
             payload: {
               id: `${activeSession.sessionId}-${currentTrialIndex.current}`,
               sessionId: activeSession.sessionId,
@@ -237,7 +238,7 @@ export function DynamicSequenceTransformer() {
               pausedDurationMs: pausedDurationRef.current,
               wasFallback: false
             }
-          } as Omit<TelemetryEvent, 'eventId' | 'timestamp' | 'schemaVersion' | 'seq'>);
+          } as Omit<TelemetryEvent, 'eventId' | 'timestamp' | 'schemaVersion'>);
       }
       
       const newState = adjustDifficulty(trialResult, state, policy);
