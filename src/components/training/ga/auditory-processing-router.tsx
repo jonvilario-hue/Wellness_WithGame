@@ -150,18 +150,21 @@ const EnhancedLocalizationModule = ({ onComplete }: { onComplete: () => void }) 
         setIsPlaying(true);
         const randomIndex = prngRef.current.nextIntRange(0, positions.length);
         answerRef.current = randomIndex;
-        engine.playTone({ 
-            frequency: 880, 
-            duration: 0.15, 
-            type: 'sine', 
-            pan: positions[randomIndex], 
+        engine.playTone({
+            frequency: 880,
+            duration: 0.15,
+            type: 'sine',
+            pan: positions[randomIndex],
             volume: 0.6,
             onEnd: () => setIsPlaying(false)
         });
         setFeedback('');
     }, [engine, isPlaying, positions]);
-    
-    useEffect(() => { playSpatialSound(); }, [playSpatialSound]);
+
+    useEffect(() => {
+        playSpatialSound();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const handleAnswer = (choiceIndex: number) => {
         if (isPlaying) return;
@@ -184,9 +187,6 @@ const EnhancedLocalizationModule = ({ onComplete }: { onComplete: () => void }) 
     )
 };
 
-// ──────────────────────────────────────────────
-// NEW: 7th game for Logic tab — Auditory Pattern Sequencing
-// ──────────────────────────────────────────────
 
 const PatternSequencingModule = ({ onComplete }: { onComplete: () => void }) => {
     const { engine } = useAudioEngine();
@@ -221,7 +221,10 @@ const PatternSequencingModule = ({ onComplete }: { onComplete: () => void }) => 
         });
     }, [engine, isPlaying]);
 
-    useEffect(() => { playPattern(); }, [playPattern]);
+    useEffect(() => {
+        playPattern();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const handleAnswer = (choice: number) => {
         if (isPlaying) return;
