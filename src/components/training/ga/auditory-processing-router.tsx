@@ -254,6 +254,70 @@ const PatternSequencingModule = ({ onComplete }: { onComplete: () => void }) => 
     );
 };
 
+const VOWELS = {
+    Ah: [{ frequency: 730, type: 'triangle' as const }, { frequency: 1090, type: 'sine' as const }],
+    Ee: [{ frequency: 270, type: 'triangle' as const }, { frequency: 2290, type: 'sine' as const }],
+    Oo: [{ frequency: 300, type: 'triangle' as const }, { frequency: 870, type: 'sine' as const }],
+};
+type Vowel = keyof typeof VOWELS;
+
+const SpeechProcessingModule = ({ onComplete }: { onComplete: () => void }) => {
+    const { engine } = useAudioEngine();
+    const [feedback, setFeedback] = useState('');
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [currentVowel, setCurrentVowel] = useState<Vowel>('Ah');
+    const prngRef = useRef(new PRNG('speech-seed'));
+
+    const playVowelSound = useCallback(() => {
+        if (!engine || isPlaying) return;
+        setIsPlaying(true);
+        setFeedback('');
+
+        const vowelToPlay = prngRef.current.shuffle(Object.keys(VOWELS) as Vowel[])[0];
+        setCurrentVowel(vowelToPlay);
+
+        const formants = VOWELS[vowelToPlay];
+        const partials = formants.map(f => ({ ...f, volume: 0.25 }));
+
+        engine.playComplexTone(partials, 0.5, { onEnd: () => setIsPlaying(false) });
+
+    }, [engine, isPlaying]);
+
+    useEffect(() => {
+        const timer = setTimeout(playVowelSound, 500);
+        return () => clearTimeout(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const handleAnswer = (choice: Vowel) => {
+        if (isPlaying) return;
+        const isCorrect = choice === currentVowel;
+        setFeedback(isCorrect ? 'Correct!' : 'Incorrect.');
+        setTimeout(() => {
+            onComplete();
+            setFeedback('');
+            playVowelSound();
+        }, 1500);
+    };
+
+    return (
+        <div className="flex flex-col items-center gap-4 w-full text-violet-200">
+            <p className="font-semibold text-lg">Which vowel sound did you hear?</p>
+            <Button onClick={playVowelSound} disabled={isPlaying}>
+                <RefreshCw className="mr-2 h-4 w-4" /> Replay Sound
+            </Button>
+            <div className="h-8 text-xl font-bold">{feedback && <p className={cn(feedback === 'Correct!' ? 'text-green-400' : 'text-rose-400')}>{feedback}</p>}</div>
+            <div className="grid grid-cols-3 gap-4 w-full max-w-sm">
+                {(Object.keys(VOWELS) as Vowel[]).map(vowel => (
+                    <Button key={vowel} onClick={() => handleAnswer(vowel)} disabled={isPlaying} className="h-24 text-2xl">
+                        {vowel}
+                    </Button>
+                ))}
+            </div>
+        </div>
+    );
+};
+
 
 // ──────────────────────────────────────────────
 // THE KEY FIX: Map each tab directly to one game
@@ -267,7 +331,7 @@ const FOCUS_TO_GAME: Record<TrainingFocus, {
     neutral: { title: "Pitch Discrimination", Icon: Waves, Component: PitchDiscriminationModule },
     math:    { title: "Rhythm Patterns",      Icon: Music, Component: MathMode },
     music:   { title: "Timbre Analysis",      Icon: Ear,   Component: SpectralDiscriminationModule },
-    verbal:  { title: "Speech Processing",    Icon: Bot,   Component: () => <p>Speech Module WIP</p> },
+    verbal:  { title: "Speech Processing",    Icon: Bot,   Component: SpeechProcessingModule },
     spatial: { title: "Sound Localization",   Icon: Locate, Component: EnhancedLocalizationModule },
     eq:      { title: "Intonation Detective",      Icon: Smile, Component: EQMode },
     logic:   { title: "Pattern Sequencing",   Icon: AudioLines, Component: PatternSequencingModule },
