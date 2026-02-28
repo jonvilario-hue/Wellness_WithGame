@@ -1,11 +1,11 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { usePerformanceStore } from "@/hooks/use-performance-store";
-import { useAudioEngine, midiToFreq } from "@/hooks/use-audio-engine";
+import { useAudioEngine } from "@/hooks/useAudioEngine";
+import { midiToFreq } from "@/lib/audio/AudioEngine";
 import { Loader2, Headphones, Brain } from "lucide-react";
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
@@ -36,10 +36,10 @@ const PianoKeyboard = ({ notePalette, onNoteClick, disabled }: { notePalette: nu
             {allNotes.map(note => {
                 const isBlackKey = [1, 3, 6, 8, 10].includes(note % 12);
                 return (
-                    <Button 
-                        key={note} 
-                        onClick={() => onNoteClick(note)} 
-                        disabled={disabled} 
+                    <Button
+                        key={note}
+                        onClick={() => onNoteClick(note)}
+                        disabled={disabled}
                         variant="outline"
                         className={cn(
                             "h-24 text-lg relative",
@@ -57,15 +57,15 @@ const PianoKeyboard = ({ notePalette, onNoteClick, disabled }: { notePalette: nu
 
 export function ComplexSpanTask() {
     const { getAdaptiveState, updateAdaptiveState, logEvent, activeSession } = usePerformanceStore();
-    const { playSequence, playChord, resumeContext, isReady, getAudioContextTime, getLatencyInfo } = useAudioEngine();
+    const { engine, isReady, initializeAudio } = useAudioEngine();
     const [gameState, setGameState] = useState<'loading' | 'tutorial' | 'encoding' | 'processing' | 'recall' | 'feedback' | 'finished'>('loading');
-    
+
     // Trial state
     const [melody, setMelody] = useState<number[]>([]);
     const [distractor, setDistractor] = useState<{ chord: number[], type: 'major' | 'minor' } | null>(null);
     const [recalledSequence, setRecalledSequence] = useState<number[]>([]);
     const [feedbackMessage, setFeedbackMessage] = useState('');
-    
+
     // Session state
     const trialCount = useRef(0);
     const sessionId = useRef(crypto.randomUUID());
@@ -78,8 +78,9 @@ export function ComplexSpanTask() {
     const adaptiveState = useMemo(() => getAdaptiveState(GAME_ID, 'music'), [getAdaptiveState]);
 
     const startNewSession = useCallback(() => {
-        resumeContext();
-        const info = getLatencyInfo();
+        if (!engine) return;
+        initializeAudio();
+        const info = engine.getLatencyInfo();
         deviceInfo.current = {
             browser: navigator.userAgent,
             sampleRate: info.sampleRate,
@@ -91,20 +92,20 @@ export function ComplexSpanTask() {
         trialCount.current = 0;
         sessionId.current = crypto.randomUUID();
         setGameState('encoding');
-    }, [resumeContext, getLatencyInfo, adaptiveState, updateAdaptiveState]);
+    }, [engine, initializeAudio, adaptiveState, updateAdaptiveState]);
 
     const startNewTrial = useCallback(() => {
         const state = getAdaptiveState(GAME_ID, 'music');
         const level = state.currentLevel;
         const levelParams = policy.levelMap[level]?.content_config['music']?.params;
 
-        if (!levelParams) {
+        if (!levelParams || !engine) {
             console.error("No params for music mode level", level);
             return;
         }
 
         // 1. Generate Melody
-        const notePalette = Array.from({ length: levelParams.note_palette_size }, (_, i) => 60 + i * 2); 
+        const notePalette = Array.from({ length: levelParams.note_palette_size }, (_, i) => 60 + i * 2);
         const newMelody = Array.from({ length: levelParams.melody_length }, () => notePalette[Math.floor(Math.random() * notePalette.length)]);
         setMelody(newMelody);
         setRecalledSequence([]);
@@ -120,12 +121,12 @@ export function ComplexSpanTask() {
         setDistractor(newDistractor);
 
         // 3. Play Encoding Sequence
-        playSequence(newMelody.map(n => ({ frequency: midiToFreq(n), duration: 0.3, type: 'sine' })), 400, () => {
+        engine.playSequence(newMelody.map(n => ({ frequency: midiToFreq(n), duration: 0.3, type: 'sine', volume: 0.5 })), 400, () => {
             setGameState('processing');
         });
 
-    }, [getAdaptiveState, playSequence]);
-    
+    }, [getAdaptiveState, engine]);
+
     useEffect(() => {
         if(gameState === 'encoding') {
             startNewTrial();
@@ -137,26 +138,27 @@ export function ComplexSpanTask() {
             setGameState('tutorial');
         }
     }, [isReady, gameState]);
-    
+
     useEffect(() => {
-        if (gameState === 'processing' && distractor) {
-            const handles = playChord(distractor.chord, 1000);
-            if (handles.length > 0) {
+        if (gameState === 'processing' && distractor && engine) {
+            const handles = engine.playChord(distractor.chord, 1000);
+            if (handles && handles.length > 0) {
                 distractorOnsetTs.current = handles[0].scheduledOnset;
             }
         }
-    }, [gameState, distractor, playChord]);
+    }, [gameState, distractor, engine]);
 
     const handleDistractorResponse = (response: 'major' | 'minor') => {
-        const responseTs = getAudioContextTime();
+        if (!engine) return;
+        const responseTs = engine.getAudioContextTime();
         const distractor_rt_ms = (responseTs - distractorOnsetTs.current) * 1000;
         const distractor_correct = response === distractor?.type;
-        
+
         distractorResponseRef.current = { correct: distractor_correct, rt: distractor_rt_ms };
 
         setGameState('recall');
     };
-    
+
     const handleRecallNoteClick = (note: number) => {
         setRecalledSequence(prev => [...prev, note]);
     };
@@ -178,7 +180,7 @@ export function ComplexSpanTask() {
             }
         }
         const recall_edit_distance = dp[recalledSequence.length][melody.length];
-        
+
         const isTrialCorrect = recall_accuracy_positional >= 0.8;
         setFeedbackMessage(isTrialCorrect ? "Correct!" : `Almost! The sequence was ${melody.join(', ')}`);
 
@@ -239,9 +241,9 @@ export function ComplexSpanTask() {
             }
         }, 2500);
     };
-
+    
     const renderContent = () => {
-         if (gameState === 'loading') return <Button onClick={resumeContext} size="lg">Tap to Enable Audio</Button>
+         if (gameState === 'loading') return <Button onClick={initializeAudio} size="lg">Tap to Enable Audio</Button>
          if (gameState === 'tutorial') {
              return <div className="text-center space-y-4">
                  <h3 className="text-xl font-semibold">Tutorial (5 trials)</h3>
@@ -300,5 +302,3 @@ export function ComplexSpanTask() {
         </Card>
     );
 }
-
-    
