@@ -11,8 +11,9 @@ import { usePerformanceStore } from "@/hooks/use-performance-store";
 import { realWords } from "@/data/verbal-content";
 import { adjustDifficulty, startSession, endSession } from "@/lib/adaptive-engine";
 import { difficultyPolicies } from "@/data/difficulty-policies";
-import { useAudioEngine } from "@/hooks/use-audio-engine";
-import { Music2, Brain, Check, X } from "lucide-react";
+import { useAudioEngine } from "@/hooks/useAudioEngine";
+import { Loader2, Brain, Check, X, Sparkles, Music2 } from "lucide-react";
+import { PRNG } from '@/lib/rng';
 
 const GLR_GAME_ID: GameId = 'glr_fluency_storm';
 const glrPolicy = difficultyPolicies[GLR_GAME_ID];
@@ -65,11 +66,11 @@ function ActiveDistractor({ duration, onComplete }: { duration: number, onComple
 
 
 export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result: { score: number, trials: TrialResult[] }) => void, focus: TrainingFocus }) {
-    const { introduceNewPairs, getDueReviewPairs, updatePairOnResult } = useGlrStore();
+    const { introduceNewPairs, getDueReviewPairs, updatePairOnResult, spacedPairs } = useGlrStore();
     const { getAdaptiveState, updateAdaptiveState, logEvent, activeSession } = usePerformanceStore();
-    const { playSequence, audioContext } = useAudioEngine();
+    const { engine } = useAudioEngine();
     
-    const [phase, setPhase] = useState<'review' | 'learn' | 'distract' | 'recall' | 'finished'>('review');
+    const [phase, setPhase] = useState<'review' | 'learn' | 'distract' | 'recall' | 'finished'>('loading');
     const [sessionTrials, setSessionTrials] = useState<TrialResult[]>([]);
     const [duePairs, setDuePairs] = useState<SpacedPair[]>([]);
     const [newPairs, setNewPairs] = useState<SpacedPair[]>([]);
@@ -80,6 +81,8 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
     const [distractorPerformance, setDistractorPerformance] = useState({ clicks: 0 });
 
     const trialStartTime = useRef(0);
+    const prngRef = useRef<PRNG | null>(null);
+    const adaptiveState = getAdaptiveState(GLR_GAME_ID, focus);
     
     const policyParams = useMemo(() => {
         const state = getAdaptiveState(GLR_GAME_ID, focus);
@@ -87,28 +90,26 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
     }, [focus, getAdaptiveState]);
 
     useEffect(() => {
-        const state = getAdaptiveState(GLR_GAME_ID, focus);
-        if (!state) return;
-
-        const pairsToReview = getDueReviewPairs();
-        if (pairsToReview.length > 0) {
-            setDuePairs(pairsToReview);
+        prngRef.current = new PRNG(activeSession?.sessionId || Date.now().toString());
+        const due = getDueReviewPairs(focus);
+        if (due.length > 0) {
+            setDuePairs(due);
             setPhase('recall');
         } else {
-            const generated = introduceNewPairs(focus, policyParams.pairs);
-            setNewPairs(generated);
-            setPhase('learn');
+            const newPairs = introduceNewPairs(focus, 3);
+            setNewPairs(newPairs);
+            setPhase('study');
         }
         setCurrentIndex(0);
         setSessionTrials([]);
-        if (audioContext) trialStartTime.current = audioContext.currentTime;
-    }, [focus, getDueReviewPairs, introduceNewPairs, policyParams.pairs, getAdaptiveState, audioContext]);
+        if (engine) trialStartTime.current = engine.getAudioContextTime();
+    }, [activeSession, focus, getDueReviewPairs, introduceNewPairs, policyParams.pairs, getAdaptiveState, engine]);
 
     const handleNext = () => {
         const currentList = phase === 'recall' ? (duePairs.length > 0 ? duePairs : newPairs) : newPairs;
         if (currentIndex < currentList.length - 1) {
             setCurrentIndex(i => i + 1);
-            if (audioContext) trialStartTime.current = audioContext.currentTime;
+            if (engine) trialStartTime.current = engine.getAudioContextTime();
         } else {
             if (phase === 'learn') setPhase('distract');
             else if (phase === 'recall') {
@@ -122,12 +123,11 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
     const handleRecallSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         const currentState = getAdaptiveState(GLR_GAME_ID, focus);
-        if (!currentState || !audioContext || !activeSession) return;
+        if (!currentState || !engine || !activeSession) return;
         
-        const reactionTimeMs = (audioContext.currentTime - trialStartTime.current) * 1000;
+        const reactionTimeMs = (engine.getAudioContextTime() - trialStartTime.current) * 1000;
         const pair = (duePairs.length > 0 ? duePairs : newPairs)[currentIndex];
         
-        // Defensive guard to prevent crash on corrupted data
         if (!pair || typeof pair.word2 !== 'string') {
             console.error("Invalid pair data encountered in recall:", pair);
             handleNext();
@@ -183,7 +183,7 @@ export function SpacedRetrievalMode({ onComplete, focus }: { onComplete: (result
                 setDistractorPerformance(perf);
                 setCurrentIndex(0); 
                 setPhase('recall'); 
-                if(audioContext) trialStartTime.current = audioContext.currentTime; 
+                if(engine) trialStartTime.current = engine.getAudioContextTime(); 
             }} 
         />;
     }
