@@ -4,13 +4,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useAudioEngine, type ToneConfig } from "@/hooks/useAudioEngine";
-import { Headphones, Music, Waves, Ear, Locate, Brain, Bot, Loader2, RefreshCw, AudioLines } from "lucide-react";
+import { Headphones, Music, Waves, Ear, Locate, Brain, Bot, Loader2, RefreshCw, AudioLines, Smile } from "lucide-react";
 import { domainIcons } from "@/components/icons";
 import { cn } from "@/lib/utils";
 import { PRNG } from '@/lib/rng';
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
 import type { TrainingFocus } from '@/types';
+import EQMode from "./EQMode";
 
 
 // ──────────────────────────────────────────────
@@ -265,7 +266,7 @@ const FOCUS_TO_GAME: Record<TrainingFocus, {
     music:   { title: "Timbre Analysis",      Icon: Ear,   Component: SpectralDiscriminationModule },
     verbal:  { title: "Speech Processing",    Icon: Bot,   Component: () => <p>Speech Module WIP</p> },
     spatial: { title: "Sound Localization",   Icon: Locate, Component: EnhancedLocalizationModule },
-    eq:      { title: "Auditory Memory",      Icon: Brain, Component: () => <p>Memory Module WIP</p> },
+    eq:      { title: "Intonation Detective",      Icon: Smile, Component: EQMode },
     logic:   { title: "Pattern Sequencing",   Icon: AudioLines, Component: PatternSequencingModule },
 };
 
@@ -276,9 +277,11 @@ const FOCUS_TO_GAME: Record<TrainingFocus, {
 
 export default function AuditoryProcessingRouter() {
     const { engine, isReady, initializeAudio } = useAudioEngine();
-    const { focus: globalFocus } = useTrainingFocus();
-    const { override } = useTrainingOverride();
-    const effectiveFocus = override || globalFocus;
+    const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
+    const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
+
+    const isComponentLoaded = isGlobalFocusLoaded && isOverrideLoaded;
+    const effectiveFocus = isComponentLoaded ? (override || globalFocus) : 'neutral';
 
     // Get the game for the current tab
     const currentGame = FOCUS_TO_GAME[effectiveFocus] || FOCUS_TO_GAME.neutral;
@@ -299,6 +302,16 @@ export default function AuditoryProcessingRouter() {
         );
     }
 
+    if (!isComponentLoaded) {
+        return (
+             <Card className="w-full max-w-3xl bg-violet-900/80 border-violet-500/30 backdrop-blur-sm text-violet-100">
+                <CardContent className="flex flex-col items-center justify-center gap-4 min-h-[450px]">
+                    <Loader2 className="w-12 h-12 animate-spin text-primary" />
+                </CardContent>
+            </Card>
+        )
+    }
+
     return (
         <Card className="w-full max-w-3xl bg-violet-900/80 border-violet-500/30 backdrop-blur-sm text-violet-100">
             <CardHeader className="text-center">
@@ -313,7 +326,10 @@ export default function AuditoryProcessingRouter() {
                 </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center justify-center gap-6 min-h-[450px]">
-                <currentGame.Component onComplete={() => { /* restart or advance */ }} />
+                <currentGame.Component onComplete={() => { 
+                    // This logic can be expanded to automatically move to the next game in a sequence
+                    // For now, it does nothing, and the user can switch tabs manually.
+                 }} />
             </CardContent>
         </Card>
     );
