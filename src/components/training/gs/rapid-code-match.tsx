@@ -16,7 +16,7 @@ import { difficultyPolicies } from "@/data/difficulty-policies";
 import type { TrialResult, GameId } from "@/types";
 import { GameStub } from "../game-stub";
 import { domainIcons } from "@/components/icons";
-import { useAudioEngine } from "@/hooks/use-audio-engine";
+import { useAudioEngine } from "@/hooks/useAudioEngine";
 import { generateLexicalDecisionProblem } from '@/lib/verbal-stimulus-factory';
 import { generateSpatialGvRotationTrial, type Polycube } from "@/lib/polycube-generator";
 import { PRNG } from "@/lib/rng";
@@ -50,7 +50,7 @@ export function RapidCodeMatch() {
   const { getAdaptiveState, updateAdaptiveState, logEvent, activeSession } = usePerformanceStore();
   const { focus: globalFocus, isLoaded: isGlobalFocusLoaded } = useTrainingFocus();
   const { override, isLoaded: isOverrideLoaded } = useTrainingOverride();
-  const { playSequence, resumeContext, isAudioReady } = useAudioEngine();
+  const { engine, isReady: isAudioReady, initializeAudio } = useAudioEngine();
 
   const [gameState, setGameState] = useState<'loading' | 'start' | 'running' | 'feedback' | 'finished'>('loading');
 
@@ -137,21 +137,21 @@ export function RapidCodeMatch() {
       }
       
       setProblem(newProblem);
-      if(newProblem.type === 'rhythm') {
+      if(newProblem.type === 'rhythm' && engine) {
           const baseRhythm = [60, 0, 60, 0];
           const secondRhythm = newProblem.isSame ? baseRhythm : [60, 60, 0, 0];
-          playSequence(baseRhythm.map(n => ({ frequency: n * 10, duration: 0.1, type: 'sine'})), 250, () => {
-              setTimeout(() => playSequence(secondRhythm.map(n => ({ frequency: n * 10, duration: 0.1, type: 'sine'})), 250), 500);
+          engine.playSequence(baseRhythm.map(n => ({ frequency: n * 10, duration: 0.1, type: 'sine'})), 250, () => {
+              setTimeout(() => engine.playSequence(secondRhythm.map(n => ({ frequency: n * 10, duration: 0.1, type: 'sine'})), 250), 500);
           });
       }
       
       setGameState('running');
       trialStartTime.current = performance.now();
-  }, [currentMode, generateProblem, getAdaptiveState, playSequence]);
+  }, [currentMode, generateProblem, getAdaptiveState, engine]);
 
   const startNewSession = useCallback(() => {
     prngRef.current = new PRNG(crypto.randomUUID());
-    resumeContext();
+    initializeAudio();
     const sessionState = startSession(getAdaptiveState(GAME_ID, currentMode));
     updateAdaptiveState(GAME_ID, currentMode, sessionState);
     currentTrialIndex.current = 0;
@@ -178,7 +178,7 @@ export function RapidCodeMatch() {
     }
 
     startNewTrial();
-  }, [startNewTrial, resumeContext, updateAdaptiveState, currentMode, getAdaptiveState]);
+  }, [startNewTrial, initializeAudio, updateAdaptiveState, currentMode, getAdaptiveState]);
 
   const handleAnswer = useCallback((answer: number | string | boolean) => {
     const currentState = getAdaptiveState(GAME_ID, currentMode);
