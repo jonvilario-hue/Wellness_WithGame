@@ -1,21 +1,21 @@
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useAudioEngine, type ToneConfig } from "@/hooks/useAudioEngine";
-import { Headphones, Music, Waves, Ear, Locate, Brain, Bot, Loader2, RefreshCw } from "lucide-react";
+import { Headphones, Music, Waves, Ear, Locate, Brain, Bot, Loader2, RefreshCw, AudioLines } from "lucide-react";
 import { domainIcons } from "@/components/icons";
 import { cn } from "@/lib/utils";
 import { PRNG } from '@/lib/rng';
 import { useTrainingFocus } from "@/hooks/use-training-focus";
 import { useTrainingOverride } from "@/hooks/use-training-override";
-import { usePreloadAssets } from "@/hooks/usePreloadAssets";
-import type { AssetId } from '@/types';
+import type { TrainingFocus } from '@/types';
 
 
-// --- Procedural Modules ---
+// ──────────────────────────────────────────────
+// Procedural Modules (keep all existing ones as-is)
+// ──────────────────────────────────────────────
 
 const PitchDiscriminationModule = ({ onComplete }: { onComplete: () => void }) => {
     const { engine } = useAudioEngine();
@@ -184,102 +184,133 @@ const EnhancedLocalizationModule = ({ onComplete }: { onComplete: () => void }) 
     )
 };
 
+// ──────────────────────────────────────────────
+// NEW: 7th game for Logic tab — Auditory Pattern Sequencing
+// ──────────────────────────────────────────────
 
-// --- Menu & Router ---
-const Menu = ({ onSelectMode, modes }: { onSelectMode: (mode: GaMode) => void, modes: any[] }) => (
-  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-center w-full max-w-2xl">
-    {modes.map(mode => {
-      const { Icon, title, key } = mode;
-      return (
-        <Card key={key} className="bg-violet-900 hover:bg-violet-800 transition-colors cursor-pointer" onClick={() => onSelectMode(key)}>
-          <CardContent className="p-4 flex flex-col items-center justify-center gap-2">
-            <Icon className="w-8 h-8 text-violet-400" />
-            <p className="font-semibold text-violet-100">{title}</p>
-          </CardContent>
-        </Card>
-      );
-    })}
-  </div>
-);
+const PatternSequencingModule = ({ onComplete }: { onComplete: () => void }) => {
+    const { engine } = useAudioEngine();
+    const [feedback, setFeedback] = useState('');
+    const [isPlaying, setIsPlaying] = useState(false);
+    const answerRef = useRef<number>(0);
+    const prngRef = useRef(new PRNG('pattern-seed'));
 
-type GaMode = 'pitch' | 'timbre' | 'localization' | 'rhythm' | 'memory' | 'speech' | 'prosody';
+    const playPattern = useCallback(() => {
+        if (!engine || isPlaying) return;
+        setIsPlaying(true);
+        setFeedback('');
 
-const modeConfig: Record<string, { title: string, Icon: React.ElementType, Component: React.FC<{ onComplete: () => void }> }> = {
-    pitch: { title: "Pitch", Icon: Waves, Component: PitchDiscriminationModule },
-    timbre: { title: "Timbre", Icon: Ear, Component: SpectralDiscriminationModule },
-    localization: { title: "Localization", Icon: Locate, Component: EnhancedLocalizationModule },
-    rhythm: { title: "Rhythm", Icon: Music, Component: () => <p>Rhythm Module WIP</p> },
-    memory: { title: "Memory", Icon: Brain, Component: () => <p>Memory Module WIP</p> },
-    speech: { title: "Speech", Icon: Bot, Component: () => <p>Speech Module WIP</p> },
+        // Play an ascending/descending pattern, ask what comes next
+        const baseFreq = 300;
+        const stepUp = prngRef.current.nextFloat() > 0.5;
+        answerRef.current = stepUp ? 1 : 0;
+
+        const freqs = stepUp
+            ? [baseFreq, baseFreq * 1.25, baseFreq * 1.5] // ascending
+            : [baseFreq * 1.5, baseFreq * 1.25, baseFreq]; // descending
+
+        freqs.forEach((freq, i) => {
+            setTimeout(() => {
+                engine.playTone({
+                    frequency: freq,
+                    duration: 0.3,
+                    type: 'triangle',
+                    onEnd: i === freqs.length - 1 ? () => setIsPlaying(false) : undefined,
+                });
+            }, i * 500);
+        });
+    }, [engine, isPlaying]);
+
+    useEffect(() => { playPattern(); }, [playPattern]);
+
+    const handleAnswer = (choice: number) => {
+        if (isPlaying) return;
+        const isCorrect = choice === answerRef.current;
+        setFeedback(isCorrect ? 'Correct!' : 'Incorrect.');
+        setTimeout(() => onComplete(), 1500);
+    };
+
+    return (
+        <div className="flex flex-col items-center gap-4 w-full">
+            <p className="font-semibold text-lg">What comes next in the pattern?</p>
+            <Button onClick={playPattern} disabled={isPlaying}>
+                <RefreshCw className="mr-2 h-4 w-4" /> Replay
+            </Button>
+            <div className="h-8 text-xl font-bold">
+                {feedback && <p className={cn(feedback === 'Correct!' ? 'text-green-400' : 'text-rose-400')}>{feedback}</p>}
+            </div>
+            <div className="grid grid-cols-2 gap-4 w-full max-w-sm">
+                <Button onClick={() => handleAnswer(1)} disabled={isPlaying} className="h-24 text-xl">Higher</Button>
+                <Button onClick={() => handleAnswer(0)} disabled={isPlaying} className="h-24 text-xl">Lower</Button>
+            </div>
+        </div>
+    );
 };
+
+
+// ──────────────────────────────────────────────
+// THE KEY FIX: Map each tab directly to one game
+// ──────────────────────────────────────────────
+
+const FOCUS_TO_GAME: Record<TrainingFocus, {
+    title: string;
+    Icon: React.ElementType;
+    Component: React.FC<{ onComplete: () => void }>;
+}> = {
+    neutral: { title: "Pitch Discrimination", Icon: Waves, Component: PitchDiscriminationModule },
+    math:    { title: "Rhythm Patterns",      Icon: Music, Component: () => <p>Rhythm Module WIP</p> },
+    music:   { title: "Timbre Analysis",      Icon: Ear,   Component: SpectralDiscriminationModule },
+    verbal:  { title: "Speech Processing",    Icon: Bot,   Component: () => <p>Speech Module WIP</p> },
+    spatial: { title: "Sound Localization",   Icon: Locate, Component: EnhancedLocalizationModule },
+    eq:      { title: "Auditory Memory",      Icon: Brain, Component: () => <p>Memory Module WIP</p> },
+    logic:   { title: "Pattern Sequencing",   Icon: AudioLines, Component: PatternSequencingModule },
+};
+
+
+// ──────────────────────────────────────────────
+// Router — no more menu, just render the right game
+// ──────────────────────────────────────────────
 
 export default function AuditoryProcessingRouter() {
     const { engine, isReady, initializeAudio } = useAudioEngine();
-    const [activeMode, setActiveMode] = useState<'menu' | GaMode>('menu');
     const { focus: globalFocus } = useTrainingFocus();
     const { override } = useTrainingOverride();
     const effectiveFocus = override || globalFocus;
 
+    // Get the game for the current tab
+    const currentGame = FOCUS_TO_GAME[effectiveFocus] || FOCUS_TO_GAME.neutral;
+
     useEffect(() => {
-        // When the focus tab changes, reset the lab to its menu.
-        setActiveMode('menu');
-    }, [effectiveFocus]);
+        return () => { engine?.stopAll(); };
+    }, [effectiveFocus, engine]);
 
-
-    const handleSelectMode = useCallback((mode: GaMode) => {
-        setActiveMode(mode);
-    }, []);
-
-    const handleModeComplete = useCallback(() => {
-        setActiveMode('menu');
-    }, []);
-    
-    useEffect(() => {
-        // This effect runs whenever the activeMode changes.
-        // The returned function is a cleanup function. It will run
-        // BEFORE the effect runs the next time (e.g., when a new mode is selected)
-        // and also when the component unmounts.
-        return () => {
-            engine?.stopAll();
-        }
-    }, [activeMode, engine]);
-    
     if (!isReady) {
         return (
-             <Card className="w-full max-w-3xl bg-violet-900/80 border-violet-500/30 backdrop-blur-sm text-violet-100">
-                 <CardContent className="flex flex-col items-center justify-center gap-4 min-h-[450px]">
+            <Card className="w-full max-w-3xl bg-violet-900/80 border-violet-500/30 backdrop-blur-sm text-violet-100">
+                <CardContent className="flex flex-col items-center justify-center gap-4 min-h-[450px]">
                     <h2 className="text-2xl font-bold">Enable Audio</h2>
-                    <p className="text-muted-foreground text-center">Click the button below to start the audio engine for the Auditory Lab.</p>
-                    <Button onClick={initializeAudio} size="lg"><Headphones className="mr-2"/> Enable Audio</Button>
-                 </CardContent>
-             </Card>
-        )
+                    <p className="text-muted-foreground text-center">Click the button below to start the audio engine.</p>
+                    <Button onClick={initializeAudio} size="lg"><Headphones className="mr-2" /> Enable Audio</Button>
+                </CardContent>
+            </Card>
+        );
     }
-
-    const renderActiveMode = () => {
-        if (activeMode === 'menu') {
-            const modesForMenu = (Object.keys(modeConfig) as GaMode[]).map(key => ({
-                key,
-                title: modeConfig[key].title,
-                Icon: modeConfig[key].Icon,
-            }));
-            return <Menu onSelectMode={handleSelectMode} modes={modesForMenu} />;
-        }
-        const { Component } = modeConfig[activeMode];
-        return <Component onComplete={handleModeComplete} />;
-    };
 
     return (
         <Card className="w-full max-w-3xl bg-violet-900/80 border-violet-500/30 backdrop-blur-sm text-violet-100">
             <CardHeader className="text-center">
                 <CardTitle className="flex items-center justify-center gap-2 text-violet-300">
-                    <span className="p-2 bg-violet-500/10 rounded-md"><domainIcons.Ga className="w-6 h-6 text-violet-400" /></span>
-                    Auditory Processing Lab
+                    <span className="p-2 bg-violet-500/10 rounded-md">
+                        <currentGame.Icon className="w-6 h-6 text-violet-400" />
+                    </span>
+                    {currentGame.title}
                 </CardTitle>
-                <CardDescription className="text-violet-300/70">A rotating lab of exercises to sharpen your brain's ability to analyze and distinguish sounds. Wired headphones recommended for best results.</CardDescription>
+                <CardDescription className="text-violet-300/70">
+                    Wired headphones recommended for best results.
+                </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center justify-center gap-6 min-h-[450px]">
-                {renderActiveMode()}
+                <currentGame.Component onComplete={() => { /* restart or advance */ }} />
             </CardContent>
         </Card>
     );
