@@ -6,8 +6,8 @@ import { User, LayoutGrid } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
-  { href: '/', label: 'Profile', icon: User },
   { href: '/games', label: 'Games', icon: LayoutGrid },
+  { href: '/', label: 'Profile', icon: User },
 ];
 
 export function BottomNav() {
@@ -15,7 +15,7 @@ export function BottomNav() {
 
   return (
     <nav className="border-b bg-background">
-      <div className="mx-auto flex h-14 max-w-7xl items-center justify-center gap-12 px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {navItems.map(({ href, label, icon: Icon }) => {
           const isActive = (href === '/' && pathname === '/') || (href !== '/' && pathname.startsWith(href));
           return (
