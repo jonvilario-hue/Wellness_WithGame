@@ -14,12 +14,6 @@ export function GameListView() {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">All Games</h1>
-        <p className="text-muted-foreground">
-          Select a game to view your detailed performance or start a new session.
-        </p>
-      </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {chcDomains.map((domain) => (
           <GameCard key={domain.key} domain={domain} onSelect={handleSelect} />
