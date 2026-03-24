@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Header } from '@/components/header';
@@ -8,10 +7,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
-      <div className="flex-grow pb-16"> 
+      <BottomNav />
+      <div className="flex-grow"> 
         {children}
       </div>
-      <BottomNav />
     </div>
   );
 }
