@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { Suspense, useRef } from 'react';
@@ -10,10 +11,10 @@ import { Loader2, View, Brain } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { BaseRendererProps } from '@/types';
 import type { GwmGameState, GwmGameEvent } from './dynamic-sequence-transformer';
-import type { CorsiBlock } from '@/lib/gwm-spatial-stimulus-factory';
+import type { CorsiBlockPuzzle } from '@/lib/gwm-spatial-stimulus-factory';
 import { FOCUS_MODE_META } from '@/lib/mode-constants';
 
-const Block = ({ block, onBlockClick, isHighlighted, sequenceNumber, disabled }: { block: CorsiBlock, onBlockClick: (id: string) => void, isHighlighted: boolean, sequenceNumber?: number, disabled: boolean }) => {
+const Block = ({ block, onBlockClick, isHighlighted, sequenceNumber, disabled }: { block: any, onBlockClick: (id: string) => void, isHighlighted: boolean, sequenceNumber?: number, disabled: boolean }) => {
     return (
         <group position={[block.x, block.y, block.z]}>
             <Sphere
@@ -65,6 +66,21 @@ export const GwmSpatialRenderer: React.FC<BaseRendererProps<GwmGameState, GwmGam
             return () => clearInterval(interval);
         }
     }, [gameState, puzzle]);
+
+    const handleBlockClick = (id: string) => {
+        if (gameState !== 'answering') return;
+        onEvent({ type: 'UPDATE_ANSWER', answer: [...(userAnswer as string[]), id] });
+    };
+
+    const handleClear = () => {
+        if (gameState !== 'answering') return;
+        onEvent({ type: 'UPDATE_ANSWER', answer: [] });
+    };
+
+    const handleSubmit = () => {
+        if (gameState !== 'answering') return;
+        onEvent({ type: 'SUBMIT_ANSWER', answer: userAnswer });
+    };
 
   const renderContent = () => {
     if (!adaptiveState || gameState === 'loading') {
@@ -119,7 +135,7 @@ export const GwmSpatialRenderer: React.FC<BaseRendererProps<GwmGameState, GwmGam
                     <Block 
                         key={block.id} 
                         block={block}
-                        onBlockClick={(id) => onEvent({ type: 'SUBMIT_ANSWER', answer: [...(userAnswer as string[]), id]})}
+                        onBlockClick={handleBlockClick}
                         isHighlighted={highlightedBlock === block.id}
                         sequenceNumber={Array.isArray(userAnswer) && userAnswer.includes(block.id) ? userAnswer.indexOf(block.id) + 1 : undefined}
                         disabled={gameState !== 'answering'}
@@ -131,8 +147,8 @@ export const GwmSpatialRenderer: React.FC<BaseRendererProps<GwmGameState, GwmGam
         </div>
         
          <div className="flex gap-4">
-            <Button onClick={() => onEvent({ type: 'SUBMIT_ANSWER', answer: []})} variant="secondary" disabled={gameState !== 'answering'}>Clear</Button>
-            <Button onClick={() => onEvent({ type: 'SUBMIT_ANSWER', answer: userAnswer })} disabled={gameState !== 'answering' || userAnswer.length === 0}>Submit</Button>
+            <Button onClick={handleClear} variant="secondary" disabled={gameState !== 'answering'}>Clear</Button>
+            <Button onClick={handleSubmit} disabled={gameState !== 'answering' || userAnswer.length === 0}>Submit</Button>
         </div>
       </div>
     );
@@ -155,3 +171,5 @@ export const GwmSpatialRenderer: React.FC<BaseRendererProps<GwmGameState, GwmGam
 };
 
 export default GwmSpatialRenderer;
+
+    

@@ -63,12 +63,16 @@ export const GwmEQRenderer: React.FC<BaseRendererProps<GwmGameState, GwmGameEven
 
   const handleRecallClick = (emotion: string) => {
     if (phase !== 'answering') return;
-    onEvent({ type: 'SUBMIT_ANSWER', answer: [...(userAnswer as string[]), emotion] });
+    onEvent({ type: 'UPDATE_ANSWER', answer: [...(userAnswer as string[]), emotion] });
   };
   
   const handleClear = () => {
     if (phase !== 'answering') return;
-    onEvent({ type: 'SUBMIT_ANSWER', answer: [] }); // Effectively clears the selection
+    onEvent({ type: 'UPDATE_ANSWER', answer: [] }); 
+  }
+
+  const handleSubmit = () => {
+    onEvent({ type: 'SUBMIT_ANSWER', answer: userAnswer });
   }
 
   const renderContent = () => {
@@ -135,7 +139,10 @@ export const GwmEQRenderer: React.FC<BaseRendererProps<GwmGameState, GwmGameEven
                 </Button>
             ))}
           </div>
-          <Button onClick={handleClear} variant="secondary" disabled={phase === 'feedback'}>Clear Selection</Button>
+          <div className="flex gap-4 justify-center">
+            <Button onClick={handleClear} variant="secondary" disabled={phase === 'feedback'}>Clear</Button>
+            <Button onClick={handleSubmit} disabled={phase === 'feedback' || recalledEmotions.length === 0}>Submit</Button>
+          </div>
         </div>
       );
     }
@@ -155,3 +162,5 @@ export const GwmEQRenderer: React.FC<BaseRendererProps<GwmGameState, GwmGameEven
 };
 
 export default GwmEQRenderer;
+
+    

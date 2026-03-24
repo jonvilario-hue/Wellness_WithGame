@@ -47,7 +47,9 @@ export type GwmGameState = {
 
 export type GwmGameEvent = 
   | { type: 'START_SESSION' }
+  | { type: 'UPDATE_ANSWER', answer: string | string[] }
   | { type: 'SUBMIT_ANSWER', answer: string | string[] };
+
 
 // --- Logic Component ---
 export function DynamicSequenceTransformer() {
@@ -162,101 +164,117 @@ export function DynamicSequenceTransformer() {
   }, [currentMode]);
   
   const handleEvent = useCallback((event: GwmGameEvent) => {
-    if(event.type === 'START_SESSION') {
-      resumeContext();
-      const seed = crypto.randomUUID();
-      prngRef.current = new PRNG(seed);
-      
-      startNewGameSession({
-        gameId: GAME_ID,
-        focus: currentMode,
-        prngSeed: seed,
-        buildVersion: 'dev',
-        difficultyConfig: policy
-      });
+    if (event.type === 'START_SESSION') {
+        resumeContext();
+        const seed = crypto.randomUUID();
+        prngRef.current = new PRNG(seed);
+        
+        startNewGameSession({
+            gameId: GAME_ID,
+            focus: currentMode,
+            prngSeed: seed,
+            buildVersion: 'dev',
+            difficultyConfig: policy
+        });
 
-      const initialAdaptiveState = getAdaptiveState(GAME_ID, currentMode);
-      const sessionAdaptiveState = startSession(initialAdaptiveState);
-      updateAdaptiveState(GAME_ID, currentMode, sessionAdaptiveState);
-      
-      currentTrialIndex.current = 0;
-      startNewTrial(sessionAdaptiveState);
-    } else if (event.type === 'SUBMIT_ANSWER') {
-      const { puzzle } = componentState;
-      const state = getAdaptiveState(GAME_ID, currentMode);
-      if (componentState.gameState !== 'answering' || !state || !puzzle) return;
-      
-      setComponentState(prev => ({...prev, gameState: 'feedback', userAnswer: event.answer}));
-      const responseTs = Date.now();
-      const reactionTimeMs = responseTs - trialStartTime.current - pausedDurationRef.current;
-      
-      let isCorrect = false;
-      let telemetry: Record<string, any> = {};
+        const initialAdaptiveState = getAdaptiveState(GAME_ID, currentMode);
+        const sessionAdaptiveState = startSession(initialAdaptiveState);
+        updateAdaptiveState(GAME_ID, currentMode, sessionAdaptiveState);
+        
+        currentTrialIndex.current = 0;
+        startNewTrial(sessionAdaptiveState);
+    } 
+    else if (event.type === 'UPDATE_ANSWER') {
+        setComponentState(prev => ({ ...prev, userAnswer: event.answer }));
+    }
+    else if (event.type === 'SUBMIT_ANSWER') {
+        const { puzzle } = componentState;
+        const state = getAdaptiveState(GAME_ID, currentMode);
+        if (componentState.gameState !== 'answering' || !state || !puzzle) return;
+        
+        setComponentState(prev => ({...prev, gameState: 'feedback', userAnswer: event.answer}));
+        const responseTs = Date.now();
+        const reactionTimeMs = responseTs - trialStartTime.current - pausedDurationRef.current;
+        
+        let isCorrect = false;
+        let telemetry: Record<string, any> = {};
 
-      if (puzzle.type === 'sequence') {
-        const normalize = (str: string) => str.toUpperCase().replace(/[.,!?\s]/g, '').trim();
-        isCorrect = normalize(event.answer as string) === normalize(puzzle.correctAnswer);
-        telemetry = { sequence: puzzle.sequence, task: puzzle.task.id };
-      } else if (puzzle.type === 'spatial_corsi') {
-        isCorrect = JSON.stringify(event.answer) === JSON.stringify(puzzle.sequence);
-        telemetry = { sequence: puzzle.sequence, task: 'corsi_span', blocks: puzzle.blocks };
-      } else if (puzzle.type === 'eq_face_sequence') {
-        isCorrect = JSON.stringify(event.answer) === JSON.stringify(puzzle.sequence.map(s => s.emotionCategory));
-        telemetry = {
-            task: 'affective_span',
-            sequence: puzzle.sequence.map(s => ({
-                emotion_category: s.emotionCategory,
-                intensity_level: s.intensity,
-                face_identity_id: s.faceId,
-                exposure_duration_ms: puzzle.presentationRate,
-                label_shown: puzzle.labelShown,
-            }))
-        };
-      }
-      
-      const levelPlayed = state.currentLevel;
-      const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs, telemetry };
-      
-      if (activeSession) {
-          logEvent({
-            type: 'trial_complete',
-            sessionId: activeSession.sessionId,
-            seq: (activeSession.trialCount || 0) + 1,
-            payload: {
-              id: `${activeSession.sessionId}-${currentTrialIndex.current}`,
-              sessionId: activeSession.sessionId,
-              gameId: GAME_ID,
-              focus: currentMode,
-              trialIndex: currentTrialIndex.current,
-              difficultyLevel: levelPlayed,
-              correct: isCorrect,
-              rtMs: reactionTimeMs,
-              stimulusParams: telemetry,
-              responseType: isCorrect ? 'correct' : 'incorrect',
-              stimulusOnsetTs: trialStartTime.current,
-              responseTs: responseTs,
-              pausedDurationMs: pausedDurationRef.current,
-              wasFallback: false
+        if (puzzle.type === 'sequence') {
+            const normalize = (str: string) => str.toUpperCase().replace(/[.,!?\s]/g, '').trim();
+            isCorrect = normalize(event.answer as string) === normalize(puzzle.correctAnswer);
+            telemetry = { sequence: puzzle.sequence, task: puzzle.task.id };
+        } else if (puzzle.type === 'spatial_corsi') {
+            isCorrect = JSON.stringify(event.answer) === JSON.stringify(puzzle.sequence);
+            telemetry = { sequence: puzzle.sequence, task: 'corsi_span', blocks: puzzle.blocks };
+        } else if (puzzle.type === 'eq_face_sequence') {
+            isCorrect = JSON.stringify(event.answer) === JSON.stringify(puzzle.sequence.map(s => s.emotionCategory));
+            telemetry = {
+                task: 'affective_span',
+                sequence: puzzle.sequence.map(s => ({
+                    emotion_category: s.emotionCategory,
+                    intensity_level: s.intensity,
+                    face_identity_id: s.faceId,
+                    exposure_duration_ms: puzzle.presentationRate,
+                    label_shown: puzzle.labelShown,
+                }))
+            };
+        }
+        
+        const levelPlayed = state.currentLevel;
+        const trialResult: TrialResult = { correct: isCorrect, reactionTimeMs, telemetry };
+        
+        if (activeSession) {
+            logEvent({
+                type: 'trial_complete',
+                sessionId: activeSession.sessionId,
+                seq: (activeSession.trialCount || 0) + 1,
+                payload: {
+                    id: `${activeSession.sessionId}-${currentTrialIndex.current}`,
+                    sessionId: activeSession.sessionId,
+                    gameId: GAME_ID,
+                    focus: currentMode,
+                    trialIndex: currentTrialIndex.current,
+                    difficultyLevel: levelPlayed,
+                    correct: isCorrect,
+                    rtMs: reactionTimeMs,
+                    stimulusParams: telemetry,
+                    responseType: isCorrect ? 'correct' : 'incorrect',
+                    stimulusOnsetTs: trialStartTime.current,
+                    responseTs: responseTs,
+                    pausedDurationMs: pausedDurationRef.current,
+                    wasFallback: false
+                }
+            } as Omit<TelemetryEvent, 'eventId' | 'timestamp' | 'schemaVersion'>);
+        }
+        
+        const newState = adjustDifficulty(trialResult, state, policy);
+        updateAdaptiveState(GAME_ID, currentMode, newState);
+
+        setFeedback(isCorrect ? getSuccessFeedback('Gwm') : `Incorrect. ${getFailureFeedback('Gwm')}`);
+
+        setTimeout(() => {
+            currentTrialIndex.current++;
+            if(currentTrialIndex.current >= policy.sessionLength) {
+                setComponentState(prev => ({...prev, gameState: 'finished'}));
+                completeCurrentGameSession();
+            } else {
+                startNewTrial(newState);
             }
-          } as Omit<TelemetryEvent, 'eventId' | 'timestamp' | 'schemaVersion'>);
-      }
-      
-      const newState = adjustDifficulty(trialResult, state, policy);
-      updateAdaptiveState(GAME_ID, currentMode, newState);
-
-      setFeedback(isCorrect ? getSuccessFeedback('Gwm') : `Incorrect. ${getFailureFeedback('Gwm')}`);
-
-      setTimeout(() => {
-          currentTrialIndex.current++;
-          if(currentTrialIndex.current >= policy.sessionLength) {
-              setComponentState(prev => ({...prev, gameState: 'finished'}));
-              completeCurrentGameSession();
-          } else {
-              startNewTrial(newState);
-          }
-      }, 2500);
+        }, 2500);
     }
   }, [componentState, getAdaptiveState, updateAdaptiveState, startNewTrial, currentMode, logEvent, resumeContext, activeSession, startNewGameSession, completeCurrentGameSession]);
+  
+  useEffect(() => {
+    if (componentState.gameState === 'answering' && componentState.puzzle?.type === 'sequence') {
+      const timeLimit = policy.levelMap[adaptiveState.currentLevel]?.mechanic_config.timeLimit ?? 30000;
+      timerRef.current = setTimeout(() => {
+        handleEvent({ type: 'SUBMIT_ANSWER', answer: componentState.userAnswer });
+      }, timeLimit);
+    }
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [componentState.gameState, componentState.userAnswer, adaptiveState.currentLevel, handleEvent]);
 
   if (!isComponentLoaded) {
       return <div className="w-full max-w-2xl min-h-[400px] flex items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
@@ -323,3 +341,5 @@ const tasks = [
   { id: 'every_other', label: "Repeat every other character, starting with the first." },
   { id: 'sentence_unscramble', label: "Unscramble the words to form a grammatical sentence." },
 ];
+
+    
