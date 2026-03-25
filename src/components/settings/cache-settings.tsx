@@ -1,8 +1,7 @@
-
 'use client';
 
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { Save, History, Trash2, CheckCircle, AlertTriangle, Download, Upload, Loader2 } from 'lucide-react';
+import { Save, History, Trash2, CheckCircle, AlertTriangle, Download, Upload, Loader2, List } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePerformanceStore } from '@/hooks/use-performance-store';
 import {
@@ -17,7 +16,6 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../ui/card';
-import { Separator } from '../ui/separator';
 import { format } from 'date-fns';
 
 const SNAPSHOT_KEY_PREFIX = 'cognitune-snapshot-';
@@ -52,31 +50,35 @@ export function CacheSettings() {
     loadSnapshotMetadata();
   }, [loadSnapshotMetadata]);
 
-  const handleSaveSnapshot = async (slotIndex: number) => {
-    setIsLoading(slotIndex);
+  const handleSaveToNextSnapshot = async () => {
+    const nextSlot = snapshots.findIndex(s => s === null);
+    if (nextSlot === -1) {
+      setStatus({ type: 'error', msg: 'All snapshot slots are full. Please delete one to save.' });
+      return;
+    }
+    setIsLoading(nextSlot);
     setStatus(null);
     try {
       const json = await exportData();
-      // A simple way to get some metadata without a full parse
       const trialCount = (json.match(/"type":"trial_complete"/g) || []).length;
-
       const meta: SnapshotMeta = {
         date: new Date().toISOString(),
         trialCount: trialCount,
       };
 
-      localStorage.setItem(`${SNAPSHOT_KEY_PREFIX}${slotIndex}`, json);
-      localStorage.setItem(`${SNAPSHOT_META_KEY_PREFIX}${slotIndex}`, JSON.stringify(meta));
+      localStorage.setItem(`${SNAPSHOT_KEY_PREFIX}${nextSlot}`, json);
+      localStorage.setItem(`${SNAPSHOT_META_KEY_PREFIX}${nextSlot}`, JSON.stringify(meta));
       
       loadSnapshotMetadata();
-      setStatus({ type: 'success', msg: `Snapshot ${slotIndex + 1} saved successfully.` });
+      setStatus({ type: 'success', msg: `Snapshot saved to slot ${nextSlot + 1}.` });
     } catch (e) {
       console.error(e);
-      setStatus({ type: 'error', msg: `Failed to save snapshot ${slotIndex + 1}.` });
+      setStatus({ type: 'error', msg: `Failed to save snapshot.` });
     } finally {
       setIsLoading(null);
     }
   };
+
 
   const handleLoadSnapshot = async (slotIndex: number) => {
     setIsLoading(slotIndex);
@@ -148,6 +150,8 @@ export function CacheSettings() {
         setStatus({ type: 'error', msg: 'Failed to clear data.' });
     }
   };
+  
+  const savedCount = snapshots.filter(s => s !== null).length;
 
   return (
     <div className="w-full max-w-3xl space-y-8">
@@ -165,41 +169,87 @@ export function CacheSettings() {
       <Card>
         <CardHeader>
           <CardTitle>Local Snapshots</CardTitle>
-          <CardDescription>Save or restore up to 10 points-in-time of your training data. This data is stored only in this browser.</CardDescription>
+          <CardDescription>Save or restore points-in-time of your training data. This data is stored only in this browser.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-2">
-          {snapshots.map((meta, i) => (
-            <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-              <div className="flex-1">
-                <p className="font-semibold">Snapshot #{i + 1}</p>
-                <p className="text-xs text-muted-foreground">{meta ? `Saved on ${format(new Date(meta.date), "MMM d, yyyy 'at' h:mm a")} (${meta.trialCount} trials)` : 'Empty'}</p>
-              </div>
-              <div className="flex gap-2">
-                 <Button variant="outline" size="icon" onClick={() => handleSaveSnapshot(i)} disabled={isLoading !== null}>
-                    {isLoading === i ? <Loader2 className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4"/>}
-                    <span className="sr-only">Save Snapshot {i + 1}</span>
-                 </Button>
-                 <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="outline" size="icon" disabled={!meta || isLoading !== null}><History className="w-4 h-4"/><span className="sr-only">Restore Snapshot {i + 1}</span></Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader><AlertDialogTitle>Restore Snapshot?</AlertDialogTitle><AlertDialogDescription>This will overwrite your current training data with the data from this snapshot. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
-                      <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleLoadSnapshot(i)}>Yes, Restore</AlertDialogAction></AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                 <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="destructive" size="icon" disabled={!meta || isLoading !== null}><Trash2 className="w-4 h-4"/><span className="sr-only">Delete Snapshot {i + 1}</span></Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader><AlertDialogTitle>Delete Snapshot?</AlertDialogTitle><AlertDialogDescription>This will permanently delete the snapshot. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
-                      <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteSnapshot(i)}>Yes, Delete</AlertDialogAction></AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-              </div>
+        <CardContent className="space-y-4">
+            <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
+                <div className="flex flex-col">
+                    <p className="font-semibold">Snapshots Used</p>
+                    <p className="text-sm text-muted-foreground">You have saved {savedCount} of {MAX_SNAPSHOTS} available snapshots.</p>
+                </div>
+                <div className="flex items-center text-2xl font-bold text-primary">
+                    {savedCount} / {MAX_SNAPSHOTS}
+                </div>
             </div>
-          ))}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Button onClick={handleSaveToNextSnapshot} disabled={isLoading !== null || savedCount >= MAX_SNAPSHOTS}>
+                    {isLoading !== null && savedCount < MAX_SNAPSHOTS ? <Loader2 className="w-4 h-4 mr-2 animate-spin"/> : <Save className="w-4 h-4 mr-2" />}
+                    Save Current State
+                </Button>
+                
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="secondary" disabled={savedCount === 0}>
+                        <List className="w-4 h-4 mr-2" />
+                        Manage Snapshots
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent className="max-w-2xl">
+                      <AlertDialogHeader>
+                          <AlertDialogTitle>Manage Saved Snapshots</AlertDialogTitle>
+                          <AlertDialogDescription>Restore a previous state or delete old snapshots to free up space. These actions cannot be undone.</AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <div className="max-h-96 overflow-y-auto space-y-2 p-1">
+                        {snapshots.map((meta, i) => {
+                            if (!meta) return null;
+                            return (
+                                <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                                    <div>
+                                        <p className="font-semibold">Snapshot Slot #{i + 1}</p>
+                                        <p className="text-xs text-muted-foreground">{`Saved on ${format(new Date(meta.date), "MMM d, yyyy 'at' h:mm a")} (${meta.trialCount} trials)`}</p>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button variant="outline" size="sm" disabled={isLoading !== null}><History className="w-4 h-4 mr-2"/>Load</Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Restore Snapshot?</AlertDialogTitle>
+                                                    <AlertDialogDescription>This will overwrite your current data with Snapshot #{i+1}. This action cannot be undone.</AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleLoadSnapshot(i)}>Yes, Restore</AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button variant="destructive" size="sm" disabled={isLoading !== null}><Trash2 className="w-4 h-4 mr-2"/>Delete</Button>
+                                            </AlertDialogTrigger>
+                                             <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Delete Snapshot?</AlertDialogTitle>
+                                                    <AlertDialogDescription>This will permanently delete Snapshot #{i+1}. This action cannot be undone.</AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleDeleteSnapshot(i)}>Yes, Delete</AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    </div>
+                                </div>
+                            )
+                        })}
+                      </div>
+                      <AlertDialogFooter>
+                          <AlertDialogCancel>Close</AlertDialogCancel>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            </div>
         </CardContent>
       </Card>
       
