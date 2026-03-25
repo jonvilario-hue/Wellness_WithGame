@@ -6,8 +6,8 @@ import { User, LayoutGrid } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
-  { href: '/games', label: 'Games', icon: LayoutGrid },
-  { href: '/', label: 'Profile', icon: User },
+  { href: '/', label: 'Games', icon: LayoutGrid },
+  { href: '/profile', label: 'Profile', icon: User },
 ];
 
 export function BottomNav() {
