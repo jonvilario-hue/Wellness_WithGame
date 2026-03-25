@@ -82,7 +82,7 @@ export function AdaptiveDifficulty() {
           Adaptive Difficulty
         </CardTitle>
         <CardDescription>
-          Find the right puzzle difficulty based on your current skill level.
+          Find the right puzzle difficulty based on your current skill level. This suggestion is generated locally on your device and does not use a cloud AI service.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
